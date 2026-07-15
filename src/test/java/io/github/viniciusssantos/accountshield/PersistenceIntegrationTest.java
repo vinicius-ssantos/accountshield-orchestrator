@@ -3,7 +3,8 @@ package io.github.viniciusssantos.accountshield;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -56,7 +57,7 @@ class PersistenceIntegrationTest {
     @Test
     void protectsActivatedPolicyVersionsFromMutation() {
         UUID id = UUID.randomUUID();
-        insertPolicyVersion(id, "default-recovery", "2026.07.1", "ACTIVE", Instant.now());
+        insertPolicyVersion(id, "default-recovery", "2026.07.1", "ACTIVE", OffsetDateTime.now(ZoneOffset.UTC));
 
         assertThatThrownBy(() -> jdbcTemplate.update(
                         "UPDATE policy.policy_version SET definition = '{}'::jsonb WHERE id = ?",
@@ -86,7 +87,7 @@ class PersistenceIntegrationTest {
                 "2026.07.1",
                 "ALLOW",
                 10,
-                Instant.now());
+                OffsetDateTime.now(ZoneOffset.UTC));
 
         assertThatThrownBy(() -> jdbcTemplate.update(
                         "UPDATE audit.decision_trace SET outcome = 'MONITOR' WHERE id = ?",
@@ -97,7 +98,7 @@ class PersistenceIntegrationTest {
     }
 
     private void insertIdempotencyRecord(UUID id, String key, String fingerprint) {
-        Instant createdAt = Instant.now();
+        OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
         jdbcTemplate.update(
                 """
                 INSERT INTO protection.idempotency_record (
@@ -118,7 +119,7 @@ class PersistenceIntegrationTest {
             String policyKey,
             String version,
             String status,
-            Instant activatedAt) {
+            OffsetDateTime activatedAt) {
         jdbcTemplate.update(
                 """
                 INSERT INTO policy.policy_version (
@@ -129,7 +130,7 @@ class PersistenceIntegrationTest {
                 policyKey,
                 version,
                 status,
-                Instant.now(),
+                OffsetDateTime.now(ZoneOffset.UTC),
                 activatedAt);
     }
 }
