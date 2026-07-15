@@ -62,6 +62,7 @@ class PersistenceIntegrationTest {
                         "UPDATE policy.policy_version SET definition = '{}'::jsonb WHERE id = ?",
                         id))
                 .isInstanceOf(DataAccessException.class)
+                .rootCause()
                 .hasMessageContaining("activated policy versions are immutable");
     }
 
@@ -91,6 +92,7 @@ class PersistenceIntegrationTest {
                         "UPDATE audit.decision_trace SET outcome = 'MONITOR' WHERE id = ?",
                         decisionId))
                 .isInstanceOf(DataAccessException.class)
+                .rootCause()
                 .hasMessageContaining("audit records are append-only");
     }
 
