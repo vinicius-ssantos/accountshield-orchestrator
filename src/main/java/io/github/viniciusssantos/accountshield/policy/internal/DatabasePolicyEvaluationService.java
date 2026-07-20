@@ -58,7 +58,7 @@ final class DatabasePolicyEvaluationService implements PolicyEvaluationService {
         }
     }
 
-    private int requireThreshold(Integer threshold, String policyKey) {
+    private int requireThreshold(Short threshold, String policyKey) {
         if (threshold == null) {
             throw new ActivePolicyUnavailableException(policyKey);
         }
