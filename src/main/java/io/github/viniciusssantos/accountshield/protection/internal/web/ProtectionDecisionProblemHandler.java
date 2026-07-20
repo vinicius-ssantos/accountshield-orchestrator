@@ -1,0 +1,46 @@
+package io.github.viniciusssantos.accountshield.protection.internal.web;
+
+import io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException;
+import java.net.URI;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+
+@RestControllerAdvice
+public class ProtectionDecisionProblemHandler {
+
+    private static final URI INVALID_REQUEST_TYPE = URI.create("urn:accountshield:problem:invalid-request");
+    private static final URI POLICY_UNAVAILABLE_TYPE = URI.create("urn:accountshield:problem:policy-unavailable");
+
+    @ExceptionHandler({
+            MethodArgumentNotValidException.class,
+            HandlerMethodValidationException.class,
+            HttpMessageNotReadableException.class,
+            IllegalArgumentException.class
+    })
+    public ResponseEntity<ProblemDetail> invalidRequest(Exception exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "The request contains unsupported or out-of-range values.");
+        problem.setType(INVALID_REQUEST_TYPE);
+        problem.setTitle("Invalid protection decision request");
+        problem.setProperty("code", "INVALID_PROTECTION_REQUEST");
+        return ResponseEntity.badRequest().body(problem);
+    }
+
+    @ExceptionHandler(ActivePolicyUnavailableException.class)
+    public ResponseEntity<ProblemDetail> policyUnavailable(ActivePolicyUnavailableException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "A protection decision cannot be produced safely at this time.");
+        problem.setType(POLICY_UNAVAILABLE_TYPE);
+        problem.setTitle("Protection policy unavailable");
+        problem.setProperty("code", "ACTIVE_POLICY_UNAVAILABLE");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(problem);
+    }
+}
