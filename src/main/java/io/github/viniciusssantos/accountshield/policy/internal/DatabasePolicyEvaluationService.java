@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-final class DatabasePolicyEvaluationService implements PolicyEvaluationService {
+public class DatabasePolicyEvaluationService implements PolicyEvaluationService {
 
     private static final String ACTIVE_STATUS = "ACTIVE";
 
