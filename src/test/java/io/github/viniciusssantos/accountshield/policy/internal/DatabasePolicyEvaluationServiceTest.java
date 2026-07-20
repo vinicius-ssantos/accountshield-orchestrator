@@ -74,9 +74,13 @@ class DatabasePolicyEvaluationServiceTest {
                 POLICY_KEY,
                 "1.0.0",
                 "ACTIVE",
-                allowMaxScore,
-                stepUpMaxScore,
+                toShort(allowMaxScore),
+                toShort(stepUpMaxScore),
                 Instant.parse("2026-07-20T00:00:00Z"),
                 Instant.parse("2026-07-20T00:00:00Z"));
+    }
+
+    private Short toShort(Integer value) {
+        return value == null ? null : value.shortValue();
     }
 }
