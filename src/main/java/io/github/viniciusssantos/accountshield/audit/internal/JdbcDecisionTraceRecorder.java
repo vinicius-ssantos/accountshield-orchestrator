@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.audit.internal;
 import io.github.viniciusssantos.accountshield.audit.DecisionReasonContribution;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceCommand;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
+import java.sql.Timestamp;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -67,7 +68,7 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 command.outcome(),
                 command.riskScore(),
                 toJson(command.normalizedContext()),
-                command.decidedAt());
+                Timestamp.from(command.decidedAt()));
 
         for (int ordinal = 0; ordinal < command.reasons().size(); ordinal++) {
             DecisionReasonContribution reason = command.reasons().get(ordinal);
