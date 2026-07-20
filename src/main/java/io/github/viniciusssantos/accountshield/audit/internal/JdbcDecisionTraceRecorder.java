@@ -37,8 +37,9 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 decision_id,
                 code,
                 contribution,
+                ordinal,
                 details
-            ) VALUES (?, ?, ?, ?, ?::jsonb)
+            ) VALUES (?, ?, ?, ?, ?, ?::jsonb)
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -68,13 +69,15 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 toJson(command.normalizedContext()),
                 command.decidedAt());
 
-        for (DecisionReasonContribution reason : command.reasons()) {
+        for (int ordinal = 0; ordinal < command.reasons().size(); ordinal++) {
+            DecisionReasonContribution reason = command.reasons().get(ordinal);
             jdbcTemplate.update(
                     INSERT_REASON,
                     UUID.randomUUID(),
                     command.decisionId(),
                     reason.code(),
                     reason.contribution(),
+                    ordinal,
                     reason.details().isEmpty() ? null : toJson(reason.details()));
         }
     }
