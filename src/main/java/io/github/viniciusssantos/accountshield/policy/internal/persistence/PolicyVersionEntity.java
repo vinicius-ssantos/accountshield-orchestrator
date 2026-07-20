@@ -24,10 +24,10 @@ public class PolicyVersionEntity {
     private String status;
 
     @Column(name = "allow_max_score")
-    private Integer allowMaxScore;
+    private Short allowMaxScore;
 
     @Column(name = "step_up_max_score")
-    private Integer stepUpMaxScore;
+    private Short stepUpMaxScore;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -53,8 +53,8 @@ public class PolicyVersionEntity {
             String policyKey,
             String version,
             String status,
-            Integer allowMaxScore,
-            Integer stepUpMaxScore,
+            Short allowMaxScore,
+            Short stepUpMaxScore,
             Instant createdAt,
             Instant activatedAt) {
         this.id = id;
@@ -75,11 +75,11 @@ public class PolicyVersionEntity {
         return version;
     }
 
-    public Integer getAllowMaxScore() {
+    public Short getAllowMaxScore() {
         return allowMaxScore;
     }
 
-    public Integer getStepUpMaxScore() {
+    public Short getStepUpMaxScore() {
         return stepUpMaxScore;
     }
 }
