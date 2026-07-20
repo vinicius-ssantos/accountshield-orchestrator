@@ -13,13 +13,17 @@ import jakarta.validation.constraints.Size;
 public record ProtectionDecisionRequest(
         @NotBlank @Size(max = 128) String accountReference,
         @NotNull ProtectionEventType eventType,
-        @Min(0) @Max(20) int failedAttempts,
-        boolean newDevice,
-        boolean impossibleTravel,
-        boolean compromisedCredential,
+        @Min(0) @Max(20) Integer failedAttempts,
+        Boolean newDevice,
+        Boolean impossibleTravel,
+        Boolean compromisedCredential,
         NetworkRiskLevel networkRiskLevel) {
 
     public ProtectionDecisionRequest {
+        failedAttempts = failedAttempts == null ? 0 : failedAttempts;
+        newDevice = Boolean.TRUE.equals(newDevice);
+        impossibleTravel = Boolean.TRUE.equals(impossibleTravel);
+        compromisedCredential = Boolean.TRUE.equals(compromisedCredential);
         networkRiskLevel = networkRiskLevel == null ? NetworkRiskLevel.LOW : networkRiskLevel;
     }
 
