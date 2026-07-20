@@ -104,6 +104,13 @@ class ProtectionDecisionIntegrationTest {
                     Long.class,
                     decision.decisionId()))
                     .isEqualTo((long) decision.reasons().size());
+            assertThat(jdbcTemplate.query(
+                    "SELECT code FROM audit.decision_reason WHERE decision_id = ? ORDER BY ordinal",
+                    (resultSet, rowNumber) -> resultSet.getString("code"),
+                    decision.decisionId()))
+                    .containsExactlyElementsOf(decision.reasons().stream()
+                            .map(reason -> reason.code())
+                            .toList());
         }
     }
 
