@@ -131,6 +131,26 @@ class ChallengeApplicationService implements ChallengeService {
                 plan.getExpiresAt());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ChallengePlan verifyIdentityForRecovery(UUID challengeId) {
+        Objects.requireNonNull(challengeId, "challengeId must not be null");
+
+        ChallengePlanEntity plan = challengePlanRepository.findById(challengeId)
+                .orElseThrow(() -> new InvalidChallengeStateException(
+                        challengeId, ChallengeStatus.EXPIRED));
+
+        return new ChallengePlan(
+                plan.getId(),
+                plan.getAccountReference(),
+                ChallengeType.valueOf(plan.getChallengeType()),
+                ChallengeStatus.valueOf(plan.getStatus()),
+                plan.getMaxAttempts(),
+                plan.getRemainingAttempts(),
+                plan.getCreatedAt(),
+                plan.getExpiresAt());
+    }
+
     private ChallengeResult alreadyVerified(ChallengePlanEntity plan) {
         return new ChallengeResult(
                 plan.getId(),

@@ -1,0 +1,100 @@
+package io.github.viniciusssantos.accountshield.recovery.internal.web;
+
+import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
+import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.time.Instant;
+import java.util.UUID;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/recovery")
+class RecoveryController {
+
+    private final RecoveryService recoveryService;
+
+    RecoveryController(RecoveryService recoveryService) {
+        this.recoveryService = recoveryService;
+    }
+
+    @PostMapping
+    public ResponseEntity<RecoveryResponse> initiate(@Valid @RequestBody InitiateRecoveryRequest request) {
+        RecoveryFlow flow = recoveryService.initiate(new InitiateRecoveryCommand(
+                request.accountReference(),
+                RecoveryEventType.valueOf(request.eventType()),
+                request.riskScore()));
+        return ResponseEntity.ok(RecoveryResponse.from(flow));
+    }
+
+    @PostMapping("/{recoveryId}/confirm-identity")
+    public ResponseEntity<RecoveryResponse> confirmIdentity(
+            @PathVariable UUID recoveryId,
+            @Valid @RequestBody ConfirmIdentityRequest request) {
+        RecoveryFlow flow = recoveryService.confirmIdentity(
+                new ConfirmIdentityCommand(recoveryId, request.challengeId()));
+        return ResponseEntity.ok(RecoveryResponse.from(flow));
+    }
+
+    @PostMapping("/{recoveryId}/complete")
+    public ResponseEntity<RecoveryResponse> complete(@PathVariable UUID recoveryId) {
+        RecoveryFlow flow = recoveryService.complete(recoveryId);
+        return ResponseEntity.ok(RecoveryResponse.from(flow));
+    }
+
+    @PostMapping("/{recoveryId}/review")
+    public ResponseEntity<RecoveryResponse> review(
+            @PathVariable UUID recoveryId,
+            @Valid @RequestBody RecoveryReviewRequest request) {
+        RecoveryFlow flow = recoveryService.review(new RecoveryReviewCommand(
+                recoveryId, request.decision(), request.reviewer()));
+        return ResponseEntity.ok(RecoveryResponse.from(flow));
+    }
+
+    record InitiateRecoveryRequest(
+            @NotBlank String accountReference,
+            @NotBlank String eventType,
+            int riskScore) {
+    }
+
+    record ConfirmIdentityRequest(@NotNull UUID challengeId) {
+    }
+
+    record RecoveryReviewRequest(@NotBlank String decision, @NotBlank String reviewer) {
+    }
+
+    record RecoveryResponse(
+            UUID recoveryId,
+            String accountReference,
+            String eventType,
+            String status,
+            String classification,
+            UUID identityChallengeId,
+            Instant initiatedAt,
+            Instant updatedAt,
+            Instant eligibleAfter) {
+
+        static RecoveryResponse from(RecoveryFlow flow) {
+            return new RecoveryResponse(
+                    flow.recoveryId(),
+                    flow.accountReference(),
+                    flow.eventType().name(),
+                    flow.status().name(),
+                    flow.classification().name(),
+                    flow.identityChallengeId(),
+                    flow.initiatedAt(),
+                    flow.updatedAt(),
+                    flow.eligibleAfter());
+        }
+    }
+}
