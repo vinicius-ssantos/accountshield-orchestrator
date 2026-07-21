@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PolicyVersionRepository extends JpaRepository<PolicyVersionEntity, UUID> {
 
     Optional<PolicyVersionEntity> findByPolicyKeyAndVersion(String policyKey, String version);
+
+    Optional<PolicyVersionEntity> findByPolicyKeyAndStatus(String policyKey, String status);
 }
