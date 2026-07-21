@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.protection.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,6 +63,8 @@ class ProtectionDecisionApplicationServiceTest {
                         "account-protection-default",
                         "1.0.0",
                         ProtectionOutcome.REQUIRE_STEP_UP));
+        when(idempotencyGuard.resolve(anyString(), anyString(), any()))
+                .thenReturn(IdempotencyResult.absent());
 
         var result = service.decide(new ProtectionDecisionCommand(
                 "account-opaque-123",
