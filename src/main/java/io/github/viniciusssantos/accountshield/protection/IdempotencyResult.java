@@ -22,11 +22,11 @@ public record IdempotencyResult(
         }
     }
 
-    static IdempotencyResult absent() {
+    public static IdempotencyResult absent() {
         return new IdempotencyResult(false, null, null, null, null, null);
     }
 
-    static IdempotencyResult duplicate(
+    public static IdempotencyResult duplicate(
             UUID protectionRequestId,
             String fingerprint,
             String responsePayload,
