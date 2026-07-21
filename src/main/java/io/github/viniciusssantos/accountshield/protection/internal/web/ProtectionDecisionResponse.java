@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.protection.internal.web;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.risk.RiskBand;
@@ -17,9 +18,16 @@ public record ProtectionDecisionResponse(
         String policyKey,
         String policyVersion,
         List<ReasonResponse> reasons,
-        Instant decidedAt) {
+        Instant decidedAt,
+        ChallengeResponse challenge) {
 
     static ProtectionDecisionResponse from(ProtectionDecisionResult result) {
+        ChallengeResponse challengeResponse = result.challenge() != null
+                ? new ChallengeResponse(
+                        result.challenge().challengeId(),
+                        result.challenge().challengeType(),
+                        result.challenge().expiresAt())
+                : null;
         return new ProtectionDecisionResponse(
                 result.decisionId(),
                 result.protectionRequestId(),
@@ -32,9 +40,13 @@ public record ProtectionDecisionResponse(
                 result.reasons().stream()
                         .map(reason -> new ReasonResponse(reason.code(), reason.contribution()))
                         .toList(),
-                result.decidedAt());
+                result.decidedAt(),
+                challengeResponse);
     }
 
     public record ReasonResponse(String code, int contribution) {
+    }
+
+    public record ChallengeResponse(UUID challengeId, ChallengeType challengeType, Instant expiresAt) {
     }
 }

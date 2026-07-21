@@ -9,6 +9,9 @@ import static org.mockito.Mockito.when;
 
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceCommand;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
@@ -38,6 +41,7 @@ class ProtectionDecisionApplicationServiceTest {
     private final ProtectionRequestRepository protectionRequestRepository = mock(ProtectionRequestRepository.class);
     private final DecisionTraceRecorder decisionTraceRecorder = mock(DecisionTraceRecorder.class);
     private final IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
+    private final ChallengeService challengeService = mock(ChallengeService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-20T03:00:00Z"), ZoneOffset.UTC);
 
     private final ProtectionDecisionApplicationService service = new ProtectionDecisionApplicationService(
@@ -46,6 +50,7 @@ class ProtectionDecisionApplicationServiceTest {
             protectionRequestRepository,
             decisionTraceRecorder,
             idempotencyGuard,
+            challengeService,
             clock,
             new ObjectMapper());
 
@@ -65,6 +70,15 @@ class ProtectionDecisionApplicationServiceTest {
                         ProtectionOutcome.REQUIRE_STEP_UP));
         when(idempotencyGuard.resolve(anyString(), anyString(), any()))
                 .thenReturn(IdempotencyResult.absent());
+        when(challengeService.create(anyString(), any(ChallengeType.class)))
+                .thenReturn(new ChallengePlan(
+                        java.util.UUID.randomUUID(),
+                        "account-opaque-123",
+                        ChallengeType.TOTP_SIMULATED,
+                        io.github.viniciusssantos.accountshield.challenge.ChallengeStatus.CHALLENGED,
+                        3, 3,
+                        Instant.parse("2026-07-20T03:00:00Z"),
+                        Instant.parse("2026-07-20T03:10:00Z")));
 
         var result = service.decide(new ProtectionDecisionCommand(
                 "account-opaque-123",
@@ -77,6 +91,8 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(result.riskBand()).isEqualTo(RiskBand.MEDIUM);
         assertThat(result.policyVersion()).isEqualTo("1.0.0");
         assertThat(result.decidedAt()).isEqualTo(Instant.parse("2026-07-20T03:00:00Z"));
+        assertThat(result.challenge()).isNotNull();
+        assertThat(result.challenge().challengeType()).isEqualTo(ChallengeType.TOTP_SIMULATED);
         verify(protectionRequestRepository).save(any());
 
         ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);

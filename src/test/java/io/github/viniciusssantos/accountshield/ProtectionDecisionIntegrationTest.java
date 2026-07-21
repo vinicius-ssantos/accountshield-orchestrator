@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
@@ -48,6 +49,9 @@ class ProtectionDecisionIntegrationTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private ChallengeService challengeService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -142,6 +146,7 @@ class ProtectionDecisionIntegrationTest {
                 protectionRequestRepository,
                 failingRecorder,
                 noOpGuard,
+                challengeService,
                 Clock.systemUTC(),
                 new ObjectMapper());
         var command = new ProtectionDecisionCommand(
