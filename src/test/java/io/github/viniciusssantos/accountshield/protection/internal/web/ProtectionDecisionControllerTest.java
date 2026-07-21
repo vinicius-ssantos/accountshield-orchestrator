@@ -53,7 +53,8 @@ class ProtectionDecisionControllerTest {
                 "account-protection-default",
                 "1.0.0",
                 List.of(new RiskReason("FAILED_ATTEMPTS", 30)),
-                Instant.parse("2026-07-20T03:00:00Z")));
+                Instant.parse("2026-07-20T03:00:00Z"),
+                null));
 
         mockMvc.perform(post("/api/v1/protection-decisions")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -92,7 +93,8 @@ class ProtectionDecisionControllerTest {
                 "account-protection-default",
                 "1.0.0",
                 List.of(),
-                Instant.parse("2026-07-20T03:00:00Z")));
+                Instant.parse("2026-07-20T03:00:00Z"),
+                null));
 
         mockMvc.perform(post("/api/v1/protection-decisions")
                         .contentType(MediaType.APPLICATION_JSON)

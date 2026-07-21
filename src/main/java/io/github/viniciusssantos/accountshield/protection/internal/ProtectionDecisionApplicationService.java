@@ -3,8 +3,12 @@ package io.github.viniciusssantos.accountshield.protection.internal;
 import io.github.viniciusssantos.accountshield.audit.DecisionReasonContribution;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceCommand;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
@@ -45,6 +49,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     private final ProtectionRequestRepository protectionRequestRepository;
     private final DecisionTraceRecorder decisionTraceRecorder;
     private final IdempotencyGuard idempotencyGuard;
+    private final ChallengeService challengeService;
     private final Clock clock;
     private final ObjectMapper objectMapper;
 
@@ -54,6 +59,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             ProtectionRequestRepository protectionRequestRepository,
             DecisionTraceRecorder decisionTraceRecorder,
             IdempotencyGuard idempotencyGuard,
+            ChallengeService challengeService,
             Clock clock,
             ObjectMapper objectMapper) {
         this.riskAssessmentService = riskAssessmentService;
@@ -61,6 +67,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         this.protectionRequestRepository = protectionRequestRepository;
         this.decisionTraceRecorder = decisionTraceRecorder;
         this.idempotencyGuard = idempotencyGuard;
+        this.challengeService = challengeService;
         this.clock = clock;
         this.objectMapper = objectMapper;
     }
@@ -107,6 +114,11 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 now,
                 auditReasons(assessment.reasons())));
 
+        ChallengePlan challenge = null;
+        if (evaluation.outcome() == ProtectionOutcome.REQUIRE_STEP_UP) {
+            challenge = challengeService.create(command.accountReference(), ChallengeType.TOTP_SIMULATED);
+        }
+
         ProtectionDecisionResult result = new ProtectionDecisionResult(
                 decisionId,
                 protectionRequestId,
@@ -117,7 +129,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 evaluation.policyKey(),
                 evaluation.policyVersion(),
                 assessment.reasons(),
-                now);
+                now,
+                challenge);
 
         idempotencyGuard.record(
                 idempotencyKey,

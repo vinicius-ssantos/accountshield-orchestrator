@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.protection;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.risk.RiskBand;
 import io.github.viniciusssantos.accountshield.risk.RiskReason;
@@ -17,9 +18,16 @@ public record ProtectionDecisionResult(
         String policyKey,
         String policyVersion,
         List<RiskReason> reasons,
-        Instant decidedAt) {
+        Instant decidedAt,
+        ChallengePlan challenge) {
 
     public ProtectionDecisionResult {
         reasons = List.copyOf(reasons);
+    }
+
+    public ProtectionDecisionResult withoutChallenge() {
+        return new ProtectionDecisionResult(
+                decisionId, protectionRequestId, outcome, riskScore, riskBand,
+                algorithmVersion, policyKey, policyVersion, reasons, decidedAt, null);
     }
 }
