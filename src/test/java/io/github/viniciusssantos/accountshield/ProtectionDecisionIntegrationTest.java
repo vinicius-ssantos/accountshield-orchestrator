@@ -18,6 +18,7 @@ import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
