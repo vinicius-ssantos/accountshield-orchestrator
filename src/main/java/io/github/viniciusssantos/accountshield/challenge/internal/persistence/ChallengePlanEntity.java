@@ -62,6 +62,10 @@ public class ChallengePlanEntity {
         this.expiresAt = expiresAt;
     }
 
+    public UUID getId() {
+        return id;
+    }
+
     public String getStatus() {
         return status;
     }

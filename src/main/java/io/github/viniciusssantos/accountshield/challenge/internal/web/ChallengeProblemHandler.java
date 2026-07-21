@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.challenge.internal.web;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
 import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;

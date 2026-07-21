@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
+import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateException;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,8 +53,8 @@ class ChallengeControllerTest {
     @Test
     void returnsConflictOnFailedChallenge() throws Exception {
         UUID challengeId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-        when(challengeService.verify(any())).thenReturn(new ChallengeResult(
-                challengeId, ChallengeStatus.FAILED, false, 0, Instant.parse("2026-07-20T03:10:00Z")));
+        when(challengeService.verify(any())).thenThrow(new InvalidChallengeStateException(
+                challengeId, ChallengeStatus.FAILED));
 
         mockMvc.perform(post("/api/v1/challenges/550e8400-e29b-41d4-a716-446655440000/verify")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -67,8 +68,8 @@ class ChallengeControllerTest {
     @Test
     void returnsGoneOnExpiredChallenge() throws Exception {
         UUID challengeId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-        when(challengeService.verify(any())).thenReturn(new ChallengeResult(
-                challengeId, ChallengeStatus.EXPIRED, false, 3, Instant.parse("2026-07-20T03:10:00Z")));
+        when(challengeService.verify(any())).thenThrow(new InvalidChallengeStateException(
+                challengeId, ChallengeStatus.EXPIRED));
 
         mockMvc.perform(post("/api/v1/challenges/550e8400-e29b-41d4-a716-446655440000/verify")
                         .contentType(MediaType.APPLICATION_JSON)

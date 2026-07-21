@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +31,7 @@ class ChallengeApplicationService implements ChallengeService {
     ChallengeApplicationService(
             ChallengePlanRepository challengePlanRepository,
             SimulatedChallengeProvider challengeProvider,
-            Clock clock) {
+            @Qualifier("decisionClock") Clock clock) {
         this.challengePlanRepository = challengePlanRepository;
         this.challengeProvider = challengeProvider;
         this.clock = clock;
