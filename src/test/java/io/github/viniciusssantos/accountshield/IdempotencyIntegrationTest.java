@@ -43,16 +43,17 @@ class IdempotencyIntegrationTest {
     @Test
     void returnsSameDecisionForIdenticalIdempotencyKey() {
         String idempotencyKey = "idem-dup-" + UUID.randomUUID();
+        String accountRef = "account-dup-" + UUID.randomUUID();
         RiskSignals signals = new RiskSignals(3, false, false, false, NetworkRiskLevel.LOW);
 
         ProtectionDecisionResult first = protectionDecisionService.decide(new ProtectionDecisionCommand(
-                "account-dup-" + UUID.randomUUID(),
+                accountRef,
                 ProtectionEventType.LOGIN_ATTEMPT,
                 signals,
                 idempotencyKey));
 
         ProtectionDecisionResult second = protectionDecisionService.decide(new ProtectionDecisionCommand(
-                "account-dup-" + UUID.randomUUID(),
+                accountRef,
                 ProtectionEventType.LOGIN_ATTEMPT,
                 signals,
                 idempotencyKey));

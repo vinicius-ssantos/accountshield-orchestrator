@@ -135,7 +135,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         if (command.idempotencyKey() != null) {
             return command.idempotencyKey();
         }
-        return requestFingerprint;
+        return UUID.randomUUID().toString();
     }
 
     private ProtectionDecisionResult restoreDecision(IdempotencyResult existing) {
