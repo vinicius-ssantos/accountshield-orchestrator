@@ -125,7 +125,16 @@ class ProtectionDecisionIntegrationTest {
             protectionRequestRepository.flush();
             throw new IllegalStateException("simulated audit persistence failure");
         };
-        IdempotencyGuard noOpGuard = (key, fingerprint, now) -> IdempotencyResult.absent();
+        IdempotencyGuard noOpGuard = new IdempotencyGuard() {
+            @Override
+            public IdempotencyResult resolve(String key, String fingerprint, Instant now) {
+                return IdempotencyResult.absent();
+            }
+            @Override
+            public void record(String key, String fingerprint, String resourceType,
+                    UUID resourceId, String responsePayload, Instant createdAt, Instant expiresAt) {
+            }
+        };
         var failingService = new ProtectionDecisionApplicationService(
                 riskAssessmentService,
                 policyEvaluationService,

@@ -90,12 +90,12 @@ class DatabaseIdempotencyGuardTest {
     private IdempotencyRecordEntity activeRecord(String key, String fp, UUID resourceId, String payload) {
         return new IdempotencyRecordEntity(
                 UUID.randomUUID(), key, fp, "protection_decision", resourceId,
-                payload, NOW.minusHours(1), NOW.plusHours(23));
+                payload, NOW.minus(java.time.Duration.ofHours(1)), NOW.plus(java.time.Duration.ofHours(23)));
     }
 
     private IdempotencyRecordEntity expiredRecord(String key, String fp) {
         return new IdempotencyRecordEntity(
                 UUID.randomUUID(), key, fp, "protection_decision", UUID.randomUUID(),
-                "{}", NOW.minusHours(25), NOW.minusHours(1));
+                "{}", NOW.minus(java.time.Duration.ofHours(25)), NOW.minus(java.time.Duration.ofHours(1)));
     }
 }
