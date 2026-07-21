@@ -21,7 +21,6 @@ import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -144,7 +143,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             return objectMapper.readValue(
                     existing.responsePayload(),
                     ProtectionDecisionResult.class);
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new IllegalStateException("failed to restore idempotent decision", e);
         }
     }
@@ -152,7 +151,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     private String serializeResult(ProtectionDecisionResult result) {
         try {
             return objectMapper.writeValueAsString(result);
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new IllegalStateException("failed to serialize decision for idempotency", e);
         }
     }
