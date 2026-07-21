@@ -26,6 +26,9 @@ public class IdempotencyRecordEntity {
     @Column(name = "resource_id")
     private UUID resourceId;
 
+    @Column(name = "response_payload", columnDefinition = "jsonb")
+    private String responsePayload;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -41,6 +44,7 @@ public class IdempotencyRecordEntity {
             String requestFingerprint,
             String resourceType,
             UUID resourceId,
+            String responsePayload,
             Instant createdAt,
             Instant expiresAt) {
         this.id = id;
@@ -48,7 +52,32 @@ public class IdempotencyRecordEntity {
         this.requestFingerprint = requestFingerprint;
         this.resourceType = resourceType;
         this.resourceId = resourceId;
+        this.responsePayload = responsePayload;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public String getRequestFingerprint() {
+        return requestFingerprint;
+    }
+
+    public UUID getResourceId() {
+        return resourceId;
+    }
+
+    public String getResponsePayload() {
+        return responsePayload;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
     }
 }

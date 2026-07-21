@@ -6,7 +6,8 @@ import java.util.Objects;
 public record ProtectionDecisionCommand(
         String accountReference,
         ProtectionEventType eventType,
-        RiskSignals signals) {
+        RiskSignals signals,
+        String idempotencyKey) {
 
     public ProtectionDecisionCommand {
         Objects.requireNonNull(accountReference, "accountReference must not be null");
@@ -15,5 +16,10 @@ public record ProtectionDecisionCommand(
         }
         Objects.requireNonNull(eventType, "eventType must not be null");
         Objects.requireNonNull(signals, "signals must not be null");
+        if (idempotencyKey != null
+                && (idempotencyKey.isBlank() || idempotencyKey.length() > 128)) {
+            throw new IllegalArgumentException(
+                    "idempotencyKey must be null or contain between 1 and 128 characters");
+        }
     }
 }

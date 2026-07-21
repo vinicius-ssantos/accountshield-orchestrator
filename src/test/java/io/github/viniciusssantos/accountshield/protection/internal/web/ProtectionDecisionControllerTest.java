@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
@@ -76,6 +77,38 @@ class ProtectionDecisionControllerTest {
                 ArgumentCaptor.forClass(ProtectionDecisionCommand.class);
         verify(service).decide(commandCaptor.capture());
         assertThat(commandCaptor.getValue().signals().networkRiskLevel()).isEqualTo(NetworkRiskLevel.LOW);
+        assertThat(commandCaptor.getValue().idempotencyKey()).isNull();
+    }
+
+    @Test
+    void passesIdempotencyKeyThroughToCommand() throws Exception {
+        when(service.decide(any())).thenReturn(new ProtectionDecisionResult(
+                UUID.fromString("73f09515-64da-4130-91ac-f1159efaeeb1"),
+                UUID.fromString("95ba12b2-36ef-4cbb-861f-76974557e038"),
+                ProtectionOutcome.ALLOW,
+                0,
+                RiskBand.LOW,
+                "risk-rules-1.0",
+                "account-protection-default",
+                "1.0.0",
+                List.of(),
+                Instant.parse("2026-07-20T03:00:00Z")));
+
+        mockMvc.perform(post("/api/v1/protection-decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountReference": "account-opaque-456",
+                                  "eventType": "LOGIN_ATTEMPT",
+                                  "idempotencyKey": "caller-key-abc"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<ProtectionDecisionCommand> captor =
+                ArgumentCaptor.forClass(ProtectionDecisionCommand.class);
+        verify(service).decide(captor.capture());
+        assertThat(captor.getValue().idempotencyKey()).isEqualTo("caller-key-abc");
     }
 
     @Test
@@ -109,5 +142,40 @@ class ProtectionDecisionControllerTest {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("ACTIVE_POLICY_UNAVAILABLE"))
                 .andExpect(jsonPath("$.detail").value("A protection decision cannot be produced safely at this time."));
+    }
+
+    @Test
+    void returnsConflictForConflictingIdempotencyKey() throws Exception {
+        when(service.decide(any())).thenThrow(new ConflictingIdempotencyRequestException("key-1"));
+
+        mockMvc.perform(post("/api/v1/protection-decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountReference": "account-opaque-123",
+                                  "eventType": "LOGIN_ATTEMPT",
+                                  "failedAttempts": 0,
+                                  "idempotencyKey": "key-1"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"))
+                .andExpect(jsonPath("$.title").value("Conflicting idempotency request"));
+    }
+
+    @Test
+    void rejectsBlankIdempotencyKey() throws Exception {
+        mockMvc.perform(post("/api/v1/protection-decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountReference": "account-opaque-123",
+                                  "eventType": "LOGIN_ATTEMPT",
+                                  "failedAttempts": 0,
+                                  "idempotencyKey": "   "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PROTECTION_REQUEST"));
     }
 }
