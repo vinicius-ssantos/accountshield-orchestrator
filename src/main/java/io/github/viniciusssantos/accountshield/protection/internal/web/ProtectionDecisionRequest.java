@@ -17,7 +17,8 @@ public record ProtectionDecisionRequest(
         Boolean newDevice,
         Boolean impossibleTravel,
         Boolean compromisedCredential,
-        NetworkRiskLevel networkRiskLevel) {
+        NetworkRiskLevel networkRiskLevel,
+        @Size(max = 128) String idempotencyKey) {
 
     public ProtectionDecisionRequest {
         failedAttempts = failedAttempts == null ? 0 : failedAttempts;
@@ -36,6 +37,7 @@ public record ProtectionDecisionRequest(
                         newDevice,
                         impossibleTravel,
                         compromisedCredential,
-                        networkRiskLevel));
+                        networkRiskLevel),
+                idempotencyKey);
     }
 }

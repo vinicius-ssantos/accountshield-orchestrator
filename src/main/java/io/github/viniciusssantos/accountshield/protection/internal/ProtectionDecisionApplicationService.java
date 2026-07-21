@@ -5,9 +5,13 @@ import io.github.viniciusssantos.accountshield.audit.DecisionTraceCommand;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
+import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
+import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
+import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestEntity;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
@@ -17,7 +21,6 @@ import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -27,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,19 +44,25 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     private final PolicyEvaluationService policyEvaluationService;
     private final ProtectionRequestRepository protectionRequestRepository;
     private final DecisionTraceRecorder decisionTraceRecorder;
+    private final IdempotencyGuard idempotencyGuard;
     private final Clock clock;
+    private final ObjectMapper objectMapper;
 
     public ProtectionDecisionApplicationService(
             RiskAssessmentService riskAssessmentService,
             PolicyEvaluationService policyEvaluationService,
             ProtectionRequestRepository protectionRequestRepository,
             DecisionTraceRecorder decisionTraceRecorder,
-            Clock clock) {
+            IdempotencyGuard idempotencyGuard,
+            Clock clock,
+            ObjectMapper objectMapper) {
         this.riskAssessmentService = riskAssessmentService;
         this.policyEvaluationService = policyEvaluationService;
         this.protectionRequestRepository = protectionRequestRepository;
         this.decisionTraceRecorder = decisionTraceRecorder;
+        this.idempotencyGuard = idempotencyGuard;
         this.clock = clock;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -60,10 +70,17 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     public ProtectionDecisionResult decide(ProtectionDecisionCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 
+        Instant now = clock.instant();
+        String requestFingerprint = fingerprint(command);
+        String idempotencyKey = resolveIdempotencyKey(command, requestFingerprint);
+
+        IdempotencyResult existing = idempotencyGuard.resolve(idempotencyKey, requestFingerprint, now);
+        if (existing.duplicate()) {
+            return restoreDecision(existing);
+        }
+
         UUID protectionRequestId = UUID.randomUUID();
         UUID decisionId = UUID.randomUUID();
-        Instant decidedAt = clock.instant();
-        String requestFingerprint = fingerprint(command);
 
         RiskAssessment assessment = riskAssessmentService.assess(command.signals());
         PolicyEvaluation evaluation = policyEvaluationService.evaluate(DEFAULT_POLICY_KEY, assessment.score());
@@ -74,7 +91,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 command.eventType().name(),
                 requestFingerprint,
                 DECIDED_STATUS,
-                decidedAt));
+                now));
 
         decisionTraceRecorder.record(new DecisionTraceCommand(
                 decisionId,
@@ -87,10 +104,10 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 evaluation.outcome().name(),
                 assessment.score(),
                 normalizedContext(command.signals()),
-                decidedAt,
+                now,
                 auditReasons(assessment.reasons())));
 
-        return new ProtectionDecisionResult(
+        ProtectionDecisionResult result = new ProtectionDecisionResult(
                 decisionId,
                 protectionRequestId,
                 evaluation.outcome(),
@@ -100,7 +117,43 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 evaluation.policyKey(),
                 evaluation.policyVersion(),
                 assessment.reasons(),
-                decidedAt);
+                now);
+
+        idempotencyGuard.record(
+                idempotencyKey,
+                requestFingerprint,
+                idempotencyGuard instanceof DatabaseIdempotencyGuard dbg ? dbg.resourceType() : "protection_decision",
+                protectionRequestId,
+                serializeResult(result),
+                now,
+                now.plus(java.time.Duration.ofHours(24)));
+
+        return result;
+    }
+
+    private String resolveIdempotencyKey(ProtectionDecisionCommand command, String requestFingerprint) {
+        if (command.idempotencyKey() != null) {
+            return command.idempotencyKey();
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    private ProtectionDecisionResult restoreDecision(IdempotencyResult existing) {
+        try {
+            return objectMapper.readValue(
+                    existing.responsePayload(),
+                    ProtectionDecisionResult.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to restore idempotent decision", e);
+        }
+    }
+
+    private String serializeResult(ProtectionDecisionResult result) {
+        try {
+            return objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to serialize decision for idempotency", e);
+        }
     }
 
     private Map<String, Object> normalizedContext(RiskSignals signals) {

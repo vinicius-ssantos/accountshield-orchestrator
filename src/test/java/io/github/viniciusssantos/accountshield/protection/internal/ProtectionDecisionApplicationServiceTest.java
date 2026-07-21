@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.protection.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,6 +12,8 @@ import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
+import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
@@ -26,6 +29,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import tools.jackson.databind.ObjectMapper;
 
 class ProtectionDecisionApplicationServiceTest {
 
@@ -33,6 +37,7 @@ class ProtectionDecisionApplicationServiceTest {
     private final PolicyEvaluationService policyEvaluationService = mock(PolicyEvaluationService.class);
     private final ProtectionRequestRepository protectionRequestRepository = mock(ProtectionRequestRepository.class);
     private final DecisionTraceRecorder decisionTraceRecorder = mock(DecisionTraceRecorder.class);
+    private final IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-20T03:00:00Z"), ZoneOffset.UTC);
 
     private final ProtectionDecisionApplicationService service = new ProtectionDecisionApplicationService(
@@ -40,7 +45,9 @@ class ProtectionDecisionApplicationServiceTest {
             policyEvaluationService,
             protectionRequestRepository,
             decisionTraceRecorder,
-            clock);
+            idempotencyGuard,
+            clock,
+            new ObjectMapper());
 
     @Test
     void persistsAndReturnsTheSameExplainableDecision() {
@@ -56,11 +63,14 @@ class ProtectionDecisionApplicationServiceTest {
                         "account-protection-default",
                         "1.0.0",
                         ProtectionOutcome.REQUIRE_STEP_UP));
+        when(idempotencyGuard.resolve(anyString(), anyString(), any()))
+                .thenReturn(IdempotencyResult.absent());
 
         var result = service.decide(new ProtectionDecisionCommand(
                 "account-opaque-123",
                 ProtectionEventType.LOGIN_ATTEMPT,
-                signals));
+                signals,
+                null));
 
         assertThat(result.outcome()).isEqualTo(ProtectionOutcome.REQUIRE_STEP_UP);
         assertThat(result.riskScore()).isEqualTo(30);

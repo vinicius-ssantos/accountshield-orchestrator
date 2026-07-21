@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
+import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
@@ -16,6 +18,7 @@ import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @Import(PostgreSqlTestConfiguration.class)
@@ -122,16 +126,29 @@ class ProtectionDecisionIntegrationTest {
             protectionRequestRepository.flush();
             throw new IllegalStateException("simulated audit persistence failure");
         };
+        IdempotencyGuard noOpGuard = new IdempotencyGuard() {
+            @Override
+            public IdempotencyResult resolve(String key, String fingerprint, Instant now) {
+                return IdempotencyResult.absent();
+            }
+            @Override
+            public void record(String key, String fingerprint, String resourceType,
+                    UUID resourceId, String responsePayload, Instant createdAt, Instant expiresAt) {
+            }
+        };
         var failingService = new ProtectionDecisionApplicationService(
                 riskAssessmentService,
                 policyEvaluationService,
                 protectionRequestRepository,
                 failingRecorder,
-                Clock.systemUTC());
+                noOpGuard,
+                Clock.systemUTC(),
+                new ObjectMapper());
         var command = new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
-                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW));
+                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                "rollback-test-" + UUID.randomUUID());
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> failingService.decide(command)))
@@ -145,7 +162,8 @@ class ProtectionDecisionIntegrationTest {
         return protectionDecisionService.decide(new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
-                signals));
+                signals,
+                "idem-" + UUID.randomUUID()));
     }
 
     private long requestCount(String accountReference) {
