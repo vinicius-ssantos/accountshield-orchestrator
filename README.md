@@ -175,9 +175,11 @@ Exact dependency versions are pinned in the build and upgraded through reviewed 
 - deterministic historical replay;
 - shadow-policy evaluation and impact comparison.
 
-### Phase 8 — Operational maturity (planned)
+### Phase 8 — Operational maturity (in progress)
 
-- transactional outbox;
+- transactional outbox with domain event publication;
+- sliding-window rate limiting per account;
+- Micrometer metrics for decision outcomes and risk scores;
 - tracing and structured security events;
 - SLOs and dashboards;
 - concurrency, resilience, and chaos scenarios.
