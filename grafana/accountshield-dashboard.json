@@ -1,0 +1,101 @@
+{
+  "title": "AccountShield - Protection Decisions",
+  "schemaVersion": 39,
+  "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Decisions by Outcome",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (outcome) (increase(accountshield_protection_decisions_total[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "title": "Decision Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(accountshield_protection_decisions_total[1m])",
+          "legendFormat": "decisions/s"
+        }
+      ]
+    },
+    {
+      "title": "Risk Score Distribution",
+      "type": "heatmap",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(accountshield_protection_risk_score_bucket[5m])))",
+          "legendFormat": "p95 risk score"
+        }
+      ]
+    },
+    {
+      "title": "Block Rate (%)",
+      "type": "gauge",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(accountshield_protection_decisions_total{outcome=\"TEMPORARILY_BLOCK\"}[5m])) / sum(rate(accountshield_protection_decisions_total[5m]))",
+          "legendFormat": "block %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 10, "color": "yellow" },
+              { "value": 30, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Step-Up Challenge Rate (%)",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(accountshield_protection_decisions_total{outcome=\"REQUIRE_STEP_UP\"}[5m])) / sum(rate(accountshield_protection_decisions_total[5m]))",
+          "legendFormat": "step-up %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "title": "Policy Distribution",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (policy_key) (increase(accountshield_protection_decisions_total[1h]))",
+          "legendFormat": "{{policy_key}}"
+        }
+      ]
+    }
+  ]
+}
