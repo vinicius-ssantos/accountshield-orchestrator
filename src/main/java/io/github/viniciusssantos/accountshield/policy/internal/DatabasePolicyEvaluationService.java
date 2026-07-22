@@ -30,10 +30,36 @@ public class DatabasePolicyEvaluationService implements PolicyEvaluationService 
                 .findByPolicyKeyAndStatus(policyKey, ACTIVE_STATUS)
                 .orElseThrow(() -> new ActivePolicyUnavailableException(policyKey));
 
-        int allowMaxScore = requireThreshold(policy.getAllowMaxScore(), policyKey);
-        int stepUpMaxScore = requireThreshold(policy.getStepUpMaxScore(), policyKey);
+        return evaluatePolicy(policy, riskScore);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PolicyEvaluation evaluateVersion(String policyKey, String policyVersion, int riskScore) {
+        Objects.requireNonNull(policyKey, "policyKey must not be null");
+        Objects.requireNonNull(policyVersion, "policyVersion must not be null");
+        if (policyKey.isBlank() || policyKey.length() > 100) {
+            throw new IllegalArgumentException("policyKey must contain between 1 and 100 characters");
+        }
+        if (policyVersion.isBlank() || policyVersion.length() > 40) {
+            throw new IllegalArgumentException("policyVersion must contain between 1 and 40 characters");
+        }
+        validateRiskScore(riskScore);
+
+        PolicyVersionEntity policy = policyVersionRepository
+                .findByPolicyKeyAndVersion(policyKey, policyVersion)
+                .orElseThrow(() -> new ActivePolicyUnavailableException(policyKey));
+
+        return evaluatePolicy(policy, riskScore);
+    }
+
+    private PolicyEvaluation evaluatePolicy(PolicyVersionEntity policy, int riskScore) {
+        validateRiskScore(riskScore);
+
+        int allowMaxScore = requireThreshold(policy.getAllowMaxScore(), policy.getPolicyKey());
+        int stepUpMaxScore = requireThreshold(policy.getStepUpMaxScore(), policy.getPolicyKey());
         if (allowMaxScore < 0 || allowMaxScore >= stepUpMaxScore || stepUpMaxScore >= 100) {
-            throw new ActivePolicyUnavailableException(policyKey);
+            throw new ActivePolicyUnavailableException(policy.getPolicyKey());
         }
 
         ProtectionOutcome outcome;
@@ -53,6 +79,10 @@ public class DatabasePolicyEvaluationService implements PolicyEvaluationService 
         if (policyKey.isBlank() || policyKey.length() > 100) {
             throw new IllegalArgumentException("policyKey must contain between 1 and 100 characters");
         }
+        validateRiskScore(riskScore);
+    }
+
+    private void validateRiskScore(int riskScore) {
         if (riskScore < 0 || riskScore > 100) {
             throw new IllegalArgumentException("riskScore must be between 0 and 100");
         }
