@@ -175,14 +175,15 @@ Exact dependency versions are pinned in the build and upgraded through reviewed 
 - deterministic historical replay;
 - shadow-policy evaluation and impact comparison.
 
-### Phase 8 — Operational maturity (in progress)
+### Phase 8 — Operational maturity (delivered)
 
 - transactional outbox with domain event publication;
 - sliding-window rate limiting per account;
 - Micrometer metrics for decision outcomes and risk scores;
 - structured security event logging with sensitive-data redaction;
-- SLOs and dashboards;
-- concurrency, resilience, and chaos scenarios.
+- Prometheus metrics endpoint and Grafana dashboard definition;
+- SLO targets and error budget;
+- concurrency and resilience tests for rate limiting and idempotency.
 
 ## Local development
 
