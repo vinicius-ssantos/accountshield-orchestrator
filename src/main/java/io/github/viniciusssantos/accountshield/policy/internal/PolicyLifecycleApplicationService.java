@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.policy.internal;
 
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
+import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,12 +28,15 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
 
     private final PolicyVersionRepository repository;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PolicyLifecycleApplicationService(
             PolicyVersionRepository repository,
-            @Qualifier("decisionClock") Clock clock) {
+            @Qualifier("decisionClock") Clock clock,
+            ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -81,7 +86,9 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
         repository.findByPolicyKeyAndStatus(policyKey, ACTIVE)
                 .ifPresent(current -> current.transitionTo(
                         PolicyStatus.RETIRED.name(), Instant.now(clock)));
-        candidate.transitionTo(PolicyStatus.ACTIVE.name(), Instant.now(clock));
+        Instant activatedAt = Instant.now(clock);
+        candidate.transitionTo(PolicyStatus.ACTIVE.name(), activatedAt);
+        eventPublisher.publishEvent(new PolicyActivated(policyKey, version, activatedAt));
         return toSummary(candidate);
     }
 

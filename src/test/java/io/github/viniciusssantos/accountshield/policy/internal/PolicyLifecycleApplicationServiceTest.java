@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 class PolicyLifecycleApplicationServiceTest {
 
@@ -32,8 +33,9 @@ class PolicyLifecycleApplicationServiceTest {
 
     private final PolicyVersionRepository repository = mock(PolicyVersionRepository.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+    private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final PolicyLifecycleApplicationService service =
-            new PolicyLifecycleApplicationService(repository, clock);
+            new PolicyLifecycleApplicationService(repository, clock, eventPublisher);
 
     @Test
     void createsDraftWithCorrectFields() {

@@ -56,6 +56,9 @@ class ProtectionDecisionIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private org.springframework.context.ApplicationContext applicationContext;
+
     @Test
     void persistsAllInitialOutcomesWithVersionedExplainability() {
         List<ProtectionDecisionResult> decisions = List.of(
@@ -148,7 +151,8 @@ class ProtectionDecisionIntegrationTest {
                 noOpGuard,
                 challengeService,
                 Clock.systemUTC(),
-                new ObjectMapper());
+                new ObjectMapper(),
+                applicationContext);
         var command = new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,

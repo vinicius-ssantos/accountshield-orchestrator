@@ -13,6 +13,7 @@ import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotency
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
+import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import tools.jackson.databind.ObjectMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +54,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     private final ChallengeService challengeService;
     private final Clock clock;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProtectionDecisionApplicationService(
             RiskAssessmentService riskAssessmentService,
@@ -61,7 +64,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             IdempotencyGuard idempotencyGuard,
             ChallengeService challengeService,
             Clock clock,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ApplicationEventPublisher eventPublisher) {
         this.riskAssessmentService = riskAssessmentService;
         this.policyEvaluationService = policyEvaluationService;
         this.protectionRequestRepository = protectionRequestRepository;
@@ -70,6 +74,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         this.challengeService = challengeService;
         this.clock = clock;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -140,6 +145,16 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 serializeResult(result),
                 now,
                 now.plus(java.time.Duration.ofHours(24)));
+
+        eventPublisher.publishEvent(new ProtectionDecisionMade(
+                decisionId,
+                protectionRequestId,
+                command.accountReference(),
+                evaluation.outcome().name(),
+                assessment.score(),
+                evaluation.policyKey(),
+                evaluation.policyVersion(),
+                now));
 
         return result;
     }

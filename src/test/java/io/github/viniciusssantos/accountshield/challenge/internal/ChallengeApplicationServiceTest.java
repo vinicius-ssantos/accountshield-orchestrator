@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class ChallengeApplicationServiceTest {
 
@@ -30,12 +31,13 @@ class ChallengeApplicationServiceTest {
     private final ChallengePlanRepository repository = mock(ChallengePlanRepository.class);
     private final SimulatedChallengeProvider provider = new SimulatedChallengeProvider(java.util.random.RandomGenerator.getDefault());
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+    private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
     private ChallengeApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new ChallengeApplicationService(repository, provider, clock);
+        service = new ChallengeApplicationService(repository, provider, clock, eventPublisher);
     }
 
     @Test
@@ -132,7 +134,7 @@ class ChallengeApplicationServiceTest {
         when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
 
         ChallengeApplicationService expiredService = new ChallengeApplicationService(
-                repository, provider, Clock.fixed(NOW.plus(Duration.ofMinutes(11)), ZoneOffset.UTC));
+                repository, provider, Clock.fixed(NOW.plus(Duration.ofMinutes(11)), ZoneOffset.UTC), eventPublisher);
 
         assertThatThrownBy(() -> expiredService.verify(
                 new ChallengeVerificationCommand(challengeId, "000000")))

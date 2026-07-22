@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.challenge.internal;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeCompleted;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,14 +29,17 @@ class ChallengeApplicationService implements ChallengeService {
     private final ChallengePlanRepository challengePlanRepository;
     private final SimulatedChallengeProvider challengeProvider;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     ChallengeApplicationService(
             ChallengePlanRepository challengePlanRepository,
             SimulatedChallengeProvider challengeProvider,
-            @Qualifier("decisionClock") Clock clock) {
+            @Qualifier("decisionClock") Clock clock,
+            ApplicationEventPublisher eventPublisher) {
         this.challengePlanRepository = challengePlanRepository;
         this.challengeProvider = challengeProvider;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -103,6 +108,12 @@ class ChallengeApplicationService implements ChallengeService {
         if (challengeProvider.verifyCode(command.providedCode(), plan.getExpectedCode())) {
             plan.setStatus(ChallengeStatus.VERIFIED.name());
             challengePlanRepository.save(plan);
+            eventPublisher.publishEvent(new ChallengeCompleted(
+                    plan.getId(),
+                    plan.getAccountReference(),
+                    ChallengeType.valueOf(plan.getChallengeType()),
+                    ChallengeStatus.VERIFIED,
+                    now));
             return new ChallengeResult(
                     plan.getId(),
                     ChallengeStatus.VERIFIED,
@@ -114,6 +125,12 @@ class ChallengeApplicationService implements ChallengeService {
         if (plan.getRemainingAttempts() <= 0) {
             plan.setStatus(ChallengeStatus.FAILED.name());
             challengePlanRepository.save(plan);
+            eventPublisher.publishEvent(new ChallengeCompleted(
+                    plan.getId(),
+                    plan.getAccountReference(),
+                    ChallengeType.valueOf(plan.getChallengeType()),
+                    ChallengeStatus.FAILED,
+                    now));
             return new ChallengeResult(
                     plan.getId(),
                     ChallengeStatus.FAILED,

@@ -32,6 +32,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.ObjectMapper;
 
 class ProtectionDecisionApplicationServiceTest {
@@ -43,6 +44,7 @@ class ProtectionDecisionApplicationServiceTest {
     private final IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
     private final ChallengeService challengeService = mock(ChallengeService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-20T03:00:00Z"), ZoneOffset.UTC);
+    private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
     private final ProtectionDecisionApplicationService service = new ProtectionDecisionApplicationService(
             riskAssessmentService,
@@ -52,7 +54,8 @@ class ProtectionDecisionApplicationServiceTest {
             idempotencyGuard,
             challengeService,
             clock,
-            new ObjectMapper());
+            new ObjectMapper(),
+            eventPublisher);
 
     @Test
     void persistsAndReturnsTheSameExplainableDecision() {

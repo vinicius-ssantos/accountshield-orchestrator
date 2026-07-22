@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class RecoveryApplicationServiceTest {
 
@@ -36,11 +37,12 @@ class RecoveryApplicationServiceTest {
     private final RecoveryFlowRepository repository = mock(RecoveryFlowRepository.class);
     private final ChallengeService challengeService = mock(ChallengeService.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+    private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private RecoveryApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new RecoveryApplicationService(repository, challengeService, clock);
+        service = new RecoveryApplicationService(repository, challengeService, clock, eventPublisher);
     }
 
     @Test

@@ -7,6 +7,7 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
 import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateException;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
@@ -21,6 +22,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,14 +36,17 @@ class RecoveryApplicationService implements RecoveryService {
     private final RecoveryFlowRepository recoveryFlowRepository;
     private final ChallengeService challengeService;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     RecoveryApplicationService(
             RecoveryFlowRepository recoveryFlowRepository,
             ChallengeService challengeService,
-            @Qualifier("decisionClock") Clock clock) {
+            @Qualifier("decisionClock") Clock clock,
+            ApplicationEventPublisher eventPublisher) {
         this.recoveryFlowRepository = recoveryFlowRepository;
         this.challengeService = challengeService;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -127,8 +132,15 @@ class RecoveryApplicationService implements RecoveryService {
         }
 
         entity.setStatus(RecoveryStatus.COMPLETED.name());
-        entity.setUpdatedAt(clock.instant());
+        Instant completedAt = clock.instant();
+        entity.setUpdatedAt(completedAt);
         recoveryFlowRepository.save(entity);
+
+        eventPublisher.publishEvent(new RecoveryCompleted(
+                recoveryId,
+                entity.getAccountReference(),
+                entity.getEventType(),
+                completedAt));
 
         return toDomain(entity);
     }
@@ -150,6 +162,14 @@ class RecoveryApplicationService implements RecoveryService {
         entity.setReviewer(command.reviewer());
         entity.setUpdatedAt(now);
         recoveryFlowRepository.save(entity);
+
+        if (newStatus.equals(RecoveryStatus.COMPLETED.name())) {
+            eventPublisher.publishEvent(new RecoveryCompleted(
+                    command.recoveryId(),
+                    entity.getAccountReference(),
+                    entity.getEventType(),
+                    now));
+        }
 
         return toDomain(entity);
     }
