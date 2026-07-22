@@ -7,6 +7,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "outbox_event", schema = "outbox")
@@ -23,6 +25,10 @@ public class OutboxEventEntity {
 
     @Column(name = "event_type", nullable = false, length = 160)
     private String eventType;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", columnDefinition = "jsonb", nullable = false)
+    private String payload;
 
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
@@ -41,5 +47,22 @@ public class OutboxEventEntity {
     private long version;
 
     protected OutboxEventEntity() {
+    }
+
+    public OutboxEventEntity(
+            UUID id,
+            String aggregateType,
+            String aggregateId,
+            String eventType,
+            String payload,
+            Instant occurredAt) {
+        this.id = id;
+        this.aggregateType = aggregateType;
+        this.aggregateId = aggregateId;
+        this.eventType = eventType;
+        this.payload = payload;
+        this.occurredAt = occurredAt;
+        this.attemptCount = 0;
+        this.version = 0;
     }
 }
