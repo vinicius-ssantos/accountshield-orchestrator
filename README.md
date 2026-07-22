@@ -82,20 +82,17 @@ A decision response is expected to expose both the outcome and its reasoning:
 
 The system starts as a modular monolith. Module boundaries are treated as architectural contracts and can evolve into independently deployable services only when operational evidence justifies the split.
 
-Planned modules:
+Modules:
 
 | Module | Responsibility |
 | --- | --- |
-| `protection` | Request intake, use-case orchestration, and decision API |
-| `signals` | Signal normalization, validation, and contribution model |
-| `risk` | Deterministic risk assessment |
-| `policy` | Versioned policy evaluation and shadow mode |
-| `challenge` | Step-up challenge lifecycle, attempts, expiry, and cooldown |
-| `recovery` | Secure account-recovery state machine |
-| `abuse` | Idempotency, replay defense, throttling, and abuse controls |
-| `audit` | Immutable decision trace and security audit events |
-| `simulation` | Attack scenarios, historical replay, and policy comparison |
-| `outbox` | Reliable publication of domain events |
+| `protection` | Request intake, use-case orchestration, idempotency, and decision API |
+| `risk` | Deterministic risk assessment from normalized signals |
+| `policy` | Versioned policy evaluation, lifecycle state machine, and shadow mode |
+| `challenge` | Step-up challenge lifecycle, attempts, expiry, and retry budget |
+| `recovery` | Secure account-recovery state machine with risk-based classification |
+| `audit` | Immutable decision trace, replay query API, and security audit events |
+| `simulation` | Deterministic historical replay and shadow-policy comparison |
 
 Architecture documentation lives under [`docs/architecture`](docs/architecture), and architectural decisions under [`docs/adr`](docs/adr).
 
@@ -126,9 +123,9 @@ Architecture documentation lives under [`docs/architecture`](docs/architecture),
 
 Exact dependency versions are pinned in the build and upgraded through reviewed pull requests.
 
-## Delivery roadmap
+## Delivery status
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation (delivered)
 
 - executable application skeleton;
 - modular architecture and verification tests;
@@ -136,35 +133,49 @@ Exact dependency versions are pinned in the build and upgraded through reviewed 
 - CI quality gates;
 - threat model, ADRs, and contribution guidance.
 
-### Phase 2 — Explainable decision vertical slice
+### Phase 2 — Persistence foundation (delivered)
+
+- PostgreSQL as source of truth with Flyway migrations;
+- decision, policy-version, idempotency, and audit schemas;
+- Testcontainers integration tests;
+- DB-level immutability triggers for policies and audit records.
+
+### Phase 3 — Explainable decision vertical slice (delivered)
 
 - protection request API;
 - deterministic signals and risk assessment;
 - versioned policies;
 - `ALLOW`, `REQUIRE_STEP_UP`, and `TEMPORARILY_BLOCK` outcomes;
-- immutable decision trace.
+- immutable decision trace with explainable reasons.
 
-### Phase 3 — Challenge orchestration
+### Phase 4 — Idempotency and replay protection (delivered)
+
+- caller-supplied idempotency key and deterministic request fingerprint;
+- duplicate and concurrent-request behavior;
+- conflict detection for reused keys with different payloads;
+- bounded replay windows.
+
+### Phase 5 — Challenge orchestration (delivered)
 
 - challenge plan and attempt lifecycle;
-- expiration, retry budget, cooldown, and idempotency;
+- expiration, retry budget, and cooldown;
 - simulated TOTP, e-mail, and WebAuthn adapters.
 
-### Phase 4 — Secure recovery
+### Phase 6 — Secure recovery (delivered)
 
-- explicit recovery states and transitions;
-- recovery-specific risk checks;
-- delayed and high-risk operations;
-- abuse detection and manual-review simulation.
+- explicit recovery state machine (9 states);
+- risk-based classification (immediate, delayed, manual review);
+- identity verification via challenge module;
+- enumeration-resistant public responses.
 
-### Phase 5 — Replay and safe rollout
+### Phase 7 — Policy lifecycle and safe rollout (delivered)
 
+- policy lifecycle state machine (draft, validated, active, retired, rejected);
+- immutable activated versions with DB-level enforcement;
 - deterministic historical replay;
-- shadow policies;
-- policy impact comparison;
-- false-positive and false-negative simulation.
+- shadow-policy evaluation and impact comparison.
 
-### Phase 6 — Operational maturity
+### Phase 8 — Operational maturity (planned)
 
 - transactional outbox;
 - tracing and structured security events;

@@ -40,7 +40,19 @@ Owns versioned rules that convert a risk assessment and account context into a p
 
 Owns the append-only decision trace. Audit records preserve the request fingerprint, normalized inputs allowed for retention, algorithm version, policy version, contributions, final outcome, timestamps, and correlation identifiers.
 
-Future modules such as `challenge`, `recovery`, `abuse`, `simulation`, and `outbox` will be introduced only with a vertical slice that exercises them.
+Future modules such as `abuse` and `outbox` will be introduced only with a vertical slice that exercises them.
+
+### `challenge`
+
+Owns the step-up challenge lifecycle: creation, verification attempts, expiration, retry budget, and terminal states. Challenge providers are simulated (TOTP, e-mail, WebAuthn). See ADR 0004.
+
+### `recovery`
+
+Owns the secure recovery state machine with risk-based classification. Recovery flows are classified as immediate, delayed, or manual-review based on risk score. See ADR 0005.
+
+### `simulation`
+
+Owns deterministic replay of historical decisions and shadow-policy evaluation against candidate policy versions. Both operations are side-effect-free. See ADR 0006.
 
 ## Dependency direction
 
@@ -50,10 +62,15 @@ The intended direction is:
 protection -> risk
 protection -> policy
 protection -> audit
+protection -> challenge
+protection -> recovery
 policy     -> risk public API
+recovery   -> challenge
+simulation -> audit
+simulation -> policy
 ```
 
-The `risk`, `policy`, and `audit` modules must not depend on web adapters. Infrastructure implementations remain internal to the module that owns the port.
+The `risk`, `policy`, `audit`, `challenge`, `recovery`, and `simulation` modules must not depend on web adapters outside their own module. Infrastructure implementations remain internal to the module that owns the port.
 
 Cross-module access must occur through public module APIs or domain events. Repositories and internal persistence entities are never shared between modules.
 
