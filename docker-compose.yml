@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: accountshield
       POSTGRES_USER: accountshield
-      POSTGRES_PASSWORD: accountshield
+      POSTGRES_PASSWORD: accountshield-local-only
     ports:
       - "5432:5432"
     volumes:
