@@ -17,6 +17,7 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
+import io.github.viniciusssantos.accountshield.protection.ProtectionRateLimiter;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestEntity;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
@@ -55,6 +56,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     private final Clock clock;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final ProtectionRateLimiter rateLimiter;
 
     public ProtectionDecisionApplicationService(
             RiskAssessmentService riskAssessmentService,
@@ -65,7 +67,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             ChallengeService challengeService,
             Clock clock,
             ObjectMapper objectMapper,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            ProtectionRateLimiter rateLimiter) {
         this.riskAssessmentService = riskAssessmentService;
         this.policyEvaluationService = policyEvaluationService;
         this.protectionRequestRepository = protectionRequestRepository;
@@ -75,6 +78,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         this.clock = clock;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+        this.rateLimiter = rateLimiter;
     }
 
     @Override
@@ -83,6 +87,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         Objects.requireNonNull(command, "command must not be null");
 
         Instant now = clock.instant();
+        rateLimiter.checkLimit(command.accountReference(), now);
         String requestFingerprint = fingerprint(command);
         String idempotencyKey = resolveIdempotencyKey(command, requestFingerprint);
 

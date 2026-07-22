@@ -152,7 +152,8 @@ class ProtectionDecisionIntegrationTest {
                 challengeService,
                 Clock.systemUTC(),
                 new ObjectMapper(),
-                applicationContext);
+                applicationContext,
+                (acct, ts) -> {});
         var command = new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,

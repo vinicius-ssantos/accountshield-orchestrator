@@ -19,6 +19,7 @@ import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
+import io.github.viniciusssantos.accountshield.protection.ProtectionRateLimiter;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
@@ -45,6 +46,7 @@ class ProtectionDecisionApplicationServiceTest {
     private final ChallengeService challengeService = mock(ChallengeService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-20T03:00:00Z"), ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final ProtectionRateLimiter rateLimiter = (accountReference, now) -> {};
 
     private final ProtectionDecisionApplicationService service = new ProtectionDecisionApplicationService(
             riskAssessmentService,
@@ -55,7 +57,8 @@ class ProtectionDecisionApplicationServiceTest {
             challengeService,
             clock,
             new ObjectMapper(),
-            eventPublisher);
+            eventPublisher,
+            rateLimiter);
 
     @Test
     void persistsAndReturnsTheSameExplainableDecision() {

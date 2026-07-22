@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.protection.internal.web;
 
 import io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException;
 import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
+import io.github.viniciusssantos.accountshield.protection.RateLimitExceededException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -18,6 +19,7 @@ public class ProtectionDecisionProblemHandler {
     private static final URI INVALID_REQUEST_TYPE = URI.create("urn:accountshield:problem:invalid-request");
     private static final URI POLICY_UNAVAILABLE_TYPE = URI.create("urn:accountshield:problem:policy-unavailable");
     private static final URI CONFLICT_TYPE = URI.create("urn:accountshield:problem:idempotency-conflict");
+    private static final URI RATE_LIMIT_TYPE = URI.create("urn:accountshield:problem:rate-limit-exceeded");
 
     @ExceptionHandler({
             MethodArgumentNotValidException.class,
@@ -55,5 +57,17 @@ public class ProtectionDecisionProblemHandler {
         problem.setTitle("Conflicting idempotency request");
         problem.setProperty("code", "IDEMPOTENCY_CONFLICT");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> rateLimitExceeded(RateLimitExceededException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Too many protection requests for this account.");
+        problem.setType(RATE_LIMIT_TYPE);
+        problem.setTitle("Rate limit exceeded");
+        problem.setProperty("code", "RATE_LIMIT_EXCEEDED");
+        problem.setProperty("retryAfter", exception.retryAfter().toString());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(problem);
     }
 }
