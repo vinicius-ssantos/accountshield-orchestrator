@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: accountshield-postgres
+    environment:
+      POSTGRES_DB: accountshield
+      POSTGRES_USER: accountshield
+      POSTGRES_PASSWORD: accountshield
+    ports:
+      - "5432:5432"
+    volumes:
+      - accountshield-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accountshield -d accountshield"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  accountshield-pgdata:
