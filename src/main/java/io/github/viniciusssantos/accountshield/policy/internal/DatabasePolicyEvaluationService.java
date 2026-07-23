@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.policy.internal;
 
 import io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
+import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
@@ -23,21 +24,29 @@ public class DatabasePolicyEvaluationService implements PolicyEvaluationService 
 
     @Override
     @Transactional(readOnly = true)
-    public PolicyEvaluation evaluate(String policyKey, int riskScore) {
-        validateInput(policyKey, riskScore);
+    public PolicyEvaluation evaluate(
+            String policyKey,
+            int riskScore,
+            PolicyEvaluationContext context) {
+        validateInput(policyKey, riskScore, context);
 
         PolicyVersionEntity policy = policyVersionRepository
                 .findByPolicyKeyAndStatus(policyKey, ACTIVE_STATUS)
                 .orElseThrow(() -> new ActivePolicyUnavailableException(policyKey));
 
-        return evaluatePolicy(policy, riskScore);
+        return evaluatePolicy(policy, riskScore, context);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PolicyEvaluation evaluateVersion(String policyKey, String policyVersion, int riskScore) {
+    public PolicyEvaluation evaluateVersion(
+            String policyKey,
+            String policyVersion,
+            int riskScore,
+            PolicyEvaluationContext context) {
         Objects.requireNonNull(policyKey, "policyKey must not be null");
         Objects.requireNonNull(policyVersion, "policyVersion must not be null");
+        Objects.requireNonNull(context, "context must not be null");
         if (policyKey.isBlank() || policyKey.length() > 100) {
             throw new IllegalArgumentException("policyKey must contain between 1 and 100 characters");
         }
@@ -50,32 +59,46 @@ public class DatabasePolicyEvaluationService implements PolicyEvaluationService 
                 .findByPolicyKeyAndVersion(policyKey, policyVersion)
                 .orElseThrow(() -> new ActivePolicyUnavailableException(policyKey));
 
-        return evaluatePolicy(policy, riskScore);
+        return evaluatePolicy(policy, riskScore, context);
     }
 
-    private PolicyEvaluation evaluatePolicy(PolicyVersionEntity policy, int riskScore) {
+    private PolicyEvaluation evaluatePolicy(
+            PolicyVersionEntity policy,
+            int riskScore,
+            PolicyEvaluationContext context) {
         validateRiskScore(riskScore);
 
-        int allowMaxScore = requireThreshold(policy.getAllowMaxScore(), policy.getPolicyKey());
-        int stepUpMaxScore = requireThreshold(policy.getStepUpMaxScore(), policy.getPolicyKey());
-        if (allowMaxScore < 0 || allowMaxScore >= stepUpMaxScore || stepUpMaxScore >= 100) {
-            throw new ActivePolicyUnavailableException(policy.getPolicyKey());
-        }
-
         ProtectionOutcome outcome;
-        if (riskScore <= allowMaxScore) {
-            outcome = ProtectionOutcome.ALLOW;
-        } else if (riskScore <= stepUpMaxScore) {
-            outcome = ProtectionOutcome.REQUIRE_STEP_UP;
+        if (context.recoveryRequest()) {
+            int recoveryMaxScore = requireRecoveryThreshold(policy);
+            outcome = riskScore <= recoveryMaxScore
+                    ? ProtectionOutcome.START_RECOVERY
+                    : ProtectionOutcome.TEMPORARILY_BLOCK;
         } else {
-            outcome = ProtectionOutcome.TEMPORARILY_BLOCK;
+            int allowMaxScore = requireThreshold(policy.getAllowMaxScore(), policy.getPolicyKey());
+            int stepUpMaxScore = requireThreshold(policy.getStepUpMaxScore(), policy.getPolicyKey());
+            if (allowMaxScore < 0 || allowMaxScore >= stepUpMaxScore || stepUpMaxScore >= 100) {
+                throw new ActivePolicyUnavailableException(policy.getPolicyKey());
+            }
+
+            if (riskScore <= allowMaxScore) {
+                outcome = ProtectionOutcome.ALLOW;
+            } else if (riskScore <= stepUpMaxScore) {
+                outcome = ProtectionOutcome.REQUIRE_STEP_UP;
+            } else {
+                outcome = ProtectionOutcome.TEMPORARILY_BLOCK;
+            }
         }
 
         return new PolicyEvaluation(policy.getPolicyKey(), policy.getVersion(), outcome);
     }
 
-    private void validateInput(String policyKey, int riskScore) {
+    private void validateInput(
+            String policyKey,
+            int riskScore,
+            PolicyEvaluationContext context) {
         Objects.requireNonNull(policyKey, "policyKey must not be null");
+        Objects.requireNonNull(context, "context must not be null");
         if (policyKey.isBlank() || policyKey.length() > 100) {
             throw new IllegalArgumentException("policyKey must contain between 1 and 100 characters");
         }
@@ -86,6 +109,15 @@ public class DatabasePolicyEvaluationService implements PolicyEvaluationService 
         if (riskScore < 0 || riskScore > 100) {
             throw new IllegalArgumentException("riskScore must be between 0 and 100");
         }
+    }
+
+    private int requireRecoveryThreshold(PolicyVersionEntity policy) {
+        int recoveryMaxScore = requireThreshold(
+                policy.getRecoveryMaxScore(), policy.getPolicyKey());
+        if (recoveryMaxScore < 0 || recoveryMaxScore >= 100) {
+            throw new ActivePolicyUnavailableException(policy.getPolicyKey());
+        }
+        return recoveryMaxScore;
     }
 
     private int requireThreshold(Short threshold, String policyKey) {
