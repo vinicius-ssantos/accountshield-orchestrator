@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.policy.internal.web;
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -31,7 +32,8 @@ class PolicyLifecycleController {
                 request.policyKey(),
                 request.version(),
                 request.allowMaxScore(),
-                request.stepUpMaxScore()));
+                request.stepUpMaxScore(),
+                request.recoveryMaxScore()));
         return ResponseEntity.status(HttpStatus.CREATED).body(summary);
     }
 
@@ -67,6 +69,8 @@ class PolicyLifecycleController {
             @NotBlank String policyKey,
             @NotBlank String version,
             @Min(0) @Max(99) short allowMaxScore,
-            @Min(1) @Max(99) short stepUpMaxScore) {
+            @Min(1) @Max(99) short stepUpMaxScore,
+            @Schema(description = "Highest recovery-request score that may produce START_RECOVERY", example = "89")
+            @Min(0) @Max(99) short recoveryMaxScore) {
     }
 }
