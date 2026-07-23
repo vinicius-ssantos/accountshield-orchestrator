@@ -13,7 +13,8 @@ public record RecoveryFlow(
         UUID identityChallengeId,
         Instant initiatedAt,
         Instant updatedAt,
-        Instant eligibleAfter) {
+        Instant eligibleAfter,
+        UUID protectionRequestId) {
 
     public RecoveryFlow {
         Objects.requireNonNull(recoveryId, "recoveryId must not be null");

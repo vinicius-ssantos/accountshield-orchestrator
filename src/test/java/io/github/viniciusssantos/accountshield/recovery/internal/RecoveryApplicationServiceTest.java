@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.github.viniciusssantos.accountshield.audit.DecisionTraceQuery;
+import io.github.viniciusssantos.accountshield.audit.DecisionTraceView;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
@@ -20,11 +22,14 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassificati
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
+import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowEntity;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,58 +42,95 @@ class RecoveryApplicationServiceTest {
 
     private final RecoveryFlowRepository repository = mock(RecoveryFlowRepository.class);
     private final ChallengeService challengeService = mock(ChallengeService.class);
+    private final DecisionTraceQuery decisionTraceQuery = mock(DecisionTraceQuery.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private RecoveryApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new RecoveryApplicationService(repository, challengeService, clock, eventPublisher);
+        service = new RecoveryApplicationService(
+                repository, challengeService, decisionTraceQuery, clock, eventPublisher);
     }
 
     @Test
-    void initiatesRecoveryWithIdentityChallengeAndClassifiesByRisk() {
+    void initiatesRecoveryWithRiskScoreDerivedFromDecisionTrace() {
+        UUID protectionRequestId = UUID.randomUUID();
         UUID challengeId = UUID.randomUUID();
+        when(decisionTraceQuery.findByProtectionRequestId(protectionRequestId))
+                .thenReturn(Optional.of(trace(protectionRequestId, "user-123", 20)));
         when(challengeService.create(any(), eq(ChallengeType.WEBAUTHN_SIMULATED)))
                 .thenReturn(challengePlan(challengeId, ChallengeStatus.CHALLENGED));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RecoveryFlow flow = service.initiate(new InitiateRecoveryCommand(
-                "user-123", RecoveryEventType.PASSWORD_RESET, 20));
+                protectionRequestId, RecoveryEventType.PASSWORD_RESET));
 
         assertThat(flow.status()).isEqualTo(RecoveryStatus.VERIFYING_IDENTITY);
         assertThat(flow.classification()).isEqualTo(RecoveryRiskClassification.IMMEDIATE);
         assertThat(flow.identityChallengeId()).isEqualTo(challengeId);
         assertThat(flow.eligibleAfter()).isNull();
+        assertThat(flow.protectionRequestId()).isEqualTo(protectionRequestId);
+    }
+
+    @Test
+    void rejectsInitiationWhenNoDecisionTraceExists() {
+        UUID protectionRequestId = UUID.randomUUID();
+        when(decisionTraceQuery.findByProtectionRequestId(protectionRequestId))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.initiate(new InitiateRecoveryCommand(
+                protectionRequestId, RecoveryEventType.LOGIN)))
+                .isInstanceOf(UnauthorizedRecoveryInitiationException.class);
     }
 
     @Test
     void classifiesHighRiskAsManualReview() {
+        UUID protectionRequestId = UUID.randomUUID();
+        when(decisionTraceQuery.findByProtectionRequestId(protectionRequestId))
+                .thenReturn(Optional.of(trace(protectionRequestId, "user-456", 75)));
         when(challengeService.create(any(), any()))
                 .thenReturn(challengePlan(UUID.randomUUID(), ChallengeStatus.CHALLENGED));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RecoveryFlow flow = service.initiate(new InitiateRecoveryCommand(
-                "user-456", RecoveryEventType.LOGIN, 75));
+                protectionRequestId, RecoveryEventType.LOGIN));
 
         assertThat(flow.classification()).isEqualTo(RecoveryRiskClassification.MANUAL_REVIEW);
     }
 
     @Test
     void classifiesMediumRiskAsDelayedWithEligibleAfter() {
+        UUID protectionRequestId = UUID.randomUUID();
+        when(decisionTraceQuery.findByProtectionRequestId(protectionRequestId))
+                .thenReturn(Optional.of(trace(protectionRequestId, "user-789", 45)));
         when(challengeService.create(any(), any()))
                 .thenReturn(challengePlan(UUID.randomUUID(), ChallengeStatus.CHALLENGED));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RecoveryFlow flow = service.initiate(new InitiateRecoveryCommand(
-                "user-789", RecoveryEventType.CREDENTIAL_CHANGE, 45));
+                protectionRequestId, RecoveryEventType.CREDENTIAL_CHANGE));
 
         assertThat(flow.classification()).isEqualTo(RecoveryRiskClassification.DELAYED);
         assertThat(flow.eligibleAfter()).isEqualTo(NOW.plusSeconds(900));
     }
 
     @Test
-    void confirmIdentityTransitionsToVerifiedWhenChallengeIsVerified() {
+    void confirmIdentityRejectsChallengeFromDifferentRecoveryFlow() {
+        UUID recoveryId = UUID.randomUUID();
+        UUID correctChallengeId = UUID.randomUUID();
+        UUID foreignChallengeId = UUID.randomUUID();
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(
+                entity(recoveryId, correctChallengeId, RecoveryStatus.VERIFYING_IDENTITY,
+                        RecoveryRiskClassification.IMMEDIATE)));
+
+        assertThatThrownBy(() -> service.confirmIdentity(
+                new ConfirmIdentityCommand(recoveryId, foreignChallengeId)))
+                .isInstanceOf(UnauthorizedRecoveryInitiationException.class);
+    }
+
+    @Test
+    void confirmIdentityTransitionsToVerifiedWhenChallengeMatchesAndIsVerified() {
         UUID recoveryId = UUID.randomUUID();
         UUID challengeId = UUID.randomUUID();
         when(repository.findById(recoveryId)).thenReturn(Optional.of(
@@ -104,7 +146,7 @@ class RecoveryApplicationServiceTest {
     }
 
     @Test
-    void confirmIdentityFailsWhenChallengeIsNotVerified() {
+    void confirmIdentityFailsWhenChallengeMatchesButIsNotVerified() {
         UUID recoveryId = UUID.randomUUID();
         UUID challengeId = UUID.randomUUID();
         when(repository.findById(recoveryId)).thenReturn(Optional.of(
@@ -188,12 +230,20 @@ class RecoveryApplicationServiceTest {
                 3, 3, NOW, NOW.plusSeconds(600));
     }
 
+    private DecisionTraceView trace(UUID protectionRequestId, String accountRef, int riskScore) {
+        return new DecisionTraceView(
+                UUID.randomUUID(), protectionRequestId, accountRef, "fingerprint",
+                "risk-rules-1.0", "account-protection-default", "1.0.0",
+                "REQUIRE_STEP_UP", riskScore,
+                Map.of(), NOW, List.of());
+    }
+
     private RecoveryFlowEntity entity(
             UUID id, UUID challengeId, RecoveryStatus status,
             RecoveryRiskClassification classification) {
         return new RecoveryFlowEntity(
                 id, "user-ref", "PASSWORD_RESET", status.name(),
                 classification.name(), challengeId, 30,
-                NOW, NOW, null, null);
+                NOW, NOW, null, null, UUID.randomUUID());
     }
 }

@@ -32,9 +32,8 @@ class RecoveryController {
     @PostMapping
     public ResponseEntity<RecoveryResponse> initiate(@Valid @RequestBody InitiateRecoveryRequest request) {
         RecoveryFlow flow = recoveryService.initiate(new InitiateRecoveryCommand(
-                request.accountReference(),
-                RecoveryEventType.valueOf(request.eventType()),
-                request.riskScore()));
+                request.protectionRequestId(),
+                RecoveryEventType.valueOf(request.eventType())));
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 
@@ -63,9 +62,8 @@ class RecoveryController {
     }
 
     record InitiateRecoveryRequest(
-            @NotBlank String accountReference,
-            @NotBlank String eventType,
-            int riskScore) {
+            @NotNull UUID protectionRequestId,
+            @NotBlank String eventType) {
     }
 
     record ConfirmIdentityRequest(@NotNull UUID challengeId) {
@@ -83,7 +81,8 @@ class RecoveryController {
             UUID identityChallengeId,
             Instant initiatedAt,
             Instant updatedAt,
-            Instant eligibleAfter) {
+            Instant eligibleAfter,
+            UUID protectionRequestId) {
 
         static RecoveryResponse from(RecoveryFlow flow) {
             return new RecoveryResponse(
@@ -95,7 +94,8 @@ class RecoveryController {
                     flow.identityChallengeId(),
                     flow.initiatedAt(),
                     flow.updatedAt(),
-                    flow.eligibleAfter());
+                    flow.eligibleAfter(),
+                    flow.protectionRequestId());
         }
     }
 }

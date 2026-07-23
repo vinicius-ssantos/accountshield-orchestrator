@@ -1,5 +1,7 @@
 package io.github.viniciusssantos.accountshield.recovery.internal;
 
+import io.github.viniciusssantos.accountshield.audit.DecisionTraceQuery;
+import io.github.viniciusssantos.accountshield.audit.DecisionTraceView;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
@@ -15,6 +17,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
+import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowEntity;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowRepository;
 import java.time.Clock;
@@ -36,16 +39,19 @@ class RecoveryApplicationService implements RecoveryService {
 
     private final RecoveryFlowRepository recoveryFlowRepository;
     private final ChallengeService challengeService;
+    private final DecisionTraceQuery decisionTraceQuery;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
 
     RecoveryApplicationService(
             RecoveryFlowRepository recoveryFlowRepository,
             ChallengeService challengeService,
+            DecisionTraceQuery decisionTraceQuery,
             @Qualifier("decisionClock") Clock clock,
             ApplicationEventPublisher eventPublisher) {
         this.recoveryFlowRepository = recoveryFlowRepository;
         this.challengeService = challengeService;
+        this.decisionTraceQuery = decisionTraceQuery;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
     }
@@ -55,26 +61,32 @@ class RecoveryApplicationService implements RecoveryService {
     public RecoveryFlow initiate(InitiateRecoveryCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 
+        DecisionTraceView trace = decisionTraceQuery.findByProtectionRequestId(command.protectionRequestId())
+                .orElseThrow(() -> new UnauthorizedRecoveryInitiationException(
+                        "no protection decision found for the given request"));
+
+        int riskScore = trace.riskScore();
         Instant now = clock.instant();
         UUID recoveryId = UUID.randomUUID();
-        RecoveryRiskClassification classification = classify(command.riskScore());
+        RecoveryRiskClassification classification = classify(riskScore);
 
         ChallengePlan identityChallenge = challengeService.create(
-                command.accountReference(),
+                trace.accountReference(),
                 ChallengeType.WEBAUTHN_SIMULATED);
 
         RecoveryFlowEntity entity = new RecoveryFlowEntity(
                 recoveryId,
-                command.accountReference(),
+                trace.accountReference(),
                 command.eventType().name(),
                 RecoveryStatus.VERIFYING_IDENTITY.name(),
                 classification.name(),
                 identityChallenge.challengeId(),
-                command.riskScore(),
+                riskScore,
                 now,
                 now,
                 computeEligibleAfter(classification, now),
-                null);
+                null,
+                command.protectionRequestId());
 
         recoveryFlowRepository.save(entity);
 
@@ -88,6 +100,11 @@ class RecoveryApplicationService implements RecoveryService {
 
         RecoveryFlowEntity entity = loadOrThrow(command.recoveryId(), "confirm-identity");
         assertState(entity, RecoveryStatus.VERIFYING_IDENTITY, "confirm-identity");
+
+        if (!command.challengeId().equals(entity.getIdentityChallengeId())) {
+            throw new UnauthorizedRecoveryInitiationException(
+                    "challenge does not belong to this recovery flow");
+        }
 
         ChallengePlan challenge = challengeService.verifyIdentityForRecovery(command.challengeId());
         if (challenge.status() != ChallengeStatus.VERIFIED) {
@@ -214,6 +231,7 @@ class RecoveryApplicationService implements RecoveryService {
                 entity.getIdentityChallengeId(),
                 entity.getInitiatedAt(),
                 entity.getUpdatedAt(),
-                entity.getEligibleAfter());
+                entity.getEligibleAfter(),
+                entity.getProtectionRequestId());
     }
 }
