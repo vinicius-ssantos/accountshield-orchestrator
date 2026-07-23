@@ -36,6 +36,9 @@ public class PolicyVersionEntity {
     @Column(name = "step_up_max_score")
     private Short stepUpMaxScore;
 
+    @Column(name = "recovery_max_score")
+    private Short recoveryMaxScore;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -52,7 +55,7 @@ public class PolicyVersionEntity {
             String status,
             Instant createdAt,
             Instant activatedAt) {
-        this(id, policyKey, version, status, null, null, null, createdAt, activatedAt);
+        this(id, policyKey, version, status, null, null, null, null, createdAt, activatedAt);
     }
 
     public PolicyVersionEntity(
@@ -64,7 +67,22 @@ public class PolicyVersionEntity {
             Short stepUpMaxScore,
             Instant createdAt,
             Instant activatedAt) {
-        this(id, policyKey, version, status, null, allowMaxScore, stepUpMaxScore, createdAt, activatedAt);
+        this(id, policyKey, version, status, null, allowMaxScore, stepUpMaxScore, null,
+                createdAt, activatedAt);
+    }
+
+    public PolicyVersionEntity(
+            UUID id,
+            String policyKey,
+            String version,
+            String status,
+            Short allowMaxScore,
+            Short stepUpMaxScore,
+            Short recoveryMaxScore,
+            Instant createdAt,
+            Instant activatedAt) {
+        this(id, policyKey, version, status, null, allowMaxScore, stepUpMaxScore,
+                recoveryMaxScore, createdAt, activatedAt);
     }
 
     public PolicyVersionEntity(
@@ -77,6 +95,21 @@ public class PolicyVersionEntity {
             Short stepUpMaxScore,
             Instant createdAt,
             Instant activatedAt) {
+        this(id, policyKey, version, status, definition, allowMaxScore, stepUpMaxScore,
+                null, createdAt, activatedAt);
+    }
+
+    public PolicyVersionEntity(
+            UUID id,
+            String policyKey,
+            String version,
+            String status,
+            String definition,
+            Short allowMaxScore,
+            Short stepUpMaxScore,
+            Short recoveryMaxScore,
+            Instant createdAt,
+            Instant activatedAt) {
         this.id = id;
         this.policyKey = policyKey;
         this.version = version;
@@ -84,6 +117,7 @@ public class PolicyVersionEntity {
         this.definition = definition;
         this.allowMaxScore = allowMaxScore;
         this.stepUpMaxScore = stepUpMaxScore;
+        this.recoveryMaxScore = recoveryMaxScore;
         this.createdAt = createdAt;
         this.activatedAt = activatedAt;
     }
@@ -110,6 +144,10 @@ public class PolicyVersionEntity {
 
     public Short getStepUpMaxScore() {
         return stepUpMaxScore;
+    }
+
+    public Short getRecoveryMaxScore() {
+        return recoveryMaxScore;
     }
 
     public Instant getCreatedAt() {
