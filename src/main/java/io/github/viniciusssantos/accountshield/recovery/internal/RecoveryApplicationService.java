@@ -3,9 +3,14 @@ package io.github.viniciusssantos.accountshield.recovery.internal;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceQuery;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceView;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeUseRejectedException;
+import io.github.viniciusssantos.accountshield.challenge.ConsumeChallengeCommand;
+import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
+import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateException;
 import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
 import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateException;
@@ -70,9 +75,11 @@ class RecoveryApplicationService implements RecoveryService {
         UUID recoveryId = UUID.randomUUID();
         RecoveryRiskClassification classification = classify(riskScore);
 
-        ChallengePlan identityChallenge = challengeService.create(
+        ChallengePlan identityChallenge = challengeService.create(new CreateChallengeCommand(
                 trace.accountReference(),
-                ChallengeType.WEBAUTHN_SIMULATED);
+                ChallengeType.WEBAUTHN_SIMULATED,
+                ChallengePurpose.RECOVERY_IDENTITY,
+                recoveryId));
 
         RecoveryFlowEntity entity = new RecoveryFlowEntity(
                 recoveryId,
@@ -106,8 +113,20 @@ class RecoveryApplicationService implements RecoveryService {
                     "challenge does not belong to this recovery flow");
         }
 
-        ChallengePlan challenge = challengeService.verifyIdentityForRecovery(command.challengeId());
-        if (challenge.status() != ChallengeStatus.VERIFIED) {
+        try {
+            ChallengePlan challenge = challengeService.consume(new ConsumeChallengeCommand(
+                    command.challengeId(),
+                    entity.getAccountReference(),
+                    ChallengePurpose.RECOVERY_IDENTITY,
+                    command.recoveryId()));
+            if (challenge.status() != ChallengeStatus.CONSUMED) {
+                throw new InvalidChallengeStateException(
+                        command.challengeId(), challenge.status());
+            }
+        } catch (ChallengeUseRejectedException exception) {
+            throw new UnauthorizedRecoveryInitiationException(
+                    "challenge cannot authorize this recovery flow");
+        } catch (InvalidChallengeStateException exception) {
             entity.setStatus(RecoveryStatus.IDENTITY_FAILED.name());
             entity.setUpdatedAt(clock.instant());
             recoveryFlowRepository.save(entity);
