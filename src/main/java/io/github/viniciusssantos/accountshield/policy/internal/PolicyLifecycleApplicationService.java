@@ -1,7 +1,6 @@
 package io.github.viniciusssantos.accountshield.policy.internal;
 
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
-import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
@@ -55,7 +54,8 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
         }
 
         String definition = "{\"allowMaxScore\":" + command.allowMaxScore()
-                + ",\"stepUpMaxScore\":" + command.stepUpMaxScore() + "}";
+                + ",\"stepUpMaxScore\":" + command.stepUpMaxScore()
+                + ",\"recoveryMaxScore\":" + command.recoveryMaxScore() + "}";
         Instant now = Instant.now(clock);
         PolicyVersionEntity entity = new PolicyVersionEntity(
                 UUID.randomUUID(),
@@ -65,6 +65,7 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
                 definition,
                 command.allowMaxScore(),
                 command.stepUpMaxScore(),
+                command.recoveryMaxScore(),
                 now,
                 null);
         repository.save(entity);
@@ -129,6 +130,9 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
         if (command.allowMaxScore() >= command.stepUpMaxScore()) {
             throw new IllegalArgumentException("allowMaxScore must be less than stepUpMaxScore");
         }
+        if (command.recoveryMaxScore() < 0 || command.recoveryMaxScore() > 99) {
+            throw new IllegalArgumentException("recoveryMaxScore must be between 0 and 99");
+        }
     }
 
     private void validateKey(String policyKey) {
@@ -153,6 +157,7 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
                 PolicyStatus.valueOf(entity.getStatus()),
                 entity.getAllowMaxScore(),
                 entity.getStepUpMaxScore(),
+                entity.getRecoveryMaxScore(),
                 entity.getCreatedAt(),
                 entity.getActivatedAt());
     }
