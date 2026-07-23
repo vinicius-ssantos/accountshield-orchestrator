@@ -14,7 +14,8 @@ public record RecoveryFlow(
         Instant initiatedAt,
         Instant updatedAt,
         Instant eligibleAfter,
-        UUID protectionRequestId) {
+        UUID protectionRequestId,
+        UUID originatingDecisionId) {
 
     public RecoveryFlow {
         Objects.requireNonNull(recoveryId, "recoveryId must not be null");
@@ -27,5 +28,7 @@ public record RecoveryFlow(
         Objects.requireNonNull(classification, "classification must not be null");
         Objects.requireNonNull(initiatedAt, "initiatedAt must not be null");
         Objects.requireNonNull(updatedAt, "updatedAt must not be null");
+        Objects.requireNonNull(protectionRequestId, "protectionRequestId must not be null");
+        Objects.requireNonNull(originatingDecisionId, "originatingDecisionId must not be null");
     }
 }
