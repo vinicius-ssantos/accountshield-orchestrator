@@ -95,6 +95,9 @@ UPDATE recovery.recovery_flow recovery_flow
    AND recovery_flow.originating_decision_id IS NULL;
 
 ALTER TABLE recovery.recovery_flow
+    ALTER COLUMN originating_decision_id SET NOT NULL;
+
+ALTER TABLE recovery.recovery_flow
     ADD CONSTRAINT fk_recovery_originating_decision
         FOREIGN KEY (originating_decision_id)
         REFERENCES audit.decision_trace(id);
