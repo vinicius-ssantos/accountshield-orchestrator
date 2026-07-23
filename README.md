@@ -116,7 +116,6 @@ Architecture documentation lives under [`docs/architecture`](docs/architecture),
 - Maven;
 - Spring Modulith;
 - PostgreSQL and Flyway;
-- Redis for ephemeral controls such as throttling and cooldowns;
 - Testcontainers;
 - ArchUnit;
 - Micrometer and OpenTelemetry;

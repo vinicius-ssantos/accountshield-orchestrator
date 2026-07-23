@@ -5,4 +5,5 @@
  * re-evaluate them against the original or candidate policy versions.
  * No replay or shadow evaluation ever triggers external side effects.</p>
  */
+@org.springframework.modulith.ApplicationModule
 package io.github.viniciusssantos.accountshield.simulation;

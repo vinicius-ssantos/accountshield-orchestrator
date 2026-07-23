@@ -45,3 +45,8 @@ accountshield:
     rate-limit:
       max-requests: 10
       window: 60s
+  outbox:
+    relay:
+      fixed-delay: 5s
+      batch-size: 50
+      max-attempts: 5

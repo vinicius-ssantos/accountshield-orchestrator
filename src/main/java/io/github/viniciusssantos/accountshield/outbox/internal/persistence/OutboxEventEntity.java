@@ -6,6 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -64,5 +65,50 @@ public class OutboxEventEntity {
         this.occurredAt = occurredAt;
         this.attemptCount = 0;
         this.version = 0;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public String getAggregateType() {
+        return aggregateType;
+    }
+
+    public String getAggregateId() {
+        return aggregateId;
+    }
+
+    public String getEventType() {
+        return eventType;
+    }
+
+    public String getPayload() {
+        return payload;
+    }
+
+    public Instant getOccurredAt() {
+        return occurredAt;
+    }
+
+    public Instant getPublishedAt() {
+        return publishedAt;
+    }
+
+    public int getAttemptCount() {
+        return attemptCount;
+    }
+
+    public String getLastError() {
+        return lastError;
+    }
+
+    public void markPublished(Instant publishedAt) {
+        this.publishedAt = Objects.requireNonNull(publishedAt, "publishedAt must not be null");
+    }
+
+    public void recordFailure(String error, Instant now) {
+        this.attemptCount++;
+        this.lastError = Objects.requireNonNull(error, "error must not be null");
     }
 }

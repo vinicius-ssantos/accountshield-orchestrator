@@ -18,6 +18,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowEntity;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowRepository;
@@ -162,7 +163,7 @@ class RecoveryApplicationServiceTest {
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RecoveryFlow flow = service.review(new RecoveryReviewCommand(
-                recoveryId, "APPROVE", "operator-alice"));
+                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice"));
 
         assertThat(flow.status()).isEqualTo(RecoveryStatus.COMPLETED);
     }
@@ -176,7 +177,7 @@ class RecoveryApplicationServiceTest {
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RecoveryFlow flow = service.review(new RecoveryReviewCommand(
-                recoveryId, "REJECT", "operator-bob"));
+                recoveryId, RecoveryReviewDecision.REJECT, "operator-bob"));
 
         assertThat(flow.status()).isEqualTo(RecoveryStatus.REJECTED);
     }
