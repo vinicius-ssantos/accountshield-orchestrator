@@ -35,7 +35,8 @@ class RecoveryProblemHandler {
     @ExceptionHandler(UnauthorizedRecoveryInitiationException.class)
     public ResponseEntity<ProblemDetail> unauthorized(UnauthorizedRecoveryInitiationException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "The recovery request cannot be authorized.");
         problem.setType(UNAUTHORIZED_TYPE);
         problem.setTitle("Unauthorized recovery initiation");
         problem.setProperty("code", "UNAUTHORIZED_RECOVERY_INITIATION");
