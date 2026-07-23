@@ -44,6 +44,9 @@ public class RecoveryFlowEntity {
     @Column(name = "reviewer", length = 128)
     private String reviewer;
 
+    @Column(name = "protection_request_id")
+    private UUID protectionRequestId;
+
     protected RecoveryFlowEntity() {
     }
 
@@ -58,7 +61,8 @@ public class RecoveryFlowEntity {
             Instant initiatedAt,
             Instant updatedAt,
             Instant eligibleAfter,
-            String reviewer) {
+            String reviewer,
+            UUID protectionRequestId) {
         this.id = id;
         this.accountReference = accountReference;
         this.eventType = eventType;
@@ -70,6 +74,7 @@ public class RecoveryFlowEntity {
         this.updatedAt = updatedAt;
         this.eligibleAfter = eligibleAfter;
         this.reviewer = reviewer;
+        this.protectionRequestId = protectionRequestId;
     }
 
     public UUID getId() {
@@ -138,5 +143,9 @@ public class RecoveryFlowEntity {
 
     public String getEventType() {
         return eventType;
+    }
+
+    public UUID getProtectionRequestId() {
+        return protectionRequestId;
     }
 }

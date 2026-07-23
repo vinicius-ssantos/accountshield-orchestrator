@@ -66,6 +66,7 @@ protection -> challenge
 protection -> recovery
 policy     -> risk public API
 recovery   -> challenge
+recovery   -> audit public API
 simulation -> audit
 simulation -> policy
 ```
