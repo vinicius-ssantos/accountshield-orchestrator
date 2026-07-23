@@ -10,6 +10,7 @@ public record PolicyVersionSummary(
         PolicyStatus status,
         Short allowMaxScore,
         Short stepUpMaxScore,
+        Short recoveryMaxScore,
         Instant createdAt,
         Instant activatedAt) {
 }
