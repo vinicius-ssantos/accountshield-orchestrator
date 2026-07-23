@@ -4,5 +4,6 @@ public record CreatePolicyCommand(
         String policyKey,
         String version,
         short allowMaxScore,
-        short stepUpMaxScore) {
+        short stepUpMaxScore,
+        short recoveryMaxScore) {
 }
