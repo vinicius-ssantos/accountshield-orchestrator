@@ -5,15 +5,12 @@ import java.util.UUID;
 
 public record RecoveryReviewCommand(
         UUID recoveryId,
-        String decision,
+        RecoveryReviewDecision decision,
         String reviewer) {
 
     public RecoveryReviewCommand {
         Objects.requireNonNull(recoveryId, "recoveryId must not be null");
         Objects.requireNonNull(decision, "decision must not be null");
-        if (!decision.equals("APPROVE") && !decision.equals("REJECT")) {
-            throw new IllegalArgumentException("decision must be APPROVE or REJECT");
-        }
         Objects.requireNonNull(reviewer, "reviewer must not be null");
         if (reviewer.isBlank() || reviewer.length() > 128) {
             throw new IllegalArgumentException("reviewer must contain between 1 and 128 characters");

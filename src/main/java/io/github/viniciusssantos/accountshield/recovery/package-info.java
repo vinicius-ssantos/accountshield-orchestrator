@@ -6,4 +6,5 @@
  * recovery-specific risk classification (immediate, delayed, manual review),
  * and abuse controls.</p>
  */
+@org.springframework.modulith.ApplicationModule
 package io.github.viniciusssantos.accountshield.recovery;

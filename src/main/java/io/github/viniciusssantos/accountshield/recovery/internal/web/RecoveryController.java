@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.recovery.internal.web;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
 import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
@@ -57,7 +58,7 @@ class RecoveryController {
             @PathVariable UUID recoveryId,
             @Valid @RequestBody RecoveryReviewRequest request) {
         RecoveryFlow flow = recoveryService.review(new RecoveryReviewCommand(
-                recoveryId, request.decision(), request.reviewer()));
+                recoveryId, RecoveryReviewDecision.valueOf(request.decision()), request.reviewer()));
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 

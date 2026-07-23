@@ -12,6 +12,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowEntity;
@@ -154,7 +155,7 @@ class RecoveryApplicationService implements RecoveryService {
         assertState(entity, RecoveryStatus.MANUAL_REVIEW, "review");
 
         Instant now = clock.instant();
-        String newStatus = command.decision().equals("APPROVE")
+        String newStatus = command.decision() == RecoveryReviewDecision.APPROVE
                 ? RecoveryStatus.COMPLETED.name()
                 : RecoveryStatus.REJECTED.name();
 
