@@ -7,7 +7,7 @@
 
 Protection-decision endpoints are externally visible and could be abused by brute-force attempts that vary risk signals for the same account. Without rate limiting, an attacker can issue unlimited requests to probe policy thresholds, enumerate outcomes, or exhaust system resources.
 
-The README mentions Redis for ephemeral controls such as throttling and cooldowns, but introducing Redis requires infrastructure that is not yet justified for a portfolio project operating as a modular monolith.
+A distributed ephemeral store (e.g. Redis) could provide shared rate-limit state across instances, but introducing that infrastructure is not yet justified for a portfolio project operating as a single-instance modular monolith.
 
 ## Decision
 

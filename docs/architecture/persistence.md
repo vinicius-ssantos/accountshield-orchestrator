@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-PostgreSQL is authoritative for correctness-sensitive state. Redis is intentionally absent from the initial persistence foundation and may later be used only for reconstructible ephemeral controls.
+PostgreSQL is authoritative for correctness-sensitive state. Ephemeral controls such as rate-limit counters are held in-process; ADR 0008 documents this decision and the conditions under which a distributed store may be introduced.
 
 ## Schema ownership
 
@@ -44,4 +44,4 @@ The database owns the uniqueness guarantee for an idempotency key. Application l
 
 ## Outbox boundary
 
-The outbox table is introduced before a publisher. It allows future use cases to persist a domain change and its publication intent in one PostgreSQL transaction. Kafka or another broker is not part of this foundation.
+The outbox table persists a domain change and its publication intent in one PostgreSQL transaction. An `OutboxRelay` polls unpublished events on a fixed schedule and dispatches them through a pluggable `OutboxEventPublisher` port (see ADR 0009). Kafka or another broker is not part of this foundation.

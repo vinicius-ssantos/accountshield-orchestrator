@@ -15,7 +15,7 @@ flowchart LR
     IdP --> Shield[AccountShield]
     Shield --> Challenge[Simulated challenge providers]
     Shield --> Store[(PostgreSQL)]
-    Shield --> Cache[(Redis)]
+    Shield --> Outbox[Transactional outbox]
     Shield --> Observability[Metrics, logs and traces]
     Shield --> Operator[Security operator or simulator]
 ```
@@ -40,7 +40,7 @@ Owns versioned rules that convert a risk assessment and account context into a p
 
 Owns the append-only decision trace. Audit records preserve the request fingerprint, normalized inputs allowed for retention, algorithm version, policy version, contributions, final outcome, timestamps, and correlation identifiers.
 
-Future modules such as `abuse` and `outbox` will be introduced only with a vertical slice that exercises them.
+Future modules such as `abuse` may be introduced only with a vertical slice that exercises them. The `outbox` module is already part of the system and owns the transactional outbox pattern with a relay (see ADR 0009).
 
 ### `challenge`
 
@@ -133,9 +133,7 @@ Logs must not contain forbidden data. Sensitive values require explicit structur
 
 ## Persistence direction
 
-PostgreSQL will become the source of truth for decisions, policy versions, recovery state, idempotency records, and the transactional outbox. Redis is limited to reconstructible ephemeral controls such as rate-limit counters, short-lived cooldowns, and caches.
-
-Correctness must not depend on Redis retaining data indefinitely.
+PostgreSQL is the source of truth for decisions, policy versions, recovery state, idempotency records, and the transactional outbox. Ephemeral controls such as rate-limit counters use in-process storage; ADR 0008 documents this choice and the conditions under which a distributed store may be introduced.
 
 ## Testing strategy
 
@@ -143,7 +141,7 @@ Correctness must not depend on Redis retaining data indefinitely.
 - property-based tests for score bounds and determinism;
 - Spring Modulith verification for package dependencies;
 - module integration tests for public contracts;
-- Testcontainers for PostgreSQL and Redis behavior;
+- Testcontainers for PostgreSQL behavior;
 - concurrency tests for idempotency and state transitions;
 - replay fixtures for historical determinism;
 - architecture tests preventing adapters from leaking into the domain.
