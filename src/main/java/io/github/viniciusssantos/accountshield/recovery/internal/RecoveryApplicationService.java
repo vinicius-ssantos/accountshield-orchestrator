@@ -28,16 +28,20 @@ import io.github.viniciusssantos.accountshield.recovery.internal.persistence.Rec
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 class RecoveryApplicationService implements RecoveryService {
 
+    private static final String AUTHORIZATION_REJECTED_MESSAGE =
+            "recovery authorization is invalid or unavailable";
     private static final int IMMEDIATE_THRESHOLD = 30;
     private static final int DELAYED_THRESHOLD = 60;
     private static final Duration DELAY_PERIOD = Duration.ofMinutes(15);
@@ -67,8 +71,13 @@ class RecoveryApplicationService implements RecoveryService {
         Objects.requireNonNull(command, "command must not be null");
 
         DecisionTraceView trace = decisionTraceQuery.findByProtectionRequestId(command.protectionRequestId())
-                .orElseThrow(() -> new UnauthorizedRecoveryInitiationException(
-                        "no protection decision found for the given request"));
+                .filter(candidate -> "START_RECOVERY".equals(candidate.outcome()))
+                .orElseThrow(this::authorizationRejected);
+        RecoveryEventType eventType = deriveRecoveryEventType(trace.normalizedContext());
+
+        if (recoveryFlowRepository.existsByOriginatingDecisionId(trace.decisionId())) {
+            throw authorizationRejected();
+        }
 
         int riskScore = trace.riskScore();
         Instant now = clock.instant();
@@ -84,7 +93,7 @@ class RecoveryApplicationService implements RecoveryService {
         RecoveryFlowEntity entity = new RecoveryFlowEntity(
                 recoveryId,
                 trace.accountReference(),
-                command.eventType().name(),
+                eventType.name(),
                 RecoveryStatus.VERIFYING_IDENTITY.name(),
                 classification.name(),
                 identityChallenge.challengeId(),
@@ -93,9 +102,14 @@ class RecoveryApplicationService implements RecoveryService {
                 now,
                 computeEligibleAfter(classification, now),
                 null,
-                command.protectionRequestId());
+                command.protectionRequestId(),
+                trace.decisionId());
 
-        recoveryFlowRepository.save(entity);
+        try {
+            recoveryFlowRepository.saveAndFlush(entity);
+        } catch (DataIntegrityViolationException exception) {
+            throw authorizationRejected();
+        }
 
         return toDomain(entity);
     }
@@ -219,6 +233,24 @@ class RecoveryApplicationService implements RecoveryService {
         return toDomain(entity);
     }
 
+    private RecoveryEventType deriveRecoveryEventType(Map<String, Object> normalizedContext) {
+        Object rawEventType = normalizedContext.get("protectionEventType");
+        if (!(rawEventType instanceof String eventType)) {
+            throw authorizationRejected();
+        }
+        return switch (eventType) {
+            case "LOGIN_RECOVERY_ATTEMPT" -> RecoveryEventType.LOGIN;
+            case "PASSWORD_RESET_ATTEMPT" -> RecoveryEventType.PASSWORD_RESET;
+            case "CREDENTIAL_CHANGE_ATTEMPT" -> RecoveryEventType.CREDENTIAL_CHANGE;
+            case "DEVICE_TRUST_RESET_ATTEMPT" -> RecoveryEventType.DEVICE_TRUST_RESET;
+            default -> throw authorizationRejected();
+        };
+    }
+
+    private UnauthorizedRecoveryInitiationException authorizationRejected() {
+        return new UnauthorizedRecoveryInitiationException(AUTHORIZATION_REJECTED_MESSAGE);
+    }
+
     private RecoveryRiskClassification classify(int riskScore) {
         if (riskScore <= IMMEDIATE_THRESHOLD) {
             return RecoveryRiskClassification.IMMEDIATE;
@@ -259,6 +291,7 @@ class RecoveryApplicationService implements RecoveryService {
                 entity.getInitiatedAt(),
                 entity.getUpdatedAt(),
                 entity.getEligibleAfter(),
-                entity.getProtectionRequestId());
+                entity.getProtectionRequestId(),
+                entity.getOriginatingDecisionId());
     }
 }
