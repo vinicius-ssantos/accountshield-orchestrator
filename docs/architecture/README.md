@@ -48,7 +48,7 @@ Owns the step-up challenge lifecycle: creation, verification attempts, expiratio
 
 ### `recovery`
 
-Owns the secure recovery state machine with risk-based classification. Recovery flows are classified as immediate, delayed, or manual-review based on risk score. See ADR 0005.
+Owns the secure recovery state machine with risk-based classification. Verified identity enters an enforced classification gate: immediate flows become completion-ready, delayed flows wait for eligibility, and manual-review flows require an explicit review decision. See [recovery architecture](recovery.md), ADR 0005, and ADR 0010.
 
 ### `simulation`
 
