@@ -1,5 +1,7 @@
 # AccountShield Orchestrator
 
+[![CI](https://github.com/vinicius-ssantos/accountshield-orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/vinicius-ssantos/accountshield-orchestrator/actions/workflows/ci.yml)
+
 > Adaptive account-protection decision and orchestration platform with explainable risk policies, step-up challenges, secure recovery, abuse detection, replay, and security simulation.
 
 AccountShield is a portfolio-grade backend platform that evaluates security-sensitive account events and decides whether they should be allowed, monitored, challenged, temporarily blocked, or routed into a secure recovery flow.
@@ -187,12 +189,29 @@ Exact dependency versions are pinned in the build and upgraded through reviewed 
 
 ## Local development
 
-The executable bootstrap and local infrastructure are introduced by the foundation milestone. The target developer workflow is:
+### Quick start with Docker Compose
 
 ```bash
-./mvnw verify
-
 docker compose up -d
+```
+
+This starts:
+
+| Service | Port | Purpose |
+| --- | --- | --- |
+| PostgreSQL 17 | `5432` | Primary data store |
+| AccountShield app | `8080` | REST API + actuator |
+| Prometheus | `9090` | Metrics scraping |
+| Grafana | `3000` | Dashboards (admin/admin) |
+
+The Grafana dashboard is auto-provisioned from `grafana/accountshield-dashboard.json`.
+
+### Developer workflow
+
+```bash
+docker compose up -d postgres
+
+./mvnw verify
 
 ./mvnw spring-boot:run
 ```
