@@ -26,8 +26,11 @@ class ChallengeController {
     public ResponseEntity<ChallengeVerificationResponse> verify(
             @PathVariable UUID challengeId,
             @Valid @RequestBody ChallengeVerificationRequest request) {
-        ChallengeResult result = challengeService.verify(
-                new ChallengeVerificationCommand(challengeId, request.providedCode()));
+        ChallengeResult result = challengeService.verify(new ChallengeVerificationCommand(
+                challengeId,
+                request.providedCode(),
+                request.purpose(),
+                request.contextId()));
         return ResponseEntity.ok(ChallengeVerificationResponse.from(result));
     }
 }

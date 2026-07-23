@@ -3,14 +3,18 @@ package io.github.viniciusssantos.accountshield.challenge.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeUseRejectedException;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeVerificationCommand;
+import io.github.viniciusssantos.accountshield.challenge.ConsumeChallengeCommand;
+import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateException;
 import io.github.viniciusssantos.accountshield.challenge.internal.persistence.ChallengePlanEntity;
 import io.github.viniciusssantos.accountshield.challenge.internal.persistence.ChallengePlanRepository;
@@ -23,13 +27,16 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.OptimisticLockingFailureException;
 
 class ChallengeApplicationServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-07-20T03:00:00Z");
+    private static final UUID CONTEXT_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
 
     private final ChallengePlanRepository repository = mock(ChallengePlanRepository.class);
-    private final SimulatedChallengeProvider provider = new SimulatedChallengeProvider(java.util.random.RandomGenerator.getDefault());
+    private final SimulatedChallengeProvider provider =
+            new SimulatedChallengeProvider(java.util.random.RandomGenerator.getDefault());
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
@@ -41,28 +48,35 @@ class ChallengeApplicationServiceTest {
     }
 
     @Test
-    void createsChallengePlanInChallengedState() {
+    void createsPurposeBoundChallengePlan() {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var plan = service.create("account-1", ChallengeType.TOTP_SIMULATED);
+        ChallengePlan plan = service.create(new CreateChallengeCommand(
+                "account-1",
+                ChallengeType.TOTP_SIMULATED,
+                ChallengePurpose.PROTECTION_STEP_UP,
+                CONTEXT_ID));
 
         assertThat(plan.challengeId()).isNotNull();
         assertThat(plan.accountReference()).isEqualTo("account-1");
         assertThat(plan.challengeType()).isEqualTo(ChallengeType.TOTP_SIMULATED);
+        assertThat(plan.purpose()).isEqualTo(ChallengePurpose.PROTECTION_STEP_UP);
+        assertThat(plan.contextId()).isEqualTo(CONTEXT_ID);
         assertThat(plan.status()).isEqualTo(ChallengeStatus.CHALLENGED);
         assertThat(plan.maxAttempts()).isEqualTo(3);
         assertThat(plan.remainingAttempts()).isEqualTo(3);
         assertThat(plan.createdAt()).isEqualTo(NOW);
         assertThat(plan.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(10)));
+        assertThat(plan.consumedAt()).isNull();
     }
 
     @Test
-    void verifiesCorrectCodeSuccessfully() {
+    void verifiesCorrectCodeForMatchingPurposeAndContext() {
         UUID challengeId = UUID.randomUUID();
-        ChallengePlanEntity entity = activeEntity(challengeId, "123456");
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.CHALLENGED);
         when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
 
-        ChallengeResult result = service.verify(new ChallengeVerificationCommand(challengeId, "123456"));
+        ChallengeResult result = service.verify(verification(challengeId, "123456"));
 
         assertThat(result.verified()).isTrue();
         assertThat(result.status()).isEqualTo(ChallengeStatus.VERIFIED);
@@ -70,12 +84,28 @@ class ChallengeApplicationServiceTest {
     }
 
     @Test
-    void tracksRemainingAttemptsOnWrongCode() {
+    void rejectsPurposeOrContextMismatchWithoutRevealingState() {
         UUID challengeId = UUID.randomUUID();
-        ChallengePlanEntity entity = activeEntity(challengeId, "123456");
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.CHALLENGED);
         when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
 
-        ChallengeResult result = service.verify(new ChallengeVerificationCommand(challengeId, "000000"));
+        assertThatThrownBy(() -> service.verify(new ChallengeVerificationCommand(
+                challengeId,
+                "123456",
+                ChallengePurpose.RECOVERY_IDENTITY,
+                CONTEXT_ID)))
+                .isInstanceOf(ChallengeUseRejectedException.class)
+                .hasMessage("challenge cannot be used for the requested operation");
+        assertThat(entity.getRemainingAttempts()).isEqualTo((short) 3);
+    }
+
+    @Test
+    void tracksRemainingAttemptsOnWrongCode() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.CHALLENGED);
+        when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
+
+        ChallengeResult result = service.verify(verification(challengeId, "000000"));
 
         assertThat(result.verified()).isFalse();
         assertThat(result.status()).isEqualTo(ChallengeStatus.CHALLENGED);
@@ -85,12 +115,12 @@ class ChallengeApplicationServiceTest {
     @Test
     void failsAfterMaxAttemptsExhausted() {
         UUID challengeId = UUID.randomUUID();
-        ChallengePlanEntity entity = activeEntity(challengeId, "123456");
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.CHALLENGED);
         when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
 
-        service.verify(new ChallengeVerificationCommand(challengeId, "wrong"));
-        service.verify(new ChallengeVerificationCommand(challengeId, "wrong"));
-        ChallengeResult result = service.verify(new ChallengeVerificationCommand(challengeId, "wrong"));
+        service.verify(verification(challengeId, "wrong"));
+        service.verify(verification(challengeId, "wrong"));
+        ChallengeResult result = service.verify(verification(challengeId, "wrong"));
 
         assertThat(result.verified()).isFalse();
         assertThat(result.status()).isEqualTo(ChallengeStatus.FAILED);
@@ -98,63 +128,106 @@ class ChallengeApplicationServiceTest {
     }
 
     @Test
-    void returnsVerifiedOnAlreadyVerifiedChallenge() {
+    void returnsVerifiedOnEquivalentRetryBeforeConsumption() {
         UUID challengeId = UUID.randomUUID();
-        ChallengePlanEntity entity = activeEntity(challengeId, "123456");
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.CHALLENGED);
         when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
 
-        service.verify(new ChallengeVerificationCommand(challengeId, "123456"));
-        ChallengeResult result = service.verify(new ChallengeVerificationCommand(challengeId, "123456"));
+        service.verify(verification(challengeId, "123456"));
+        ChallengeResult result = service.verify(verification(challengeId, "123456"));
 
         assertThat(result.verified()).isTrue();
         assertThat(result.status()).isEqualTo(ChallengeStatus.VERIFIED);
     }
 
     @Test
-    void rejectsVerificationOnFailedChallenge() {
+    void consumesVerifiedChallengeExactlyOnce() {
         UUID challengeId = UUID.randomUUID();
-        ChallengePlanEntity entity = activeEntity(challengeId, "123456");
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.VERIFIED);
         when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
 
-        service.verify(new ChallengeVerificationCommand(challengeId, "wrong"));
-        service.verify(new ChallengeVerificationCommand(challengeId, "wrong"));
-        service.verify(new ChallengeVerificationCommand(challengeId, "wrong"));
+        ChallengePlan consumed = service.consume(consumption(challengeId));
 
-        assertThatThrownBy(() -> service.verify(
-                new ChallengeVerificationCommand(challengeId, "000000")))
+        assertThat(consumed.status()).isEqualTo(ChallengeStatus.CONSUMED);
+        assertThat(consumed.consumedAt()).isEqualTo(NOW);
+        assertThatThrownBy(() -> service.consume(consumption(challengeId)))
+                .isInstanceOf(ChallengeUseRejectedException.class);
+    }
+
+    @Test
+    void convertsOptimisticLockConflictIntoGenericRejection() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.VERIFIED);
+        when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
+        when(repository.saveAndFlush(any()))
+                .thenThrow(new OptimisticLockingFailureException("concurrent consumption"));
+
+        assertThatThrownBy(() -> service.consume(consumption(challengeId)))
+                .isInstanceOf(ChallengeUseRejectedException.class);
+    }
+
+    @Test
+    void rejectsVerificationOnFailedChallenge() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.FAILED);
+        when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> service.verify(verification(challengeId, "000000")))
                 .isInstanceOf(InvalidChallengeStateException.class);
     }
 
     @Test
     void expiresChallengeAfterTtl() {
         UUID challengeId = UUID.randomUUID();
-        Instant expired = NOW.minus(Duration.ofSeconds(1));
-        ChallengePlanEntity entity = activeEntity(challengeId, "123456");
-        entity.setStatus("CHALLENGED");
+        ChallengePlanEntity entity = activeEntity(challengeId, "123456", ChallengeStatus.CHALLENGED);
         when(repository.findById(challengeId)).thenReturn(Optional.of(entity));
 
         ChallengeApplicationService expiredService = new ChallengeApplicationService(
-                repository, provider, Clock.fixed(NOW.plus(Duration.ofMinutes(11)), ZoneOffset.UTC), eventPublisher);
+                repository,
+                provider,
+                Clock.fixed(NOW.plus(Duration.ofMinutes(11)), ZoneOffset.UTC),
+                eventPublisher);
 
-        assertThatThrownBy(() -> expiredService.verify(
-                new ChallengeVerificationCommand(challengeId, "000000")))
+        assertThatThrownBy(() -> expiredService.verify(verification(challengeId, "000000")))
                 .isInstanceOf(InvalidChallengeStateException.class);
     }
 
     @Test
     void rejectsNullInputs() {
-        assertThatThrownBy(() -> service.create(null, ChallengeType.TOTP_SIMULATED))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> service.create("a", null))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> service.verify(null))
-                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.create(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.verify(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.consume(null)).isInstanceOf(NullPointerException.class);
     }
 
-    private ChallengePlanEntity activeEntity(UUID id, String code) {
+    private ChallengeVerificationCommand verification(UUID challengeId, String code) {
+        return new ChallengeVerificationCommand(
+                challengeId,
+                code,
+                ChallengePurpose.PROTECTION_STEP_UP,
+                CONTEXT_ID);
+    }
+
+    private ConsumeChallengeCommand consumption(UUID challengeId) {
+        return new ConsumeChallengeCommand(
+                challengeId,
+                "account-1",
+                ChallengePurpose.PROTECTION_STEP_UP,
+                CONTEXT_ID);
+    }
+
+    private ChallengePlanEntity activeEntity(UUID id, String code, ChallengeStatus status) {
         return new ChallengePlanEntity(
-                id, "account-1", "TOTP_SIMULATED", "CHALLENGED",
-                (short) 3, (short) 3, code,
-                NOW, NOW.plus(Duration.ofMinutes(10)));
+                id,
+                "account-1",
+                ChallengeType.TOTP_SIMULATED.name(),
+                ChallengePurpose.PROTECTION_STEP_UP.name(),
+                CONTEXT_ID,
+                status.name(),
+                (short) 3,
+                (short) 3,
+                code,
+                NOW,
+                NOW.plus(Duration.ofMinutes(10)),
+                null);
     }
 }

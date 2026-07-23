@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,6 +20,12 @@ public class ChallengePlanEntity {
 
     @Column(name = "challenge_type", nullable = false, length = 32)
     private String challengeType;
+
+    @Column(name = "purpose", nullable = false, length = 32)
+    private String purpose;
+
+    @Column(name = "context_id", nullable = false)
+    private UUID contextId;
 
     @Column(nullable = false, length = 16)
     private String status;
@@ -38,6 +45,13 @@ public class ChallengePlanEntity {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
+    @Column(name = "consumed_at")
+    private Instant consumedAt;
+
+    @Version
+    @Column(nullable = false)
+    private long version;
+
     protected ChallengePlanEntity() {
     }
 
@@ -45,21 +59,27 @@ public class ChallengePlanEntity {
             UUID id,
             String accountReference,
             String challengeType,
+            String purpose,
+            UUID contextId,
             String status,
             short maxAttempts,
             short remainingAttempts,
             String expectedCode,
             Instant createdAt,
-            Instant expiresAt) {
+            Instant expiresAt,
+            Instant consumedAt) {
         this.id = id;
         this.accountReference = accountReference;
         this.challengeType = challengeType;
+        this.purpose = purpose;
+        this.contextId = contextId;
         this.status = status;
         this.maxAttempts = maxAttempts;
         this.remainingAttempts = remainingAttempts;
         this.expectedCode = expectedCode;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
+        this.consumedAt = consumedAt;
     }
 
     public UUID getId() {
@@ -102,7 +122,27 @@ public class ChallengePlanEntity {
         return challengeType;
     }
 
+    public String getPurpose() {
+        return purpose;
+    }
+
+    public UUID getContextId() {
+        return contextId;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getConsumedAt() {
+        return consumedAt;
+    }
+
+    public void setConsumedAt(Instant consumedAt) {
+        this.consumedAt = consumedAt;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }

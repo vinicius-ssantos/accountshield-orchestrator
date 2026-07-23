@@ -3,17 +3,18 @@ package io.github.viniciusssantos.accountshield.challenge;
 import java.util.Objects;
 import java.util.UUID;
 
-public record ChallengeVerificationCommand(
+public record ConsumeChallengeCommand(
         UUID challengeId,
-        String providedCode,
+        String accountReference,
         ChallengePurpose purpose,
         UUID contextId) {
 
-    public ChallengeVerificationCommand {
+    public ConsumeChallengeCommand {
         Objects.requireNonNull(challengeId, "challengeId must not be null");
-        if (providedCode == null || providedCode.isBlank() || providedCode.length() > 64) {
+        Objects.requireNonNull(accountReference, "accountReference must not be null");
+        if (accountReference.isBlank() || accountReference.length() > 128) {
             throw new IllegalArgumentException(
-                    "providedCode must contain between 1 and 64 characters");
+                    "accountReference must contain between 1 and 128 characters");
         }
         Objects.requireNonNull(purpose, "purpose must not be null");
         Objects.requireNonNull(contextId, "contextId must not be null");

@@ -10,8 +10,10 @@ import static org.mockito.Mockito.when;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceCommand;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
+import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
@@ -76,15 +78,22 @@ class ProtectionDecisionApplicationServiceTest {
                         ProtectionOutcome.REQUIRE_STEP_UP));
         when(idempotencyGuard.resolve(anyString(), anyString(), any()))
                 .thenReturn(IdempotencyResult.absent());
-        when(challengeService.create(anyString(), any(ChallengeType.class)))
-                .thenReturn(new ChallengePlan(
-                        java.util.UUID.randomUUID(),
-                        "account-opaque-123",
-                        ChallengeType.TOTP_SIMULATED,
-                        io.github.viniciusssantos.accountshield.challenge.ChallengeStatus.CHALLENGED,
-                        3, 3,
-                        Instant.parse("2026-07-20T03:00:00Z"),
-                        Instant.parse("2026-07-20T03:10:00Z")));
+        when(challengeService.create(any(CreateChallengeCommand.class)))
+                .thenAnswer(invocation -> {
+                    CreateChallengeCommand create = invocation.getArgument(0);
+                    return new ChallengePlan(
+                            java.util.UUID.randomUUID(),
+                            create.accountReference(),
+                            create.challengeType(),
+                            create.purpose(),
+                            create.contextId(),
+                            io.github.viniciusssantos.accountshield.challenge.ChallengeStatus.CHALLENGED,
+                            3,
+                            3,
+                            Instant.parse("2026-07-20T03:00:00Z"),
+                            Instant.parse("2026-07-20T03:10:00Z"),
+                            null);
+                });
 
         var result = service.decide(new ProtectionDecisionCommand(
                 "account-opaque-123",
@@ -99,6 +108,8 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(result.decidedAt()).isEqualTo(Instant.parse("2026-07-20T03:00:00Z"));
         assertThat(result.challenge()).isNotNull();
         assertThat(result.challenge().challengeType()).isEqualTo(ChallengeType.TOTP_SIMULATED);
+        assertThat(result.challenge().purpose()).isEqualTo(ChallengePurpose.PROTECTION_STEP_UP);
+        assertThat(result.challenge().contextId()).isEqualTo(result.protectionRequestId());
         verify(protectionRequestRepository).save(any());
 
         ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);

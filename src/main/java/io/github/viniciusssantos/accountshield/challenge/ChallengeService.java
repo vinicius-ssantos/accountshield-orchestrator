@@ -1,12 +1,10 @@
 package io.github.viniciusssantos.accountshield.challenge;
 
-import java.util.UUID;
-
 public interface ChallengeService {
 
-    ChallengePlan create(String accountReference, ChallengeType challengeType);
+    ChallengePlan create(CreateChallengeCommand command);
 
     ChallengeResult verify(ChallengeVerificationCommand command);
 
-    ChallengePlan verifyIdentityForRecovery(UUID challengeId);
+    ChallengePlan consume(ConsumeChallengeCommand command);
 }

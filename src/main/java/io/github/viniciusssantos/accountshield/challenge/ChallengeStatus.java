@@ -4,6 +4,7 @@ public enum ChallengeStatus {
     PENDING,
     CHALLENGED,
     VERIFIED,
+    CONSUMED,
     FAILED,
     EXPIRED
 }
