@@ -134,7 +134,15 @@ class RecoveryApplicationService implements RecoveryService {
                     command.recoveryId(), RecoveryStatus.IDENTITY_FAILED, "confirm-identity");
         }
 
-        entity.setStatus(RecoveryStatus.IDENTITY_VERIFIED.name());
+        RecoveryRiskClassification classification =
+                RecoveryRiskClassification.valueOf(entity.getClassification());
+        RecoveryStatus nextStatus = switch (classification) {
+            case IMMEDIATE -> RecoveryStatus.IDENTITY_VERIFIED;
+            case DELAYED -> RecoveryStatus.DELAYED;
+            case MANUAL_REVIEW -> RecoveryStatus.MANUAL_REVIEW;
+        };
+
+        entity.setStatus(nextStatus.name());
         entity.setUpdatedAt(clock.instant());
         recoveryFlowRepository.save(entity);
 
