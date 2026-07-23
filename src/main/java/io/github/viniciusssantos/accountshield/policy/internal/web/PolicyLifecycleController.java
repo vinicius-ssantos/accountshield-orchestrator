@@ -33,7 +33,7 @@ class PolicyLifecycleController {
                 request.version(),
                 request.allowMaxScore(),
                 request.stepUpMaxScore(),
-                request.recoveryMaxScore()));
+                request.recoveryMaxScore() == null ? (short) 89 : request.recoveryMaxScore()));
         return ResponseEntity.status(HttpStatus.CREATED).body(summary);
     }
 
@@ -71,6 +71,6 @@ class PolicyLifecycleController {
             @Min(0) @Max(99) short allowMaxScore,
             @Min(1) @Max(99) short stepUpMaxScore,
             @Schema(description = "Highest recovery-request score that may produce START_RECOVERY", example = "89")
-            @Min(0) @Max(99) short recoveryMaxScore) {
+            @Min(0) @Max(99) Short recoveryMaxScore) {
     }
 }
