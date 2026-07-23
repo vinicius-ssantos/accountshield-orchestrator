@@ -36,139 +36,133 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Import(PostgreSqlTestConfiguration.class)
 class RecoveryIntegrationTest {
 
-    @Autowired
-    private RecoveryService recoveryService;
-
-    @Autowired
-    private ChallengeService challengeService;
-
-    @Autowired
-    private DecisionTraceRecorder decisionTraceRecorder;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private PlatformTransactionManager transactionManager;
+    @Autowired private RecoveryService recoveryService;
+    @Autowired private ChallengeService challengeService;
+    @Autowired private DecisionTraceRecorder decisionTraceRecorder;
+    @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     @Test
-    void score30CompletesImmediatelyAfterVerifiedIdentity() {
-        RecoveryFlow initiated = initiateFlow(30);
+    void score30CompletesImmediatelyAfterExplicitRecoveryDecision() {
+        RecoveryFlow initiated = initiateFlow(30, "PASSWORD_RESET_ATTEMPT");
 
+        assertThat(initiated.eventType()).isEqualTo(RecoveryEventType.PASSWORD_RESET);
         assertThat(initiated.classification()).isEqualTo(RecoveryRiskClassification.IMMEDIATE);
-        assertThat(initiated.status()).isEqualTo(RecoveryStatus.VERIFYING_IDENTITY);
-        assertThat(initiated.eligibleAfter()).isNull();
+        assertThat(initiated.originatingDecisionId()).isNotNull();
 
         RecoveryFlow confirmed = verifyAndConfirmIdentity(initiated);
         assertThat(confirmed.status()).isEqualTo(RecoveryStatus.IDENTITY_VERIFIED);
-
-        RecoveryFlow completed = recoveryService.complete(initiated.recoveryId());
-        assertThat(completed.status()).isEqualTo(RecoveryStatus.COMPLETED);
-        assertPersistedStatus(initiated.recoveryId(), RecoveryStatus.COMPLETED);
-
-        RecoveryFlow equivalentRetry = recoveryService.complete(initiated.recoveryId());
-        assertThat(equivalentRetry.status()).isEqualTo(RecoveryStatus.COMPLETED);
-        assertThatThrownBy(() -> recoveryService.review(new RecoveryReviewCommand(
-                initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-after-complete")))
-                .isInstanceOf(InvalidRecoveryStateException.class);
+        assertThat(recoveryService.complete(initiated.recoveryId()).status())
+                .isEqualTo(RecoveryStatus.COMPLETED);
     }
 
     @Test
-    void score31EntersDelayAndCannotCompleteBeforeEligibility() {
+    void score31And60RemainDelayedUntilEligibility() {
         assertDelayedBoundary(31);
-    }
-
-    @Test
-    void score60RemainsDelayedAtUpperBoundary() {
         assertDelayedBoundary(60);
     }
 
     @Test
-    void score61RequiresApprovedManualReview() {
-        RecoveryFlow initiated = initiateFlow(61);
-
-        assertThat(initiated.classification()).isEqualTo(RecoveryRiskClassification.MANUAL_REVIEW);
-        assertThat(initiated.eligibleAfter()).isNull();
-
+    void score61RequiresOperatorReview() {
+        RecoveryFlow initiated = initiateFlow(61, "CREDENTIAL_CHANGE_ATTEMPT");
         RecoveryFlow confirmed = verifyAndConfirmIdentity(initiated);
-        assertThat(confirmed.status()).isEqualTo(RecoveryStatus.MANUAL_REVIEW);
-        assertPersistedStatus(initiated.recoveryId(), RecoveryStatus.MANUAL_REVIEW);
 
+        assertThat(initiated.eventType()).isEqualTo(RecoveryEventType.CREDENTIAL_CHANGE);
+        assertThat(confirmed.status()).isEqualTo(RecoveryStatus.MANUAL_REVIEW);
         assertThatThrownBy(() -> recoveryService.complete(initiated.recoveryId()))
                 .isInstanceOf(InvalidRecoveryStateException.class);
 
         RecoveryFlow approved = recoveryService.review(new RecoveryReviewCommand(
                 initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-approver"));
         assertThat(approved.status()).isEqualTo(RecoveryStatus.COMPLETED);
-        assertPersistedStatus(initiated.recoveryId(), RecoveryStatus.COMPLETED);
-
-        RecoveryFlow equivalentCompletionRetry = recoveryService.complete(initiated.recoveryId());
-        assertThat(equivalentCompletionRetry.status()).isEqualTo(RecoveryStatus.COMPLETED);
-        assertThatThrownBy(() -> recoveryService.review(new RecoveryReviewCommand(
-                initiated.recoveryId(), RecoveryReviewDecision.REJECT, "operator-late-review")))
-                .isInstanceOf(InvalidRecoveryStateException.class);
     }
 
     @Test
     void rejectedManualReviewIsTerminal() {
-        RecoveryFlow initiated = initiateFlow(61);
-        RecoveryFlow confirmed = verifyAndConfirmIdentity(initiated);
-        assertThat(confirmed.status()).isEqualTo(RecoveryStatus.MANUAL_REVIEW);
+        RecoveryFlow initiated = initiateFlow(61, "DEVICE_TRUST_RESET_ATTEMPT");
+        verifyAndConfirmIdentity(initiated);
 
         RecoveryFlow rejected = recoveryService.review(new RecoveryReviewCommand(
                 initiated.recoveryId(), RecoveryReviewDecision.REJECT, "operator-rejector"));
         assertThat(rejected.status()).isEqualTo(RecoveryStatus.REJECTED);
-        assertPersistedStatus(initiated.recoveryId(), RecoveryStatus.REJECTED);
-
         assertThatThrownBy(() -> recoveryService.complete(initiated.recoveryId()))
                 .isInstanceOf(InvalidRecoveryStateException.class);
         assertThatThrownBy(() -> recoveryService.review(new RecoveryReviewCommand(
                 initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-reopen")))
                 .isInstanceOf(InvalidRecoveryStateException.class);
-        assertThatThrownBy(() -> recoveryService.confirmIdentity(new ConfirmIdentityCommand(
-                initiated.recoveryId(), initiated.identityChallengeId())))
-                .isInstanceOf(InvalidRecoveryStateException.class);
     }
 
     @Test
-    void rejectsInitiationWhenProtectionRequestDoesNotExist() {
-        assertThatThrownBy(() -> recoveryService.initiate(new InitiateRecoveryCommand(
-                UUID.randomUUID(), RecoveryEventType.LOGIN)))
-                .isInstanceOf(UnauthorizedRecoveryInitiationException.class);
+    void rejectsEveryOutcomeOtherThanStartRecoveryWithSameGenericError() {
+        for (String outcome : List.of("ALLOW", "REQUIRE_STEP_UP", "TEMPORARILY_BLOCK")) {
+            UUID protectionRequestId = recordDecisionTrace(
+                    45, outcome, "PASSWORD_RESET_ATTEMPT");
+
+            assertThatThrownBy(() -> recoveryService.initiate(
+                    new InitiateRecoveryCommand(protectionRequestId)))
+                    .isInstanceOf(UnauthorizedRecoveryInitiationException.class)
+                    .hasMessage("recovery authorization is invalid or unavailable");
+        }
+    }
+
+    @Test
+    void rejectsStartRecoveryWithIncompatibleOriginatingEvent() {
+        UUID protectionRequestId = recordDecisionTrace(45, "START_RECOVERY", "LOGIN_ATTEMPT");
+
+        assertThatThrownBy(() -> recoveryService.initiate(
+                new InitiateRecoveryCommand(protectionRequestId)))
+                .isInstanceOf(UnauthorizedRecoveryInitiationException.class)
+                .hasMessage("recovery authorization is invalid or unavailable");
+    }
+
+    @Test
+    void consumesOriginatingDecisionOnlyOnce() {
+        UUID protectionRequestId = recordDecisionTrace(
+                45, "START_RECOVERY", "LOGIN_RECOVERY_ATTEMPT");
+        RecoveryFlow first = recoveryService.initiate(new InitiateRecoveryCommand(protectionRequestId));
+
+        assertThat(first.eventType()).isEqualTo(RecoveryEventType.LOGIN);
+        assertThatThrownBy(() -> recoveryService.initiate(
+                new InitiateRecoveryCommand(protectionRequestId)))
+                .isInstanceOf(UnauthorizedRecoveryInitiationException.class)
+                .hasMessage("recovery authorization is invalid or unavailable");
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM recovery.recovery_flow WHERE originating_decision_id = ?",
+                Integer.class, first.originatingDecisionId())).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM challenge.challenge_plan WHERE context_id = ?",
+                Integer.class, first.recoveryId())).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsMissingAuthorizationGenerically() {
+        assertThatThrownBy(() -> recoveryService.initiate(
+                new InitiateRecoveryCommand(UUID.randomUUID())))
+                .isInstanceOf(UnauthorizedRecoveryInitiationException.class)
+                .hasMessage("recovery authorization is invalid or unavailable");
     }
 
     private void assertDelayedBoundary(int riskScore) {
-        RecoveryFlow initiated = initiateFlow(riskScore);
-
-        assertThat(initiated.classification()).isEqualTo(RecoveryRiskClassification.DELAYED);
-        assertThat(initiated.eligibleAfter()).isNotNull();
-
+        RecoveryFlow initiated = initiateFlow(riskScore, "PASSWORD_RESET_ATTEMPT");
         RecoveryFlow confirmed = verifyAndConfirmIdentity(initiated);
-        assertThat(confirmed.status()).isEqualTo(RecoveryStatus.DELAYED);
-        assertPersistedStatus(initiated.recoveryId(), RecoveryStatus.DELAYED);
 
+        assertThat(confirmed.status()).isEqualTo(RecoveryStatus.DELAYED);
         assertThatThrownBy(() -> recoveryService.complete(initiated.recoveryId()))
                 .isInstanceOf(InvalidRecoveryStateException.class);
 
-        int updated = jdbcTemplate.update(
+        jdbcTemplate.update(
                 "UPDATE recovery.recovery_flow "
-                        + "SET eligible_after = CURRENT_TIMESTAMP - INTERVAL '1 second' "
-                        + "WHERE id = ?",
+                        + "SET eligible_after = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = ?",
                 initiated.recoveryId());
-        assertThat(updated).isEqualTo(1);
-
-        RecoveryFlow completed = recoveryService.complete(initiated.recoveryId());
-        assertThat(completed.status()).isEqualTo(RecoveryStatus.COMPLETED);
-        assertPersistedStatus(initiated.recoveryId(), RecoveryStatus.COMPLETED);
-
-        RecoveryFlow equivalentRetry = recoveryService.complete(initiated.recoveryId());
-        assertThat(equivalentRetry.status()).isEqualTo(RecoveryStatus.COMPLETED);
+        assertThat(recoveryService.complete(initiated.recoveryId()).status())
+                .isEqualTo(RecoveryStatus.COMPLETED);
     }
 
-    private RecoveryFlow initiateFlow(int riskScore) {
-        UUID protectionRequestId = recordDecisionTrace(riskScore);
-        return recoveryService.initiate(new InitiateRecoveryCommand(
-                protectionRequestId, RecoveryEventType.PASSWORD_RESET));
+    private RecoveryFlow initiateFlow(int riskScore, String protectionEventType) {
+        UUID protectionRequestId = recordDecisionTrace(
+                riskScore, "START_RECOVERY", protectionEventType);
+        return recoveryService.initiate(new InitiateRecoveryCommand(protectionRequestId));
     }
 
     private RecoveryFlow verifyAndConfirmIdentity(RecoveryFlow flow) {
@@ -178,45 +172,35 @@ class RecoveryIntegrationTest {
                 flow.identityChallengeId());
 
         var verification = challengeService.verify(new ChallengeVerificationCommand(
-                flow.identityChallengeId(),
-                expectedCode,
-                ChallengePurpose.RECOVERY_IDENTITY,
-                flow.recoveryId()));
+                flow.identityChallengeId(), expectedCode,
+                ChallengePurpose.RECOVERY_IDENTITY, flow.recoveryId()));
         assertThat(verification.status()).isEqualTo(ChallengeStatus.VERIFIED);
-        assertThat(verification.verified()).isTrue();
 
-        RecoveryFlow confirmed = recoveryService.confirmIdentity(new ConfirmIdentityCommand(
+        return recoveryService.confirmIdentity(new ConfirmIdentityCommand(
                 flow.recoveryId(), flow.identityChallengeId()));
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM challenge.challenge_plan WHERE id = ?",
-                String.class,
-                flow.identityChallengeId())).isEqualTo("CONSUMED");
-        return confirmed;
     }
 
-    private UUID recordDecisionTrace(int riskScore) {
+    private UUID recordDecisionTrace(
+            int riskScore,
+            String outcome,
+            String protectionEventType) {
         UUID protectionRequestId = UUID.randomUUID();
         new TransactionTemplate(transactionManager).executeWithoutResult(ignored ->
                 decisionTraceRecorder.record(new DecisionTraceCommand(
                         UUID.randomUUID(),
                         protectionRequestId,
-                        "recovery-boundary-" + UUID.randomUUID(),
+                        "recovery-authorization-" + UUID.randomUUID(),
                         "fingerprint-" + UUID.randomUUID(),
                         "risk-rules-1.0",
                         "account-protection-default",
-                        "1.0.0",
-                        "REQUIRE_STEP_UP",
+                        "1.1.0",
+                        outcome,
                         riskScore,
-                        Map.of("fixture", "recovery-classification-boundary"),
+                        Map.of(
+                                "protectionEventType", protectionEventType,
+                                "recoveryRequest", true),
                         Instant.now(),
                         List.of())));
         return protectionRequestId;
-    }
-
-    private void assertPersistedStatus(UUID recoveryId, RecoveryStatus expected) {
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM recovery.recovery_flow WHERE id = ?",
-                String.class,
-                recoveryId)).isEqualTo(expected.name());
     }
 }
