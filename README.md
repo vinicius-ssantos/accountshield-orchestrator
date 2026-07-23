@@ -200,11 +200,13 @@ This starts:
 | Service | Port | Purpose |
 | --- | --- | --- |
 | PostgreSQL 17 | `5432` | Primary data store |
-| AccountShield app | `8080` | REST API + actuator |
+| AccountShield app | `8080` | REST API + actuator + Swagger UI |
 | Prometheus | `9090` | Metrics scraping |
 | Grafana | `3000` | Dashboards (admin/admin) |
 
 The Grafana dashboard is auto-provisioned from `grafana/accountshield-dashboard.json`.
+
+Interactive API docs are available at `http://localhost:8080/swagger-ui.html` once the application is running.
 
 ### Developer workflow
 
