@@ -94,6 +94,7 @@ Modules:
 | `challenge` | Step-up challenge lifecycle, attempts, expiry, and retry budget |
 | `recovery` | Secure account-recovery state machine with risk-based classification |
 | `audit` | Immutable decision trace, replay query API, and security audit events |
+| `outbox` | Transactional outbox with scheduled relay and pluggable publisher port |
 | `simulation` | Deterministic historical replay and shadow-policy comparison |
 
 Architecture documentation lives under [`docs/architecture`](docs/architecture), and architectural decisions under [`docs/adr`](docs/adr).
