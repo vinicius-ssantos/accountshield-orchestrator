@@ -4,8 +4,10 @@ import io.github.viniciusssantos.accountshield.audit.DecisionReasonContribution;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceCommand;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
+import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
@@ -126,7 +128,11 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
 
         ChallengePlan challenge = null;
         if (evaluation.outcome() == ProtectionOutcome.REQUIRE_STEP_UP) {
-            challenge = challengeService.create(command.accountReference(), ChallengeType.TOTP_SIMULATED);
+            challenge = challengeService.create(new CreateChallengeCommand(
+                    command.accountReference(),
+                    ChallengeType.TOTP_SIMULATED,
+                    ChallengePurpose.PROTECTION_STEP_UP,
+                    protectionRequestId));
         }
 
         ProtectionDecisionResult result = new ProtectionDecisionResult(
