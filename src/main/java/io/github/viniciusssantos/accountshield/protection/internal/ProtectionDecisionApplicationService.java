@@ -103,11 +103,12 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         UUID decisionId = UUID.randomUUID();
 
         RiskAssessment assessment = riskAssessmentService.assess(command.signals());
-        PolicyEvaluationContext evaluationContext = command.eventType().recoveryRequest()
-                ? PolicyEvaluationContext.recoveryRequestContext()
-                : PolicyEvaluationContext.standard();
-        PolicyEvaluation evaluation = policyEvaluationService.evaluate(
-                DEFAULT_POLICY_KEY, assessment.score(), evaluationContext);
+        PolicyEvaluation evaluation = command.eventType().recoveryRequest()
+                ? policyEvaluationService.evaluate(
+                        DEFAULT_POLICY_KEY,
+                        assessment.score(),
+                        PolicyEvaluationContext.recoveryRequestContext())
+                : policyEvaluationService.evaluate(DEFAULT_POLICY_KEY, assessment.score());
 
         protectionRequestRepository.save(new ProtectionRequestEntity(
                 protectionRequestId,
