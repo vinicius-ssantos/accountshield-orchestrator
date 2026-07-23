@@ -1,26 +1,28 @@
-const metrics = [
-  { label: "Decisions today", value: "1,284", detail: "Synthetic fixture data" },
-  { label: "High-risk events", value: "37", detail: "2.9% of evaluated events" },
-  { label: "Manual reviews", value: "12", detail: "Read-only until RBAC is ready" },
-  { label: "Replay divergences", value: "3", detail: "Candidate policy comparison" }
-];
+import { fixtureDecisionsDataSource } from "@/features/decisions/fixtures";
 
-const decisions = [
-  { id: "cor_8f12…", event: "LOGIN", risk: 82, outcome: "START_RECOVERY", policy: "v7" },
-  { id: "cor_a921…", event: "PASSWORD_CHANGE", risk: 64, outcome: "TEMPORARILY_BLOCK", policy: "v7" },
-  { id: "cor_120c…", event: "LOGIN", risk: 41, outcome: "REQUIRE_STEP_UP", policy: "v7" },
-  { id: "cor_77bd…", event: "SENSITIVE_ACTION", risk: 18, outcome: "ALLOW", policy: "v7" }
-];
+const navigationItems = ["Overview", "Decisions", "Recoveries", "Policies", "Replay", "Operations"] as const;
 
-export default function Home() {
+export default async function Home() {
+  const [metrics, decisions] = await Promise.all([
+    fixtureDecisionsDataSource.listOverviewMetrics(),
+    fixtureDecisionsDataSource.listRecent(),
+  ]);
+
   return (
     <main className="shell">
-      <aside className="sidebar">
+      <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand">AccountShield</div>
         <p className="eyebrow">Security Operations</p>
         <nav>
-          {["Overview", "Decisions", "Recoveries", "Policies", "Replay", "Operations"].map((item, index) => (
-            <a className={index === 0 ? "active" : ""} href="#" key={item}>{item}</a>
+          {navigationItems.map((item, index) => (
+            <a
+              aria-current={index === 0 ? "page" : undefined}
+              className={index === 0 ? "active" : ""}
+              href={index === 0 ? "/" : `/${item.toLowerCase()}`}
+              key={item}
+            >
+              {item}
+            </a>
           ))}
         </nav>
         <div className="notice">Fixture mode · no administrative mutations</div>
@@ -33,10 +35,10 @@ export default function Home() {
             <h1>Account protection at a glance</h1>
             <p className="muted">Investigate decisions, explain risk, and prepare safe operator workflows.</p>
           </div>
-          <button>Search correlation ID</button>
+          <button type="button">Search correlation ID</button>
         </header>
 
-        <section className="metrics">
+        <section aria-label="Operations metrics" className="metrics">
           {metrics.map((metric) => (
             <article className="card" key={metric.label}>
               <span>{metric.label}</span>
@@ -54,17 +56,31 @@ export default function Home() {
             </div>
             <span className="badge">Read only</span>
           </div>
-          <div className="table">
-            <div className="row heading"><span>Correlation</span><span>Event</span><span>Risk</span><span>Outcome</span><span>Policy</span></div>
-            {decisions.map((decision) => (
-              <div className="row" key={decision.id}>
-                <code>{decision.id}</code>
-                <span>{decision.event}</span>
-                <span>{decision.risk}</span>
-                <span className="outcome">{decision.outcome}</span>
-                <span>{decision.policy}</span>
-              </div>
-            ))}
+
+          <div className="tableWrapper">
+            <table>
+              <caption className="srOnly">Recent account-protection decisions</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Correlation</th>
+                  <th scope="col">Event</th>
+                  <th scope="col">Risk</th>
+                  <th scope="col">Outcome</th>
+                  <th scope="col">Policy</th>
+                </tr>
+              </thead>
+              <tbody>
+                {decisions.map((decision) => (
+                  <tr key={decision.correlationId}>
+                    <td><code>{decision.correlationId}</code></td>
+                    <td>{decision.eventType}</td>
+                    <td>{decision.riskScore}</td>
+                    <td><span className="outcome">{decision.outcome}</span></td>
+                    <td>{decision.policyVersion}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       </section>
