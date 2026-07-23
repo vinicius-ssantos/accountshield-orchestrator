@@ -3,7 +3,7 @@ WORKDIR /workspace
 COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
-RUN ./mvnw --batch-mode --no-transfer-progress dependency:go-offline
+RUN chmod +x mvnw && ./mvnw --batch-mode --no-transfer-progress dependency:go-offline
 COPY src src
 RUN ./mvnw --batch-mode --no-transfer-progress package -DskipTests
 
