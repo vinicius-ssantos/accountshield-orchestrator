@@ -1,54 +1,82 @@
-# ADR 0010: Recovery trust boundaries — derive risk score from decision trace and bind challenge to flow
+# ADR 0010: Recovery trust boundaries and explicit authorization
 
 - Status: Accepted
 - Date: 2026-07-23
+- Updated: 2026-07-23
 
 ## Context
 
-The recovery module had two trust-boundary flaws that undermined its security model:
+Recovery must not trust a caller to supply risk, account identity, recovery type, or proof from another flow. A prior hardening step derived risk and account data from the immutable decision trace and bound the identity challenge to the recovery flow, but any decision outcome could still be used to initiate recovery.
 
-1. **Client-supplied risk score.** The `InitiateRecoveryCommand` accepted `riskScore` directly from the caller. An attacker could initiate recovery with `riskScore: 0` and receive `IMMEDIATE` classification, bypassing the risk-based delay and manual-review gates entirely.
-
-2. **Unbound identity challenge.** The `confirmIdentity` method verified the challenge via `challengeService.verifyIdentityForRecovery(challengeId)` but never checked that the supplied `challengeId` matched the `identityChallengeId` stored on the recovery flow. A verified challenge from a different account or a different recovery flow could confirm identity for this flow.
+That meant `ALLOW`, `REQUIRE_STEP_UP`, and `TEMPORARILY_BLOCK` traces were acting as recovery authorizations even though none explicitly granted that capability.
 
 ## Decision
 
-### Risk score derived from decision trace
+### Explicit protection outcome
 
-Remove `riskScore` and `accountReference` from `InitiateRecoveryCommand`. The command now accepts only `protectionRequestId` and `eventType`. The `RecoveryApplicationService` looks up the `DecisionTraceView` via `DecisionTraceQuery` (audit module) to obtain the `accountReference` and `riskScore` that AccountShield itself computed.
+Add `START_RECOVERY` to `ProtectionOutcome`. Only a trace with this exact outcome may initiate recovery.
 
-This creates a new module dependency: `recovery -> audit` (read-only, through the public `DecisionTraceQuery` port).
+Recovery-request protection events are explicit:
 
-The `protectionRequestId` is persisted on the `recovery_flow` row (V7 migration) for audit traceability.
+- `LOGIN_RECOVERY_ATTEMPT`;
+- `PASSWORD_RESET_ATTEMPT`;
+- `CREDENTIAL_CHANGE_ATTEMPT`;
+- `DEVICE_TRUST_RESET_ATTEMPT`.
 
-### Challenge bound to recovery flow
+The policy engine evaluates those events with `PolicyEvaluationContext.recoveryRequestContext()`. Scores through the versioned `recoveryMaxScore` produce `START_RECOVERY`; higher scores produce `TEMPORARILY_BLOCK`. Standard events retain `ALLOW`, `REQUIRE_STEP_UP`, and `TEMPORARILY_BLOCK` routing.
 
-In `confirmIdentity`, before calling the challenge service, verify that `command.challengeId()` equals the `identityChallengeId` stored on the recovery entity. A mismatch throws `UnauthorizedRecoveryInitiationException` (HTTP 422).
+### Caller cannot choose recovery type
+
+`InitiateRecoveryCommand` is authoritative only for `protectionRequestId`. `RecoveryEventType` is derived from the originating trace's persisted `protectionEventType`.
+
+A compatibility constructor may accept an event type, but the value is deliberately ignored and cannot influence the flow.
+
+### Single-use authorization
+
+Each recovery persists `originatingDecisionId`. PostgreSQL enforces:
+
+- a foreign key to `audit.decision_trace`;
+- non-null originating decision;
+- a unique recovery per originating decision.
+
+The application performs a pre-check and maps both duplicate and incompatible authorization cases to the same generic rejection. The database unique constraint is the final concurrency authority.
+
+### Challenge continuation
+
+Initiation creates a `RECOVERY_IDENTITY` challenge bound to account, recovery ID, and purpose. Identity confirmation consumes that exact verified challenge once before entering the classification gate defined by ADR 0005.
+
+### Replay
+
+The decision trace records `protectionEventType` and `recoveryRequest`. Deterministic replay restores the same policy evaluation context so a historical `START_RECOVERY` decision is not re-evaluated as a standard event.
 
 ## Consequences
 
 ### Positive
 
-- an attacker cannot manipulate the risk score to influence recovery classification;
-- identity verification is bound to the specific challenge created for this recovery flow;
-- the `protectionRequestId` on the recovery flow provides end-to-end audit traceability from the originating protection decision;
-- the `recovery -> audit` dependency uses only the public `DecisionTraceQuery` port, preserving module boundaries.
+- `ALLOW`, `REQUIRE_STEP_UP`, and `TEMPORARILY_BLOCK` cannot authorize recovery;
+- callers cannot substitute a different recovery event;
+- one decision cannot start multiple recovery flows;
+- the response and persisted recovery expose both protection request and decision identifiers;
+- missing, incompatible, and consumed authorization cases remain non-enumerable;
+- standard protection behavior remains backward-compatible.
 
 ### Negative
 
-- recovery can no longer be initiated without a prior protection decision in the audit trace;
-- the new module dependency must be reflected in the architecture dependency direction and the Spring Modulith verify test;
-- if the audit trace is purged or unavailable, recovery initiation fails closed.
+- the current recovery authorization still depends on the audit read model;
+- policy definitions gain a recovery-specific threshold;
+- historical policy version `1.0.0` remains immutable and is retired in favor of recovery-capable version `1.1.0`;
+- idempotent duplicate initiation returning the existing flow is deferred to dedicated recovery-idempotency work.
 
 ## Guardrails
 
-- `UnauthorizedRecoveryInitiationException` returns HTTP 422 with a generic message that does not reveal whether the protection request exists, avoiding enumeration;
-- the challenge-binding check runs before any challenge-service call, so a foreign challenge ID never reaches the challenge module;
-- the V7 migration adds a nullable column to preserve existing rows.
+- only `START_RECOVERY` is accepted;
+- event derivation uses the immutable trace, never caller input;
+- `originatingDecisionId` is mandatory and unique;
+- invalid authorization responses use one generic public problem detail;
+- challenge creation and recovery persistence share one transaction;
+- replay restores recovery evaluation context;
+- Spring Modulith access remains through public module APIs.
 
 ## Revisit criteria
 
-This decision may be revisited when:
-
-- `START_RECOVERY` is added to `ProtectionOutcome` and the policy engine, allowing recovery initiation to be restricted to decisions that explicitly authorize it;
-- the recovery flow needs to support scenarios where no prior protection decision exists (e.g. out-of-band recovery requests from an operator).
+Revisit when an explicit `RecoveryAuthorization` aggregate replaces audit as the authorization source, when expiration is introduced, or when duplicate equivalent initiation must return the existing recovery.
