@@ -29,6 +29,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest
 @Import(PostgreSqlTestConfiguration.class)
@@ -45,6 +47,9 @@ class RecoveryIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void score30CompletesImmediatelyAfterVerifiedIdentity() {
@@ -191,19 +196,20 @@ class RecoveryIntegrationTest {
 
     private UUID recordDecisionTrace(int riskScore) {
         UUID protectionRequestId = UUID.randomUUID();
-        decisionTraceRecorder.record(new DecisionTraceCommand(
-                UUID.randomUUID(),
-                protectionRequestId,
-                "recovery-boundary-" + UUID.randomUUID(),
-                "fingerprint-" + UUID.randomUUID(),
-                "risk-rules-1.0",
-                "account-protection-default",
-                "1.0.0",
-                "REQUIRE_STEP_UP",
-                riskScore,
-                Map.of("fixture", "recovery-classification-boundary"),
-                Instant.now(),
-                List.of()));
+        new TransactionTemplate(transactionManager).executeWithoutResult(ignored ->
+                decisionTraceRecorder.record(new DecisionTraceCommand(
+                        UUID.randomUUID(),
+                        protectionRequestId,
+                        "recovery-boundary-" + UUID.randomUUID(),
+                        "fingerprint-" + UUID.randomUUID(),
+                        "risk-rules-1.0",
+                        "account-protection-default",
+                        "1.0.0",
+                        "REQUIRE_STEP_UP",
+                        riskScore,
+                        Map.of("fixture", "recovery-classification-boundary"),
+                        Instant.now(),
+                        List.of())));
         return protectionRequestId;
     }
 
