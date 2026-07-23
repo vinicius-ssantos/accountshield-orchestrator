@@ -2,95 +2,150 @@
 
 - Status: Accepted
 - Date: 2026-07-21
+- Updated: 2026-07-23
 
 ## Context
 
-When a protection decision results in `REQUIRE_STEP_UP`, the platform must orchestrate a challenge flow. The challenge module owns the lifecycle of challenge plans: creation, verification attempts, expiration, and terminal states.
+When AccountShield requires stronger proof, the platform must orchestrate a challenge without allowing that proof to authorize a different operation. A challenge verified for login step-up must not authorize recovery, credential change, policy activation, or another resource.
 
-The project must not integrate real SMS, e-mail, or biometric providers in the first releases. All providers are simulated locally, as stated in the product boundary. This keeps the focus on the orchestration logic, state machine integrity, and retry safety rather than on provider-specific concerns.
+The project does not integrate real SMS, e-mail, or WebAuthn providers in the first releases. Providers remain simulated locally so the implementation can focus on orchestration, state-machine integrity, binding, concurrency, and retry safety.
 
 ## Decision
 
-Introduce a `challenge` module with its own PostgreSQL schema and a deterministic state machine. Challenge plans are created by the `protection` module when a decision requires step-up verification.
+The `challenge` module owns creation, verification, expiration, retry limits, binding, and one-time consumption. Every challenge is bound at creation to:
+
+- an opaque account or subject reference;
+- a `ChallengePurpose`;
+- a purpose-specific `contextId`;
+- a challenge type.
+
+Initial purposes are:
+
+- `PROTECTION_STEP_UP`;
+- `RECOVERY_IDENTITY`;
+- `PRIVILEGED_OPERATION`.
+
+The context is chosen by the creating use case. Protection step-up uses the protection request ID. Recovery identity uses the recovery flow ID. A consumer must present the exact purpose, context, and account binding.
 
 ### State machine
 
-```
-CHALLENGED -> VERIFIED   (correct code within retry budget)
-CHALLENGED -> FAILED     (retry budget exhausted)
-CHALLENGED -> EXPIRED    (TTL exceeded before or during verification)
+```text
+CHALLENGED -> VERIFIED   correct proof within retry budget
+CHALLENGED -> FAILED     retry budget exhausted
+CHALLENGED -> EXPIRED    TTL exceeded
+VERIFIED   -> CONSUMED   authorized use succeeds exactly once
 ```
 
-States are explicit and persisted. A challenge can never transition out of a terminal state (`VERIFIED`, `FAILED`, `EXPIRED`).
+`VERIFIED` means that the proof was accepted but has not yet authorized an operation. `CONSUMED`, `FAILED`, and `EXPIRED` are terminal. A consumed challenge cannot be verified or consumed again.
+
+### Verification and consumption
+
+Verification and authorization are intentionally separate:
+
+1. `verify` validates proof material and the purpose/context binding;
+2. `consume` validates purpose, context, account, status, and expiry;
+3. consumption atomically changes `VERIFIED` to `CONSUMED` and records `consumed_at`.
+
+The persistence entity uses optimistic locking. Concurrent consumers may race, but only one transaction can commit the state transition. Losing consumers receive a generic rejection that does not reveal whether the challenge is absent, mismatched, or already consumed.
 
 ### Retry budget and TTL
 
-- Each challenge plan has a fixed maximum of 3 verification attempts.
-- Each plan has a 10-minute time-to-live.
-- Wrong codes decrement the remaining attempt counter.
-- When attempts reach zero, the plan transitions to `FAILED`.
-- When the TTL is exceeded, the plan transitions to `EXPIRED` (lazily evaluated during verification).
+- Each plan has three verification attempts.
+- Each plan has a ten-minute TTL.
+- Wrong proofs decrement the remaining-attempt counter.
+- Exhaustion changes the state to `FAILED`.
+- Expiry changes the state to `EXPIRED` when verification or consumption observes it.
+- Binding mismatch does not consume an attempt.
 
 ### Simulated providers
 
-Providers generate a deterministic 6-digit numeric code stored alongside the challenge plan. Three simulated challenge types are supported:
+The local adapters support:
 
-- `TOTP_SIMULATED`
-- `EMAIL_SIMULATED`
-- `WEBAUTHN_SIMULATED`
+- `TOTP_SIMULATED`;
+- `EMAIL_SIMULATED`;
+- `WEBAUTHN_SIMULATED`.
 
-No external calls are made. The provider abstraction (`ChallengeProvider`) exists so that real integrations can be added later without changing the orchestration logic.
+No external calls are made. Simulated proof material is never logged. Hardening the storage and provider-specific proof contracts is tracked separately because it is independent from purpose binding and one-time consumption.
 
-### Integration with protection
+### Integration
 
-The `protection` module calls the `challenge` module's public API to create a plan when the decision outcome is `REQUIRE_STEP_UP`. The `ProtectionDecisionResult` includes an optional `ChallengePlan` with the challenge ID, type, and expiration time.
+The `protection` module creates `PROTECTION_STEP_UP` challenges bound to the protection request ID.
+
+The `recovery` module creates `RECOVERY_IDENTITY` challenges bound to the recovery flow ID. After the proof has been verified, recovery must consume that exact challenge before advancing identity confirmation.
+
+Other modules interact only through the challenge module's public commands:
+
+- `CreateChallengeCommand`;
+- `ChallengeVerificationCommand`;
+- `ConsumeChallengeCommand`.
 
 ### Storage
 
-Challenge plans live in the `challenge.challenge_plan` PostgreSQL table within the `challenge` module. Check constraints enforce:
+`challenge.challenge_plan` persists:
 
-- `status` must be one of `PENDING`, `CHALLENGED`, `VERIFIED`, `FAILED`, `EXPIRED`;
-- `max_attempts` between 1 and 10;
-- `remaining_attempts` between 0 and `max_attempts`;
-- `expires_at > created_at`.
+- account reference;
+- challenge type;
+- purpose;
+- context ID;
+- status;
+- retry counters;
+- proof material for the simulated provider;
+- creation and expiry timestamps;
+- consumption timestamp;
+- optimistic-lock version.
 
-### API
+Database constraints enforce supported states and purposes, valid retry ranges, expiry ordering, and the invariant that `consumed_at` exists only for `CONSUMED` records.
 
-`POST /api/v1/challenges/{id}/verify` accepts a verification code and returns the result:
+Historical rows created before explicit binding are migrated with their own challenge ID as context. This fail-safe migration prevents old demo challenges from authorizing current operations.
 
-- `CHALLENGED` + correct code: `200 OK` with `verified: true`.
-- `CHALLENGED` + wrong code: `200 OK` with `verified: false` and decremented `remainingAttempts`.
-- `FAILED`: `409 Conflict` with `INVALID_CHALLENGE_STATE`.
-- `EXPIRED`: `410 Gone` with `INVALID_CHALLENGE_STATE`.
+### HTTP verification API
+
+`POST /api/v1/challenges/{id}/verify` requires:
+
+```json
+{
+  "providedCode": "123456",
+  "purpose": "PROTECTION_STEP_UP",
+  "contextId": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+}
+```
+
+Purpose or context mismatch returns the generic problem code `CHALLENGE_USE_REJECTED`. Failed and expired state transitions keep their stable invalid-state responses.
+
+Consumption is an internal application operation. It is not exposed as a generic public endpoint because only the purpose-owning use case may authorize the resulting business action.
 
 ## Consequences
 
 ### Positive
 
-- the state machine prevents indefinite retry and MFA fatigue attacks;
-- the retry budget (3 attempts) is enforced at the domain level, not by the provider;
-- simulated providers allow full local testing without external dependencies;
-- the provider abstraction leaves room for real integrations without architectural change;
-- terminal states are immutable, preserving auditability.
+- proof cannot be reused across operations or resources;
+- a successful challenge authorizes at most one operation;
+- concurrent consumption has exactly one winner;
+- verification retries remain idempotent until consumption;
+- generic rejection reduces enumeration and state-disclosure risk;
+- purpose and context are available for audit and investigation.
 
 ### Negative
 
-- challenge codes are stored in the database (acceptable because all providers are simulated and no real credentials are involved);
-- the 10-minute TTL and 3-attempt budget are hardcoded in this phase; configuration is deferred;
-- no per-account cooldown between challenge plans yet.
+- callers must propagate purpose and context explicitly;
+- verified challenges require a separate consumption step;
+- optimistic-lock conflicts must be translated into domain-level rejection;
+- existing API clients must include the new binding fields.
 
 ## Guardrails
 
-- challenge codes are never logged;
-- verification errors return uniform problem details that do not reveal whether the challenge exists;
-- the retry budget mitigates brute-force and MFA fatigue scenarios;
-- the module owns its persistence; no other module reads or writes the `challenge` schema.
+- no module reads or writes the challenge schema directly;
+- purpose, context, and account binding are checked before status details are exposed;
+- consumed challenges cannot return to another state;
+- proof material is never logged or included in integration events;
+- tests cover mismatches, retries, expiry, reuse, and concurrent consumption.
 
 ## Revisit criteria
 
-This decision may be revisited when:
+Revisit this ADR when:
 
-- real provider integrations (SMS, e-mail, WebAuthn) are introduced through an accepted issue and ADR;
-- a per-account cooldown or velocity control is needed between challenge plans;
-- Redis is introduced for ephemeral challenge tracking;
-- the retry budget or TTL needs to be configurable per policy or per account.
+- real provider adapters are introduced;
+- provider-specific proof contracts replace the shared simulated-code model;
+- challenge secrets are hashed or HMAC-protected;
+- configurable retry and TTL policies are introduced;
+- a privileged-operation purpose is split into more granular purpose values.
