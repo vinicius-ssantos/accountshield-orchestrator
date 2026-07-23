@@ -40,15 +40,17 @@ class SimulationApplicationService implements SimulationService {
 
         DecisionTraceView trace = traceOpt.get();
 
-        PolicyEvaluationContext context = Boolean.TRUE.equals(
+        PolicyEvaluation replayed = Boolean.TRUE.equals(
                 trace.normalizedContext().get("recoveryRequest"))
-                ? PolicyEvaluationContext.recoveryRequestContext()
-                : PolicyEvaluationContext.standard();
-        PolicyEvaluation replayed = policyEvaluationService.evaluateVersion(
-                trace.policyKey(),
-                trace.policyVersion(),
-                trace.riskScore(),
-                context);
+                ? policyEvaluationService.evaluateVersion(
+                        trace.policyKey(),
+                        trace.policyVersion(),
+                        trace.riskScore(),
+                        PolicyEvaluationContext.recoveryRequestContext())
+                : policyEvaluationService.evaluateVersion(
+                        trace.policyKey(),
+                        trace.policyVersion(),
+                        trace.riskScore());
 
         if (replayed.outcome().name().equals(trace.outcome())
                 && replayed.outcome().name().equals(trace.outcome())) {
