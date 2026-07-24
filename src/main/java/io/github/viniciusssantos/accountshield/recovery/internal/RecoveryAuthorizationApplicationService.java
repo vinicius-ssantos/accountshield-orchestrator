@@ -51,7 +51,7 @@ class RecoveryAuthorizationApplicationService {
         Objects.requireNonNull(authorizationId, "authorizationId must not be null");
         Objects.requireNonNull(now, "now must not be null");
 
-        return repository.findByIdForUpdate(authorizationId).flatMap(entity -> {
+        return repository.findById(authorizationId).flatMap(entity -> {
             RecoveryAuthorization authorization = toDomain(entity);
             if (authorization.consumed()) {
                 return Optional.of(new Consumption(authorization, false));
