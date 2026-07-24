@@ -50,11 +50,47 @@ jobs:
           path: target/surefire-reports/**
           retention-days: 7
 
+  frontend:
+    name: Frontend verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ACCOUNTSHIELD_DATA_SOURCE: fixtures
+      NEXT_PUBLIC_APP_ENV: ci
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate Next.js types
+        run: npm run typegen
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
   docker:
     name: Docker build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: verify
+    needs: [verify, frontend]
 
     steps:
       - name: Check out repository

@@ -159,6 +159,18 @@ Authentication/RBAC, privileged step-up authorization, maker-checker policy gove
 
 See the [dependency-ordered roadmap](docs/roadmap.md) for the implementation sequence. Open pull requests are not classified as delivered until merged into `main`.
 
+## Security Operations Console
+
+The repository now includes a fixture-driven, read-only Next.js console under [`frontend/`](frontend/). It establishes the operator experience for decisions, recoveries, policies, replay, and operational investigation without enabling privileged mutations.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend architecture, security constraints, and planned delivery slices are documented in [`frontend/README.md`](frontend/README.md) and [`docs/frontend/architecture.md`](docs/frontend/architecture.md).
+
 ## Local development
 
 ### Quick start with Docker Compose
