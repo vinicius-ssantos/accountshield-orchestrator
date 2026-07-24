@@ -28,6 +28,7 @@ This pull request intentionally starts in fixture-driven, read-only mode:
 
 ```bash
 cd frontend
+cp .env.example .env.local
 npm install
 npm run dev
 ```
@@ -45,13 +46,32 @@ Open `http://localhost:3000`.
 - all sensitive identifiers masked by default;
 - authorization enforced by the Spring backend, never only by the UI.
 
+## Accepted architecture decisions
+
+- ADR 0011: colocate the Next.js operations console in this repository;
+- ADR 0012: adopt a read-only-first operator console;
+- ADR 0013: use a backend-for-frontend security boundary;
+- ADR 0014: generate API clients from the published OpenAPI contract;
+- ADR 0015: use deterministic synthetic data sources;
+- ADR 0016: prefer React Server Components and minimize client boundaries.
+
+See [`docs/frontend/architecture.md`](../docs/frontend/architecture.md) for links and consolidated constraints.
+
+## Delivered foundation
+
+- frontend CI with type generation, lint, typecheck, and production build;
+- fixture adapter and stable decision view models;
+- deterministic data-source selection;
+- accessible overview, planned routes, and App Router states;
+- security and architecture ADRs.
+
 ## Planned slices
 
-1. frontend CI, container, and Compose integration;
-2. fixture adapter and stable domain view models;
-3. generated OpenAPI client;
-4. decisions list and investigation timeline;
-5. recovery read-only queue;
-6. replay comparison;
-7. OIDC/JWT roles and secure mutations;
-8. policy rollout and outbox/DLQ operations.
+1. frontend lockfile, container, and Compose integration;
+2. generated OpenAPI client and compatibility gate;
+3. decisions list and investigation timeline;
+4. recovery read-only queue;
+5. replay comparison;
+6. OIDC/JWT roles and secure mutations;
+7. policy rollout and outbox/DLQ operations;
+8. Playwright golden-path and adversarial browser tests.
