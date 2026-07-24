@@ -29,6 +29,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
+import io.github.viniciusssantos.accountshield.recovery.UnknownRecoveryClassificationRuleException;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowEntity;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowRepository;
 import java.time.Clock;
@@ -170,12 +171,27 @@ class RecoveryApplicationServiceTest {
         RecoveryFlow flow = service.confirmIdentity(new ConfirmIdentityCommand(recoveryId, challengeId));
 
         assertThat(flow.status()).isEqualTo(RecoveryStatus.IDENTITY_VERIFIED);
+        assertThat(flow.classificationRuleVersion()).isEqualTo(RecoveryClassificationRule.VERSION);
         ArgumentCaptor<ConsumeChallengeCommand> consumeCaptor =
                 ArgumentCaptor.forClass(ConsumeChallengeCommand.class);
         verify(challengeService).consume(consumeCaptor.capture());
         assertThat(consumeCaptor.getValue().accountReference()).isEqualTo("user-ref");
         assertThat(consumeCaptor.getValue().purpose()).isEqualTo(ChallengePurpose.RECOVERY_IDENTITY);
         assertThat(consumeCaptor.getValue().contextId()).isEqualTo(recoveryId);
+    }
+
+    @Test
+    void confirmIdentityRejectsUnknownClassificationRuleVersion() {
+        UUID recoveryId = UUID.randomUUID();
+        UUID challengeId = UUID.randomUUID();
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(
+                entity(recoveryId, challengeId, RecoveryStatus.VERIFYING_IDENTITY,
+                        RecoveryRiskClassification.IMMEDIATE, UUID.randomUUID(), "recovery-classification-0.9")));
+        when(challengeService.consume(any(ConsumeChallengeCommand.class)))
+                .thenReturn(challengePlan(challengeId, ChallengeStatus.CONSUMED, recoveryId));
+
+        assertThatThrownBy(() -> service.confirmIdentity(new ConfirmIdentityCommand(recoveryId, challengeId)))
+                .isInstanceOf(UnknownRecoveryClassificationRuleException.class);
     }
 
     @Test
@@ -338,12 +354,23 @@ class RecoveryApplicationServiceTest {
             RecoveryStatus status,
             RecoveryRiskClassification classification,
             UUID authorizationId) {
+        return entity(id, challengeId, status, classification, authorizationId, RecoveryClassificationRule.VERSION);
+    }
+
+    private RecoveryFlowEntity entity(
+            UUID id,
+            UUID challengeId,
+            RecoveryStatus status,
+            RecoveryRiskClassification classification,
+            UUID authorizationId,
+            String classificationRuleVersion) {
         return new RecoveryFlowEntity(
                 id,
                 "user-ref",
                 "PASSWORD_RESET",
                 status.name(),
                 classification.name(),
+                classificationRuleVersion,
                 challengeId,
                 30,
                 NOW,

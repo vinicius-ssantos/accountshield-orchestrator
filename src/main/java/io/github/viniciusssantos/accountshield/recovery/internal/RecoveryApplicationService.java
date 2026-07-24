@@ -23,6 +23,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
+import io.github.viniciusssantos.accountshield.recovery.UnknownRecoveryClassificationRuleException;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowEntity;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowRepository;
 import java.time.Clock;
@@ -41,8 +42,6 @@ class RecoveryApplicationService implements RecoveryService {
 
     private static final String AUTHORIZATION_REJECTED_MESSAGE =
             "recovery authorization is invalid or unavailable";
-    private static final int IMMEDIATE_THRESHOLD = 30;
-    private static final int DELAYED_THRESHOLD = 60;
     private static final Duration DELAY_PERIOD = Duration.ofMinutes(15);
 
     private final RecoveryFlowRepository recoveryFlowRepository;
@@ -88,7 +87,7 @@ class RecoveryApplicationService implements RecoveryService {
 
         RecoveryAuthorization authorization = consumption.authorization();
         UUID recoveryId = UUID.randomUUID();
-        RecoveryRiskClassification classification = classify(authorization.riskScore());
+        RecoveryRiskClassification classification = RecoveryClassificationRule.classify(authorization.riskScore());
 
         ChallengePlan identityChallenge = challengeService.create(new CreateChallengeCommand(
                 authorization.accountReference(),
@@ -102,6 +101,7 @@ class RecoveryApplicationService implements RecoveryService {
                 authorization.directive().eventType().name(),
                 RecoveryStatus.VERIFYING_IDENTITY.name(),
                 classification.name(),
+                RecoveryClassificationRule.VERSION,
                 identityChallenge.challengeId(),
                 authorization.riskScore(),
                 now,
@@ -148,6 +148,11 @@ class RecoveryApplicationService implements RecoveryService {
             saveWithConflictCheck(entity);
             throw new InvalidRecoveryStateException(
                     command.recoveryId(), RecoveryStatus.IDENTITY_FAILED, "confirm-identity");
+        }
+
+        if (!RecoveryClassificationRule.isKnownVersion(entity.getClassificationRuleVersion())) {
+            throw new UnknownRecoveryClassificationRuleException(
+                    entity.getId(), entity.getClassificationRuleVersion());
         }
 
         RecoveryRiskClassification classification =
@@ -247,16 +252,6 @@ class RecoveryApplicationService implements RecoveryService {
         return new UnauthorizedRecoveryInitiationException(AUTHORIZATION_REJECTED_MESSAGE);
     }
 
-    private RecoveryRiskClassification classify(int riskScore) {
-        if (riskScore <= IMMEDIATE_THRESHOLD) {
-            return RecoveryRiskClassification.IMMEDIATE;
-        }
-        if (riskScore <= DELAYED_THRESHOLD) {
-            return RecoveryRiskClassification.DELAYED;
-        }
-        return RecoveryRiskClassification.MANUAL_REVIEW;
-    }
-
     private Instant computeEligibleAfter(RecoveryRiskClassification classification, Instant now) {
         return classification == RecoveryRiskClassification.DELAYED
                 ? now.plus(DELAY_PERIOD)
@@ -283,6 +278,7 @@ class RecoveryApplicationService implements RecoveryService {
                 RecoveryEventType.valueOf(entity.getEventType()),
                 RecoveryStatus.valueOf(entity.getStatus()),
                 RecoveryRiskClassification.valueOf(entity.getClassification()),
+                entity.getClassificationRuleVersion(),
                 entity.getIdentityChallengeId(),
                 entity.getInitiatedAt(),
                 entity.getUpdatedAt(),
