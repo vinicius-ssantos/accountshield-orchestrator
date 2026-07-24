@@ -4,7 +4,7 @@ CREATE TABLE recovery.recovery_authorization (
     decision_id UUID NOT NULL,
     account_reference VARCHAR(128) NOT NULL,
     directive VARCHAR(32) NOT NULL,
-    risk_score SMALLINT NOT NULL,
+    risk_score INTEGER NOT NULL,
     issued_at TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     consumed_at TIMESTAMPTZ,
