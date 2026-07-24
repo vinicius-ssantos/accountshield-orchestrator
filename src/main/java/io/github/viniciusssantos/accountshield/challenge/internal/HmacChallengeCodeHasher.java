@@ -17,7 +17,9 @@ class HmacChallengeCodeHasher {
 
     private final SecretKeySpec key;
 
-    HmacChallengeCodeHasher(@Value("${accountshield.challenge.hmac-secret}") String secret) {
+    HmacChallengeCodeHasher(
+            @Value("${accountshield.challenge.hmac-secret:accountshield-local-only-challenge-secret}")
+            String secret) {
         this.key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), ALGORITHM);
     }
 
