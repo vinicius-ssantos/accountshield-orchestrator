@@ -63,6 +63,30 @@ Before committing a dependency change:
 
 CI installs npm 11.4.2, enables the npm cache keyed by `frontend/package-lock.json`, validates lockfile metadata and package sources, and installs exclusively through `npm ci`.
 
+## Testing
+
+The frontend uses distinct test layers:
+
+- Vitest for utilities and synchronous React components;
+- React Testing Library and user-event for accessible interaction tests;
+- Playwright against the production Next.js build for App Router and async Server Component flows;
+- `@axe-core/playwright` for critical and serious accessibility violations.
+
+```bash
+cd frontend
+npm run test
+npm run test:unit
+npx playwright install chromium
+npm run build
+npm run test:e2e
+```
+
+Use `npm run test:watch` during development, `npm run test:a11y` for the focused accessibility suite, and `npm run test:e2e:headed` for local browser debugging.
+
+Tests must use deterministic synthetic fixtures and fixed clocks when time affects behavior. Do not record credentials, tokens, challenge material, raw identifiers, or unrestricted backend payloads in fixtures, snapshots, traces, screenshots, videos, or reports.
+
+CI publishes Vitest coverage/JUnit output and Playwright reports, traces, screenshots, videos, and JUnit output with bounded retention. Async Server Components are validated through Playwright rather than jsdom unit tests.
+
 ## Architecture direction
 
 - generated OpenAPI client behind adapters;
