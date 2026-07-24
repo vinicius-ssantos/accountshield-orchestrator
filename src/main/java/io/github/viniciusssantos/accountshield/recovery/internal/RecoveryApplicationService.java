@@ -1,7 +1,5 @@
 package io.github.viniciusssantos.accountshield.recovery.internal;
 
-import io.github.viniciusssantos.accountshield.audit.DecisionTraceQuery;
-import io.github.viniciusssantos.accountshield.audit.DecisionTraceView;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
@@ -14,6 +12,7 @@ import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateEx
 import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
 import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateException;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryAuthorization;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
@@ -28,12 +27,10 @@ import io.github.viniciusssantos.accountshield.recovery.internal.persistence.Rec
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,19 +45,19 @@ class RecoveryApplicationService implements RecoveryService {
 
     private final RecoveryFlowRepository recoveryFlowRepository;
     private final ChallengeService challengeService;
-    private final DecisionTraceQuery decisionTraceQuery;
+    private final RecoveryAuthorizationApplicationService authorizationService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
 
     RecoveryApplicationService(
             RecoveryFlowRepository recoveryFlowRepository,
             ChallengeService challengeService,
-            DecisionTraceQuery decisionTraceQuery,
+            RecoveryAuthorizationApplicationService authorizationService,
             @Qualifier("decisionClock") Clock clock,
             ApplicationEventPublisher eventPublisher) {
         this.recoveryFlowRepository = recoveryFlowRepository;
         this.challengeService = challengeService;
-        this.decisionTraceQuery = decisionTraceQuery;
+        this.authorizationService = authorizationService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
     }
@@ -70,47 +67,50 @@ class RecoveryApplicationService implements RecoveryService {
     public RecoveryFlow initiate(InitiateRecoveryCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 
-        DecisionTraceView trace = decisionTraceQuery.findByProtectionRequestId(command.protectionRequestId())
-                .filter(candidate -> "START_RECOVERY".equals(candidate.outcome()))
-                .orElseThrow(this::authorizationRejected);
-        RecoveryEventType eventType = deriveRecoveryEventType(trace.normalizedContext());
+        return recoveryFlowRepository.findByAuthorizationId(command.authorizationId())
+                .map(this::toDomain)
+                .orElseGet(() -> initiateFromAuthorization(command.authorizationId()));
+    }
 
-        if (recoveryFlowRepository.existsByOriginatingDecisionId(trace.decisionId())) {
-            throw authorizationRejected();
+    private RecoveryFlow initiateFromAuthorization(UUID authorizationId) {
+        Instant now = clock.instant();
+        RecoveryAuthorizationApplicationService.Consumption consumption = authorizationService
+                .consume(authorizationId, now)
+                .orElseThrow(this::authorizationRejected);
+
+        if (!consumption.newlyConsumed()) {
+            return recoveryFlowRepository.findByAuthorizationId(authorizationId)
+                    .map(this::toDomain)
+                    .orElseThrow(this::authorizationRejected);
         }
 
-        int riskScore = trace.riskScore();
-        Instant now = clock.instant();
+        RecoveryAuthorization authorization = consumption.authorization();
         UUID recoveryId = UUID.randomUUID();
-        RecoveryRiskClassification classification = classify(riskScore);
+        RecoveryRiskClassification classification = classify(authorization.riskScore());
 
         ChallengePlan identityChallenge = challengeService.create(new CreateChallengeCommand(
-                trace.accountReference(),
+                authorization.accountReference(),
                 ChallengeType.WEBAUTHN_SIMULATED,
                 ChallengePurpose.RECOVERY_IDENTITY,
                 recoveryId));
 
         RecoveryFlowEntity entity = new RecoveryFlowEntity(
                 recoveryId,
-                trace.accountReference(),
-                eventType.name(),
+                authorization.accountReference(),
+                authorization.directive().eventType().name(),
                 RecoveryStatus.VERIFYING_IDENTITY.name(),
                 classification.name(),
                 identityChallenge.challengeId(),
-                riskScore,
+                authorization.riskScore(),
                 now,
                 now,
                 computeEligibleAfter(classification, now),
                 null,
-                command.protectionRequestId(),
-                trace.decisionId());
+                authorization.protectionRequestId(),
+                authorization.decisionId(),
+                authorization.authorizationId());
 
-        try {
-            recoveryFlowRepository.saveAndFlush(entity);
-        } catch (DataIntegrityViolationException exception) {
-            throw authorizationRejected();
-        }
-
+        recoveryFlowRepository.saveAndFlush(entity);
         return toDomain(entity);
     }
 
@@ -233,20 +233,6 @@ class RecoveryApplicationService implements RecoveryService {
         return toDomain(entity);
     }
 
-    private RecoveryEventType deriveRecoveryEventType(Map<String, Object> normalizedContext) {
-        Object rawEventType = normalizedContext.get("protectionEventType");
-        if (!(rawEventType instanceof String eventType)) {
-            throw authorizationRejected();
-        }
-        return switch (eventType) {
-            case "LOGIN_RECOVERY_ATTEMPT" -> RecoveryEventType.LOGIN;
-            case "PASSWORD_RESET_ATTEMPT" -> RecoveryEventType.PASSWORD_RESET;
-            case "CREDENTIAL_CHANGE_ATTEMPT" -> RecoveryEventType.CREDENTIAL_CHANGE;
-            case "DEVICE_TRUST_RESET_ATTEMPT" -> RecoveryEventType.DEVICE_TRUST_RESET;
-            default -> throw authorizationRejected();
-        };
-    }
-
     private UnauthorizedRecoveryInitiationException authorizationRejected() {
         return new UnauthorizedRecoveryInitiationException(AUTHORIZATION_REJECTED_MESSAGE);
     }
@@ -291,6 +277,7 @@ class RecoveryApplicationService implements RecoveryService {
                 entity.getInitiatedAt(),
                 entity.getUpdatedAt(),
                 entity.getEligibleAfter(),
+                entity.getAuthorizationId(),
                 entity.getProtectionRequestId(),
                 entity.getOriginatingDecisionId());
     }
