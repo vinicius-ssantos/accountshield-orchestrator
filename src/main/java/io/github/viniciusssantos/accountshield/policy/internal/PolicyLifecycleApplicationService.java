@@ -1,5 +1,10 @@
 package io.github.viniciusssantos.accountshield.policy.internal;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
+import io.github.viniciusssantos.accountshield.challenge.ConsumeChallengeCommand;
+import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
@@ -8,8 +13,10 @@ import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
+import io.github.viniciusssantos.accountshield.policy.PrivilegedPolicyActionAttempted;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -27,16 +34,21 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
     private static final List<String> PENDING_STATUSES = List.of(
             PolicyStatus.DRAFT.name(),
             PolicyStatus.VALIDATED.name());
+    private static final String ACTION_ACTIVATE = "ACTIVATE";
+    private static final String ACTION_RETIRE = "RETIRE";
 
     private final PolicyVersionRepository repository;
+    private final ChallengeService challengeService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
 
     public PolicyLifecycleApplicationService(
             PolicyVersionRepository repository,
+            ChallengeService challengeService,
             @Qualifier("decisionClock") Clock clock,
             ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
+        this.challengeService = challengeService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
     }
@@ -83,7 +95,9 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
 
     @Override
     @Transactional
-    public PolicyVersionSummary activate(String policyKey, String version) {
+    public PolicyVersionSummary activate(String policyKey, String version, UUID stepUpChallengeId, String actor) {
+        consumeStepUp(policyKey, version, ACTION_ACTIVATE, stepUpChallengeId, actor);
+
         PolicyVersionEntity candidate = requirePolicy(policyKey, version);
         repository.findByPolicyKeyAndStatus(policyKey, ACTIVE)
                 .ifPresent(current -> current.transitionTo(
@@ -104,10 +118,54 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
 
     @Override
     @Transactional
-    public PolicyVersionSummary retire(String policyKey, String version) {
+    public PolicyVersionSummary retire(String policyKey, String version, UUID stepUpChallengeId, String actor) {
+        consumeStepUp(policyKey, version, ACTION_RETIRE, stepUpChallengeId, actor);
+
         PolicyVersionEntity entity = requirePolicy(policyKey, version);
         entity.transitionTo(PolicyStatus.RETIRED.name(), Instant.now(clock));
         return toSummary(entity);
+    }
+
+    @Override
+    @Transactional
+    public UUID requestActivationStepUp(String policyKey, String version, String actor) {
+        return issueStepUpChallenge(policyKey, version, ACTION_ACTIVATE, actor);
+    }
+
+    @Override
+    @Transactional
+    public UUID requestRetirementStepUp(String policyKey, String version, String actor) {
+        return issueStepUpChallenge(policyKey, version, ACTION_RETIRE, actor);
+    }
+
+    private UUID issueStepUpChallenge(String policyKey, String version, String action, String actor) {
+        validateKey(policyKey);
+        validateVersion(version);
+        return challengeService.create(new CreateChallengeCommand(
+                actor,
+                ChallengeType.TOTP_SIMULATED,
+                ChallengePurpose.PRIVILEGED_OPERATION,
+                stepUpContextId(policyKey, version, action))).challengeId();
+    }
+
+    private void consumeStepUp(
+            String policyKey, String version, String action, UUID stepUpChallengeId, String actor) {
+        UUID contextId = stepUpContextId(policyKey, version, action);
+        try {
+            challengeService.consume(new ConsumeChallengeCommand(
+                    stepUpChallengeId, actor, ChallengePurpose.PRIVILEGED_OPERATION, contextId));
+            eventPublisher.publishEvent(
+                    new PrivilegedPolicyActionAttempted(policyKey, version, action, actor, true));
+        } catch (RuntimeException exception) {
+            eventPublisher.publishEvent(
+                    new PrivilegedPolicyActionAttempted(policyKey, version, action, actor, false));
+            throw exception;
+        }
+    }
+
+    private UUID stepUpContextId(String policyKey, String version, String action) {
+        return UUID.nameUUIDFromBytes(
+                ("policy:" + action + ":" + policyKey + ":" + version).getBytes(StandardCharsets.UTF_8));
     }
 
     private PolicyVersionEntity requirePolicy(String policyKey, String version) {

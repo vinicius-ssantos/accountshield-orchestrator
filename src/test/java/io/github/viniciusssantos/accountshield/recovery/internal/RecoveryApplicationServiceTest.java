@@ -268,13 +268,15 @@ class RecoveryApplicationServiceTest {
     @Test
     void reviewApprovesManualRecovery() {
         UUID recoveryId = UUID.randomUUID();
+        UUID stepUpChallengeId = UUID.randomUUID();
         when(repository.findById(recoveryId)).thenReturn(Optional.of(
                 entity(recoveryId, UUID.randomUUID(), RecoveryStatus.MANUAL_REVIEW,
                         RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID())));
         when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        stubStepUpConsumption(stepUpChallengeId);
 
         RecoveryFlow flow = service.review(new RecoveryReviewCommand(
-                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice"));
+                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice", stepUpChallengeId));
 
         assertThat(flow.status()).isEqualTo(RecoveryStatus.COMPLETED);
     }
@@ -282,14 +284,40 @@ class RecoveryApplicationServiceTest {
     @Test
     void reviewTranslatesConcurrentModificationIntoConflict() {
         UUID recoveryId = UUID.randomUUID();
+        UUID stepUpChallengeId = UUID.randomUUID();
         when(repository.findById(recoveryId)).thenReturn(Optional.of(
                 entity(recoveryId, UUID.randomUUID(), RecoveryStatus.MANUAL_REVIEW,
                         RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID())));
         when(repository.saveAndFlush(any())).thenThrow(new OptimisticLockingFailureException("stale"));
+        stubStepUpConsumption(stepUpChallengeId);
 
         assertThatThrownBy(() -> service.review(new RecoveryReviewCommand(
-                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice")))
+                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice", stepUpChallengeId)))
                 .isInstanceOf(RecoveryFlowConflictException.class);
+    }
+
+    @Test
+    void reviewFailsAndDoesNotMutateStateWhenStepUpIsRejected() {
+        UUID recoveryId = UUID.randomUUID();
+        UUID stepUpChallengeId = UUID.randomUUID();
+        RecoveryFlowEntity entity = entity(recoveryId, UUID.randomUUID(), RecoveryStatus.MANUAL_REVIEW,
+                RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID());
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(entity));
+        when(challengeService.consume(any())).thenThrow(new ChallengeUseRejectedException());
+
+        assertThatThrownBy(() -> service.review(new RecoveryReviewCommand(
+                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice", stepUpChallengeId)))
+                .isInstanceOf(ChallengeUseRejectedException.class);
+
+        assertThat(entity.getStatus()).isEqualTo(RecoveryStatus.MANUAL_REVIEW.name());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    private void stubStepUpConsumption(UUID stepUpChallengeId) {
+        when(challengeService.consume(any())).thenReturn(new ChallengePlan(
+                stepUpChallengeId, "operator-alice", ChallengeType.TOTP_SIMULATED,
+                ChallengePurpose.PRIVILEGED_OPERATION, UUID.randomUUID(), ChallengeStatus.CONSUMED,
+                3, 3, NOW.minusSeconds(60), NOW.plusSeconds(600), NOW));
     }
 
     private RecoveryFlow initiateAtRisk(int riskScore) {

@@ -52,13 +52,24 @@ class RecoveryController {
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 
+    @PostMapping("/{recoveryId}/review/step-up")
+    public ResponseEntity<StepUpChallengeResponse> requestReviewStepUp(
+            @PathVariable UUID recoveryId,
+            Authentication authentication) {
+        UUID challengeId = recoveryService.requestReviewStepUp(recoveryId, authentication.getName());
+        return ResponseEntity.ok(new StepUpChallengeResponse(challengeId));
+    }
+
     @PostMapping("/{recoveryId}/review")
     public ResponseEntity<RecoveryResponse> review(
             @PathVariable UUID recoveryId,
             @Valid @RequestBody RecoveryReviewRequest request,
             Authentication authentication) {
         RecoveryFlow flow = recoveryService.review(new RecoveryReviewCommand(
-                recoveryId, RecoveryReviewDecision.valueOf(request.decision()), authentication.getName()));
+                recoveryId,
+                RecoveryReviewDecision.valueOf(request.decision()),
+                authentication.getName(),
+                request.stepUpChallengeId()));
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 
@@ -72,7 +83,14 @@ class RecoveryController {
     record ConfirmIdentityRequest(@NotNull UUID challengeId) {
     }
 
-    record RecoveryReviewRequest(@NotBlank String decision) {
+    record RecoveryReviewRequest(
+            @NotBlank String decision,
+            @Schema(description = "Challenge ID returned by POST .../review/step-up, "
+                    + "after it has been verified via POST /api/v1/challenges/{id}/verify")
+            @NotNull UUID stepUpChallengeId) {
+    }
+
+    record StepUpChallengeResponse(UUID challengeId) {
     }
 
     record RecoveryResponse(

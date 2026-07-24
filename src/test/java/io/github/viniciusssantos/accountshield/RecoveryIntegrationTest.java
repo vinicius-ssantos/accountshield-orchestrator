@@ -151,8 +151,17 @@ class RecoveryIntegrationTest {
                 .isInstanceOf(InvalidRecoveryStateException.class);
 
         RecoveryFlow approved = recoveryService.review(new RecoveryReviewCommand(
-                initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-approver"));
+                initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-approver",
+                reviewStepUpChallenge(initiated.recoveryId(), "operator-approver")));
         assertThat(approved.status()).isEqualTo(RecoveryStatus.COMPLETED);
+    }
+
+    private UUID reviewStepUpChallenge(UUID recoveryId, String actor) {
+        UUID challengeId = recoveryService.requestReviewStepUp(recoveryId, actor);
+        String issuedCode = issuedCodeFor(challengeId);
+        challengeService.verify(new ChallengeVerificationCommand(
+                challengeId, issuedCode, ChallengePurpose.PRIVILEGED_OPERATION, recoveryId));
+        return challengeId;
     }
 
     @Test

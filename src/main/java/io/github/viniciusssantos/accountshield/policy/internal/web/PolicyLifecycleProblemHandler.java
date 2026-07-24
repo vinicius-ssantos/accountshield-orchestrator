@@ -1,5 +1,8 @@
 package io.github.viniciusssantos.accountshield.policy.internal.web;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeUseRejectedException;
+import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateException;
 import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
@@ -20,6 +23,10 @@ class PolicyLifecycleProblemHandler {
             URI.create("urn:accountshield:problem:policy-conflict");
     private static final URI NOT_FOUND_TYPE =
             URI.create("urn:accountshield:problem:policy-version-not-found");
+    private static final URI STEP_UP_INVALID_TYPE =
+            URI.create("urn:accountshield:problem:invalid-challenge-state");
+    private static final URI STEP_UP_REJECTED_TYPE =
+            URI.create("urn:accountshield:problem:challenge-use-rejected");
 
     @ExceptionHandler(IllegalPolicyTransitionException.class)
     public ResponseEntity<ProblemDetail> illegalTransition(IllegalPolicyTransitionException ex) {
@@ -64,5 +71,30 @@ class PolicyLifecycleProblemHandler {
         problem.setTitle("Policy version not found");
         problem.setProperty("code", "POLICY_VERSION_NOT_FOUND");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(InvalidChallengeStateException.class)
+    public ResponseEntity<ProblemDetail> stepUpInvalidState(InvalidChallengeStateException ex) {
+        HttpStatus status = ex.currentStatus() == ChallengeStatus.EXPIRED
+                ? HttpStatus.GONE
+                : HttpStatus.CONFLICT;
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                status,
+                "The step-up challenge is in state " + ex.currentStatus() + " and cannot authorize this action.");
+        problem.setType(STEP_UP_INVALID_TYPE);
+        problem.setTitle("Invalid step-up challenge state");
+        problem.setProperty("code", "INVALID_CHALLENGE_STATE");
+        return ResponseEntity.status(status).body(problem);
+    }
+
+    @ExceptionHandler(ChallengeUseRejectedException.class)
+    public ResponseEntity<ProblemDetail> stepUpRejected(ChallengeUseRejectedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "The step-up challenge cannot authorize this action.");
+        problem.setType(STEP_UP_REJECTED_TYPE);
+        problem.setTitle("Step-up challenge rejected");
+        problem.setProperty("code", "CHALLENGE_USE_REJECTED");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 }

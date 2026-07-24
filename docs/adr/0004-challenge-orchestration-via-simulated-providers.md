@@ -25,7 +25,13 @@ Initial purposes are:
 - `RECOVERY_IDENTITY`;
 - `PRIVILEGED_OPERATION`.
 
-The context is chosen by the creating use case. Protection step-up uses the protection request ID. Recovery identity uses the recovery flow ID. A consumer must present the exact purpose, context, and account binding.
+The context is chosen by the creating use case. Protection step-up uses the protection request ID. Recovery identity uses the recovery flow ID. Privileged operations derive a resource-and-action-specific `contextId` (recovery review uses the recovery flow ID directly; policy activation/retirement hash `"policy:" + action + ":" + policyKey + ":" + version` into a deterministic name-based UUID via `UUID.nameUUIDFromBytes`, keeping the action in the binding so a challenge issued for retiring a version cannot be spent activating it instead). A consumer must present the exact purpose, context, and account binding.
+
+### Privileged operations (first real caller)
+
+`PRIVILEGED_OPERATION` existed in the enum from the start but had no caller until policy activation, policy retirement, and manual recovery review each added a `.../step-up` endpoint: it issues a `PRIVILEGED_OPERATION` challenge for the caller (identity from the authenticated principal, never the request body) bound to that specific resource and action. The caller verifies it through the existing shared `POST /api/v1/challenges/{id}/verify`, then presents the resulting `challengeId` back to the privileged endpoint itself, which consumes it (`ChallengeService.consume`) before performing the action — inside the same transaction, so a rejected step-up leaves the resource state untouched. No new persistence or concurrency mechanism was needed: this purpose already had the same one-time consumption, purpose/context/account binding, and `@Version`-backed exactly-one-winner guarantee as `RECOVERY_IDENTITY`. Every attempt — successful or rejected — publishes a module-owned audit event (`PrivilegedPolicyActionAttempted`, `PrivilegedRecoveryActionAttempted`) logged by the existing `SecurityEventLogger`.
+
+Dead-letter replay, evidence-bundle export, and canary rollout changes have no implemented endpoints yet; when they exist, they should consume a `PRIVILEGED_OPERATION` challenge the same way rather than inventing a parallel mechanism.
 
 ### State machine
 
