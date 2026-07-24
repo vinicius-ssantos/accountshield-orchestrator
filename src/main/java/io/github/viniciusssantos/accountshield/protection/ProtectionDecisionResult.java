@@ -11,6 +11,7 @@ import java.util.UUID;
 public record ProtectionDecisionResult(
         UUID decisionId,
         UUID protectionRequestId,
+        UUID recoveryAuthorizationId,
         ProtectionOutcome outcome,
         int riskScore,
         RiskBand riskBand,
@@ -25,9 +26,26 @@ public record ProtectionDecisionResult(
         reasons = List.copyOf(reasons);
     }
 
+    public ProtectionDecisionResult(
+            UUID decisionId,
+            UUID protectionRequestId,
+            ProtectionOutcome outcome,
+            int riskScore,
+            RiskBand riskBand,
+            String algorithmVersion,
+            String policyKey,
+            String policyVersion,
+            List<RiskReason> reasons,
+            Instant decidedAt,
+            ChallengePlan challenge) {
+        this(decisionId, protectionRequestId, null, outcome, riskScore, riskBand,
+                algorithmVersion, policyKey, policyVersion, reasons, decidedAt, challenge);
+    }
+
     public ProtectionDecisionResult withoutChallenge() {
         return new ProtectionDecisionResult(
-                decisionId, protectionRequestId, outcome, riskScore, riskBand,
-                algorithmVersion, policyKey, policyVersion, reasons, decidedAt, null);
+                decisionId, protectionRequestId, recoveryAuthorizationId,
+                outcome, riskScore, riskBand, algorithmVersion, policyKey,
+                policyVersion, reasons, decidedAt, null);
     }
 }
