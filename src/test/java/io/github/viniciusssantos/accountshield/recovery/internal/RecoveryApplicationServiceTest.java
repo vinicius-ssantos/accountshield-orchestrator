@@ -23,6 +23,7 @@ import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateExce
 import io.github.viniciusssantos.accountshield.recovery.RecoveryAuthorization;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryDirective;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.OptimisticLockingFailureException;
 
 class RecoveryApplicationServiceTest {
 
@@ -163,7 +165,7 @@ class RecoveryApplicationServiceTest {
                         RecoveryRiskClassification.IMMEDIATE, UUID.randomUUID())));
         when(challengeService.consume(any(ConsumeChallengeCommand.class)))
                 .thenReturn(challengePlan(challengeId, ChallengeStatus.CONSUMED, recoveryId));
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         RecoveryFlow flow = service.confirmIdentity(new ConfirmIdentityCommand(recoveryId, challengeId));
 
@@ -185,11 +187,27 @@ class RecoveryApplicationServiceTest {
                         RecoveryRiskClassification.IMMEDIATE, UUID.randomUUID())));
         when(challengeService.consume(any(ConsumeChallengeCommand.class)))
                 .thenThrow(new InvalidChallengeStateException(challengeId, ChallengeStatus.FAILED));
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThatThrownBy(() -> service.confirmIdentity(
                 new ConfirmIdentityCommand(recoveryId, challengeId)))
                 .isInstanceOf(InvalidRecoveryStateException.class);
+    }
+
+    @Test
+    void confirmIdentityTranslatesConcurrentModificationIntoConflict() {
+        UUID recoveryId = UUID.randomUUID();
+        UUID challengeId = UUID.randomUUID();
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(
+                entity(recoveryId, challengeId, RecoveryStatus.VERIFYING_IDENTITY,
+                        RecoveryRiskClassification.IMMEDIATE, UUID.randomUUID())));
+        when(challengeService.consume(any(ConsumeChallengeCommand.class)))
+                .thenReturn(challengePlan(challengeId, ChallengeStatus.CONSUMED, recoveryId));
+        when(repository.saveAndFlush(any())).thenThrow(new OptimisticLockingFailureException("stale"));
+
+        assertThatThrownBy(() -> service.confirmIdentity(
+                new ConfirmIdentityCommand(recoveryId, challengeId)))
+                .isInstanceOf(RecoveryFlowConflictException.class);
     }
 
     @Test
@@ -220,17 +238,42 @@ class RecoveryApplicationServiceTest {
     }
 
     @Test
+    void completeTranslatesConcurrentModificationIntoConflict() {
+        UUID recoveryId = UUID.randomUUID();
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(
+                entity(recoveryId, UUID.randomUUID(), RecoveryStatus.IDENTITY_VERIFIED,
+                        RecoveryRiskClassification.IMMEDIATE, UUID.randomUUID())));
+        when(repository.saveAndFlush(any())).thenThrow(new OptimisticLockingFailureException("stale"));
+
+        assertThatThrownBy(() -> service.complete(recoveryId))
+                .isInstanceOf(RecoveryFlowConflictException.class);
+    }
+
+    @Test
     void reviewApprovesManualRecovery() {
         UUID recoveryId = UUID.randomUUID();
         when(repository.findById(recoveryId)).thenReturn(Optional.of(
                 entity(recoveryId, UUID.randomUUID(), RecoveryStatus.MANUAL_REVIEW,
                         RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID())));
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         RecoveryFlow flow = service.review(new RecoveryReviewCommand(
                 recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice"));
 
         assertThat(flow.status()).isEqualTo(RecoveryStatus.COMPLETED);
+    }
+
+    @Test
+    void reviewTranslatesConcurrentModificationIntoConflict() {
+        UUID recoveryId = UUID.randomUUID();
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(
+                entity(recoveryId, UUID.randomUUID(), RecoveryStatus.MANUAL_REVIEW,
+                        RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID())));
+        when(repository.saveAndFlush(any())).thenThrow(new OptimisticLockingFailureException("stale"));
+
+        assertThatThrownBy(() -> service.review(new RecoveryReviewCommand(
+                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice")))
+                .isInstanceOf(RecoveryFlowConflictException.class);
     }
 
     private RecoveryFlow initiateAtRisk(int riskScore) {

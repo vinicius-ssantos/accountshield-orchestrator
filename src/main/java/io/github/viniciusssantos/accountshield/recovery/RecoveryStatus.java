@@ -9,5 +9,10 @@ public enum RecoveryStatus {
     COMPLETED,
     IDENTITY_FAILED,
     REJECTED,
-    ABORTED
+    ABORTED;
+
+    // must stay in sync with the partial index in V11__harden_recovery_flow_persistence.sql
+    public boolean isTerminal() {
+        return this == COMPLETED || this == IDENTITY_FAILED || this == REJECTED || this == ABORTED;
+    }
 }

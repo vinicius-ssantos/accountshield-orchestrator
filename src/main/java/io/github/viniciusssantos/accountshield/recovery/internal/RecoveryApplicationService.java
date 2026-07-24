@@ -16,6 +16,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryAuthorization;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
@@ -31,6 +32,7 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -143,7 +145,7 @@ class RecoveryApplicationService implements RecoveryService {
         } catch (InvalidChallengeStateException exception) {
             entity.setStatus(RecoveryStatus.IDENTITY_FAILED.name());
             entity.setUpdatedAt(clock.instant());
-            recoveryFlowRepository.save(entity);
+            saveWithConflictCheck(entity);
             throw new InvalidRecoveryStateException(
                     command.recoveryId(), RecoveryStatus.IDENTITY_FAILED, "confirm-identity");
         }
@@ -158,7 +160,7 @@ class RecoveryApplicationService implements RecoveryService {
 
         entity.setStatus(nextStatus.name());
         entity.setUpdatedAt(clock.instant());
-        recoveryFlowRepository.save(entity);
+        saveWithConflictCheck(entity);
 
         return toDomain(entity);
     }
@@ -193,7 +195,7 @@ class RecoveryApplicationService implements RecoveryService {
         entity.setStatus(RecoveryStatus.COMPLETED.name());
         Instant completedAt = clock.instant();
         entity.setUpdatedAt(completedAt);
-        recoveryFlowRepository.save(entity);
+        saveWithConflictCheck(entity);
 
         eventPublisher.publishEvent(new RecoveryCompleted(
                 recoveryId,
@@ -220,7 +222,7 @@ class RecoveryApplicationService implements RecoveryService {
         entity.setStatus(newStatus);
         entity.setReviewer(command.reviewer());
         entity.setUpdatedAt(now);
-        recoveryFlowRepository.save(entity);
+        saveWithConflictCheck(entity);
 
         if (newStatus.equals(RecoveryStatus.COMPLETED.name())) {
             eventPublisher.publishEvent(new RecoveryCompleted(
@@ -231,6 +233,14 @@ class RecoveryApplicationService implements RecoveryService {
         }
 
         return toDomain(entity);
+    }
+
+    private void saveWithConflictCheck(RecoveryFlowEntity entity) {
+        try {
+            recoveryFlowRepository.saveAndFlush(entity);
+        } catch (OptimisticLockingFailureException exception) {
+            throw new RecoveryFlowConflictException(entity.getId(), exception);
+        }
     }
 
     private UnauthorizedRecoveryInitiationException authorizationRejected() {

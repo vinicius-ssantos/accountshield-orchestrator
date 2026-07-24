@@ -50,3 +50,7 @@ accountshield:
       fixed-delay: 5s
       batch-size: 50
       max-attempts: 5
+  recovery:
+    retention:
+      terminal-ttl: 30d
+      fixed-delay: 1h
