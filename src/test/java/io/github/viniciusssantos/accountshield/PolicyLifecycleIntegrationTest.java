@@ -181,6 +181,7 @@ class PolicyLifecycleIntegrationTest {
     }
 
     private UUID lookUpContextId(UUID challengeId) {
+        repository.flush();
         return jdbcTemplate.queryForObject(
                 "SELECT context_id FROM challenge.challenge_plan WHERE id = ?",
                 UUID.class,
