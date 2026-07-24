@@ -8,9 +8,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
+import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
+import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
+import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
 import java.time.Instant;
 import java.util.UUID;
@@ -79,7 +82,7 @@ class PolicyLifecycleControllerTest {
     @Test
     void duplicateVersionReturns409() throws Exception {
         when(lifecycleService.createDraft(org.mockito.ArgumentMatchers.any(CreatePolicyCommand.class)))
-                .thenThrow(new IllegalStateException("policy version already exists"));
+                .thenThrow(new DuplicatePolicyVersionException("test-policy", "1.0.0"));
 
         mockMvc.perform(post("/api/v1/policies")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -87,7 +90,32 @@ class PolicyLifecycleControllerTest {
                                 { "policyKey": "test-policy", "version": "1.0.0", "allowMaxScore": 25, "stepUpMaxScore": 65 }
                                 """))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("CONFLICT"));
+                .andExpect(jsonPath("$.code").value("POLICY_VERSION_ALREADY_EXISTS"))
+                .andExpect(jsonPath("$.detail").value("Policy test-policy:1.0.0 already exists."));
+    }
+
+    @Test
+    void pendingVersionExistsReturns409() throws Exception {
+        when(lifecycleService.createDraft(org.mockito.ArgumentMatchers.any(CreatePolicyCommand.class)))
+                .thenThrow(new PendingPolicyVersionExistsException("test-policy"));
+
+        mockMvc.perform(post("/api/v1/policies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "policyKey": "test-policy", "version": "1.0.0", "allowMaxScore": 25, "stepUpMaxScore": 65 }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PENDING_POLICY_VERSION_EXISTS"));
+    }
+
+    @Test
+    void notFoundReturns404() throws Exception {
+        when(lifecycleService.activate(eq("test-policy"), eq("9.9.9")))
+                .thenThrow(new PolicyVersionNotFoundException("test-policy", "9.9.9"));
+
+        mockMvc.perform(post("/api/v1/policies/test-policy/9.9.9/activate"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POLICY_VERSION_NOT_FOUND"));
     }
 
     @Test

@@ -1,9 +1,12 @@
 package io.github.viniciusssantos.accountshield.policy.internal;
 
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
+import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
+import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
+import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
@@ -43,14 +46,12 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
     public PolicyVersionSummary createDraft(CreatePolicyCommand command) {
         validateCreateCommand(command);
         if (repository.findByPolicyKeyAndVersion(command.policyKey(), command.version()).isPresent()) {
-            throw new IllegalStateException(
-                    "policy version already exists: " + command.policyKey() + ":" + command.version());
+            throw new DuplicatePolicyVersionException(command.policyKey(), command.version());
         }
         List<PolicyVersionEntity> nonTerminal = repository.findByPolicyKeyAndStatusIn(
                 command.policyKey(), PENDING_STATUSES);
         if (!nonTerminal.isEmpty()) {
-            throw new IllegalStateException(
-                    "a draft or validated policy version already exists for key: " + command.policyKey());
+            throw new PendingPolicyVersionExistsException(command.policyKey());
         }
 
         String definition = "{\"allowMaxScore\":" + command.allowMaxScore()
@@ -113,8 +114,7 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
         validateKey(policyKey);
         validateVersion(version);
         return repository.findByPolicyKeyAndVersion(policyKey, version)
-                .orElseThrow(() -> new IllegalStateException(
-                        "policy version not found: " + policyKey + ":" + version));
+                .orElseThrow(() -> new PolicyVersionNotFoundException(policyKey, version));
     }
 
     private void validateCreateCommand(CreatePolicyCommand command) {
