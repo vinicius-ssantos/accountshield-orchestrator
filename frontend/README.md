@@ -15,7 +15,7 @@ Core workflow:
 
 ## Current scope
 
-This pull request intentionally starts in fixture-driven, read-only mode:
+The console currently runs in fixture-driven, read-only mode:
 
 - Next.js App Router and strict TypeScript;
 - dark operations-console shell;
@@ -26,14 +26,42 @@ This pull request intentionally starts in fixture-driven, read-only mode:
 
 ## Local development
 
+Use Node.js 22 or newer and the npm version declared in `package.json`.
+
 ```bash
 cd frontend
 cp .env.example .env.local
-npm install
+npm ci --no-audit --no-fund
 npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+`npm ci` is the supported clean-install command. It consumes the reviewed `package-lock.json`, removes an existing `node_modules` directory, and fails when the manifest and lockfile disagree.
+
+## Dependency updates
+
+Keep direct dependency versions exact and update the manifest and lockfile together.
+
+```bash
+cd frontend
+npm install --save-exact <package>@<version> --ignore-scripts --no-audit --no-fund
+npm ci --no-audit --no-fund
+npm run typegen
+npm run lint
+npm run typecheck
+npm run build
+```
+
+Before committing a dependency change:
+
+- review both `package.json` and `package-lock.json`;
+- confirm package sources resolve only through `https://registry.npmjs.org/`;
+- reject Git dependencies, local paths, unexpected registries, and missing integrity metadata;
+- never commit `.npmrc` credentials, registry tokens, or generated `node_modules` content;
+- run the same validation commands used by CI.
+
+CI installs npm 11.4.2, enables the npm cache keyed by `frontend/package-lock.json`, validates lockfile metadata and package sources, and installs exclusively through `npm ci`.
 
 ## Architecture direction
 
@@ -59,7 +87,8 @@ See [`docs/frontend/architecture.md`](../docs/frontend/architecture.md) for link
 
 ## Delivered foundation
 
-- frontend CI with type generation, lint, typecheck, and production build;
+- frontend CI with deterministic dependency installation, type generation, lint, typecheck, and production build;
+- reviewed npm lockfile and cache configuration;
 - fixture adapter and stable decision view models;
 - deterministic data-source selection;
 - accessible overview, planned routes, and App Router states;
@@ -67,7 +96,7 @@ See [`docs/frontend/architecture.md`](../docs/frontend/architecture.md) for link
 
 ## Planned slices
 
-1. frontend lockfile, container, and Compose integration;
+1. frontend container and Compose integration;
 2. generated OpenAPI client and compatibility gate;
 3. decisions list and investigation timeline;
 4. recovery read-only queue;
