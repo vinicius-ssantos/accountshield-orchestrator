@@ -43,6 +43,7 @@ logging:
 accountshield:
   challenge:
     hmac-secret: ${CHALLENGE_HMAC_SECRET:accountshield-local-only-challenge-secret}
+    simulation-enabled: ${CHALLENGE_SIMULATION_ENABLED:true}
   protection:
     rate-limit:
       max-requests: 10
