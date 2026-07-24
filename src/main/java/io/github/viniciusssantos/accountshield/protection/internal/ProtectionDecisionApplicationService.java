@@ -22,11 +22,13 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionServ
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.protection.ProtectionRateLimiter;
 import io.github.viniciusssantos.accountshield.protection.RecoveryAuthorizationIssued;
+import io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestEntity;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
 import io.github.viniciusssantos.accountshield.risk.RiskReason;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -42,6 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import tools.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,6 +66,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final ProtectionRateLimiter rateLimiter;
+    private final Duration maxSignalAge;
 
     public ProtectionDecisionApplicationService(
             RiskAssessmentService riskAssessmentService,
@@ -74,7 +78,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             Clock clock,
             ObjectMapper objectMapper,
             ApplicationEventPublisher eventPublisher,
-            ProtectionRateLimiter rateLimiter) {
+            ProtectionRateLimiter rateLimiter,
+            @Value("${accountshield.risk.max-signal-age:5m}") Duration maxSignalAge) {
         this.riskAssessmentService = riskAssessmentService;
         this.policyEvaluationService = policyEvaluationService;
         this.protectionRequestRepository = protectionRequestRepository;
@@ -85,6 +90,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
         this.rateLimiter = rateLimiter;
+        this.maxSignalAge = maxSignalAge;
     }
 
     @Override
@@ -93,6 +99,9 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         Objects.requireNonNull(command, "command must not be null");
 
         Instant now = clock.instant();
+        if (command.signalEnvelope().isStale(now, maxSignalAge)) {
+            throw new StaleRiskSignalException(command.signalEnvelope().observedAt());
+        }
         rateLimiter.checkLimit(command.accountReference(), now);
         String requestFingerprint = fingerprint(command);
         String idempotencyKey = resolveIdempotencyKey(command, requestFingerprint);
@@ -105,7 +114,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         UUID protectionRequestId = UUID.randomUUID();
         UUID decisionId = UUID.randomUUID();
 
-        RiskAssessment assessment = riskAssessmentService.assess(command.signals());
+        RiskAssessment assessment = riskAssessmentService.assess(command.signalEnvelope());
         PolicyEvaluation evaluation = command.eventType().recoveryRequest()
                 ? policyEvaluationService.evaluate(
                         DEFAULT_POLICY_KEY,
@@ -220,15 +229,21 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     }
 
     private Map<String, Object> normalizedContext(ProtectionDecisionCommand command) {
-        RiskSignals signals = command.signals();
-        return Map.of(
-                "failedAttempts", signals.failedAttempts(),
-                "newDevice", signals.newDevice(),
-                "impossibleTravel", signals.impossibleTravel(),
-                "compromisedCredential", signals.compromisedCredential(),
-                "networkRiskLevel", signals.networkRiskLevel().name(),
-                "protectionEventType", command.eventType().name(),
-                "recoveryRequest", command.eventType().recoveryRequest());
+        RiskSignalEnvelope envelope = command.signalEnvelope();
+        RiskSignals signals = envelope.signals();
+        return Map.ofEntries(
+                Map.entry("failedAttempts", signals.failedAttempts()),
+                Map.entry("newDevice", signals.newDevice()),
+                Map.entry("impossibleTravel", signals.impossibleTravel()),
+                Map.entry("compromisedCredential", signals.compromisedCredential()),
+                Map.entry("networkRiskLevel", signals.networkRiskLevel().name()),
+                Map.entry("protectionEventType", command.eventType().name()),
+                Map.entry("recoveryRequest", command.eventType().recoveryRequest()),
+                Map.entry("signalProvider", envelope.provider()),
+                Map.entry("signalObservedAt", envelope.observedAt().toString()),
+                Map.entry("signalConfidence", envelope.confidence().name()),
+                Map.entry("signalSchemaVersion", envelope.schemaVersion()),
+                Map.entry("signalSimulated", envelope.simulated()));
     }
 
     private String recoveryDirective(ProtectionEventType eventType) {
@@ -254,11 +269,11 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             try (DataOutputStream output = new DataOutputStream(bytes)) {
                 output.writeUTF(command.accountReference());
                 output.writeUTF(command.eventType().name());
-                output.writeInt(command.signals().failedAttempts());
-                output.writeBoolean(command.signals().newDevice());
-                output.writeBoolean(command.signals().impossibleTravel());
-                output.writeBoolean(command.signals().compromisedCredential());
-                output.writeUTF(command.signals().networkRiskLevel().name());
+                output.writeInt(command.signalEnvelope().signals().failedAttempts());
+                output.writeBoolean(command.signalEnvelope().signals().newDevice());
+                output.writeBoolean(command.signalEnvelope().signals().impossibleTravel());
+                output.writeBoolean(command.signalEnvelope().signals().compromisedCredential());
+                output.writeUTF(command.signalEnvelope().signals().networkRiskLevel().name());
             }
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(bytes.toByteArray()));

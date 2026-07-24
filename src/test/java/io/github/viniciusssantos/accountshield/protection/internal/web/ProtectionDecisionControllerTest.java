@@ -77,8 +77,45 @@ class ProtectionDecisionControllerTest {
         ArgumentCaptor<ProtectionDecisionCommand> commandCaptor =
                 ArgumentCaptor.forClass(ProtectionDecisionCommand.class);
         verify(service).decide(commandCaptor.capture());
-        assertThat(commandCaptor.getValue().signals().networkRiskLevel()).isEqualTo(NetworkRiskLevel.LOW);
+        assertThat(commandCaptor.getValue().signalEnvelope().signals().networkRiskLevel())
+                .isEqualTo(NetworkRiskLevel.LOW);
         assertThat(commandCaptor.getValue().idempotencyKey()).isNull();
+    }
+
+    @Test
+    void defaultsSignalProvenanceWhenOmitted() throws Exception {
+        when(service.decide(any())).thenReturn(new ProtectionDecisionResult(
+                UUID.fromString("73f09515-64da-4130-91ac-f1159efaeeb1"),
+                UUID.fromString("95ba12b2-36ef-4cbb-861f-76974557e038"),
+                ProtectionOutcome.ALLOW,
+                0,
+                RiskBand.LOW,
+                "risk-rules-1.0",
+                "account-protection-default",
+                "1.0.0",
+                List.of(),
+                Instant.parse("2026-07-20T03:00:00Z"),
+                null));
+
+        mockMvc.perform(post("/api/v1/protection-decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountReference": "account-opaque-789",
+                                  "eventType": "LOGIN_ATTEMPT"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<ProtectionDecisionCommand> commandCaptor =
+                ArgumentCaptor.forClass(ProtectionDecisionCommand.class);
+        verify(service).decide(commandCaptor.capture());
+        var envelope = commandCaptor.getValue().signalEnvelope();
+        assertThat(envelope.provider()).isEqualTo("CLIENT_SUPPLIED");
+        assertThat(envelope.confidence())
+                .isEqualTo(io.github.viniciusssantos.accountshield.risk.SignalConfidence.HIGH);
+        assertThat(envelope.simulated()).isTrue();
+        assertThat(envelope.isStale(Instant.now(), java.time.Duration.ofMinutes(5))).isFalse();
     }
 
     @Test
@@ -163,6 +200,26 @@ class ProtectionDecisionControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"))
                 .andExpect(jsonPath("$.title").value("Conflicting idempotency request"));
+    }
+
+    @Test
+    void returnsUnprocessableEntityForStaleRiskSignal() throws Exception {
+        when(service.decide(any()))
+                .thenThrow(new io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException(
+                        Instant.parse("2026-07-20T02:00:00Z")));
+
+        mockMvc.perform(post("/api/v1/protection-decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountReference": "account-opaque-123",
+                                  "eventType": "LOGIN_ATTEMPT",
+                                  "failedAttempts": 0,
+                                  "signalObservedAt": "2026-07-20T02:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("STALE_RISK_SIGNAL"));
     }
 
     @Test

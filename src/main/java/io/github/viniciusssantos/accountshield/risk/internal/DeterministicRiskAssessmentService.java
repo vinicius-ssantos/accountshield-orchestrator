@@ -5,7 +5,9 @@ import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
 import io.github.viniciusssantos.accountshield.risk.RiskBand;
 import io.github.viniciusssantos.accountshield.risk.RiskReason;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -18,8 +20,9 @@ final class DeterministicRiskAssessmentService implements RiskAssessmentService 
     private static final int MAX_SCORE = 100;
 
     @Override
-    public RiskAssessment assess(RiskSignals signals) {
-        Objects.requireNonNull(signals, "signals must not be null");
+    public RiskAssessment assess(RiskSignalEnvelope envelope) {
+        Objects.requireNonNull(envelope, "envelope must not be null");
+        RiskSignals signals = envelope.signals();
 
         List<RiskReason> reasons = new ArrayList<>();
         int score = 0;
@@ -32,6 +35,8 @@ final class DeterministicRiskAssessmentService implements RiskAssessmentService 
                 networkReasonCode(signals.networkRiskLevel()),
                 networkContribution(signals.networkRiskLevel()));
         score = addReason(reasons, score, "NEW_DEVICE", signals.newDevice() ? 15 : 0);
+        score = addReason(
+                reasons, score, "LOW_CONFIDENCE_SIGNAL", envelope.confidence() == SignalConfidence.LOW ? 10 : 0);
 
         return new RiskAssessment(score, RiskBand.fromScore(score), ALGORITHM_VERSION, reasons);
     }

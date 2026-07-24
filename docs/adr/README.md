@@ -18,6 +18,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0010](0010-recovery-trust-boundaries.md) | Accepted | Use explicit `START_RECOVERY` and an immutable consumable recovery authorization; audit remains evidence | [Recovery](../architecture/recovery.md), [invariants](../architecture/invariants.md) |
 | [0011](0011-jwt-resource-server-with-local-issuer.md) | Accepted | Authorize sensitive APIs with a JWT resource server backed by a local, per-boot key pair | Issue #19 |
 | [0012](0012-pseudonymous-subject-tokens-for-integration-events.md) | Accepted | Pseudonymize account identifiers at the outbox integration boundary and add challenge-plan retention | Issue #32 |
+| [0013](0013-risk-signal-provenance-envelope.md) | Accepted | Wrap risk signals in a provenance envelope with staleness rejection and confidence-based scoring | Issue #45 |
 
 ## ADR lifecycle
 
