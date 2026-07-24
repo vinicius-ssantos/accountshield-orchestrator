@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-21
-- Updated: 2026-07-23
+- Updated: 2026-07-24
 
 ## Context
 
@@ -65,7 +65,11 @@ The local adapters support:
 - `EMAIL_SIMULATED`;
 - `WEBAUTHN_SIMULATED`.
 
-No external calls are made. Simulated proof material is never logged. Hardening the storage and provider-specific proof contracts is tracked separately because it is independent from purpose binding and one-time consumption.
+No external calls are made. Simulated proof material is never logged.
+
+Each type has a distinct simulated proof codec (`ChallengeCodecRegistry`, keyed by `ChallengeType`): `TOTP_SIMULATED` and `EMAIL_SIMULATED` issue a `SecureRandom`-backed six-digit numeric code; `WEBAUTHN_SIMULATED` issues a `SecureRandom`-backed 32-character opaque assertion token, not a six-digit code, since a real WebAuthn assertion is not code-shaped.
+
+Proof material is knowable only at the moment of issuance. `create()` publishes a `ChallengeIssued` domain event (`challengeId`, `accountReference`, `challengeType`, `purpose`, `contextId`, `issuedCode`, `expiresAt`) carrying the raw value once — the same "publish at creation, a future real-provider adapter subscribes and delivers it" pattern already used for `RecoveryAuthorizationIssued`. Nothing downstream of that event, including `ChallengePlan` and the HTTP layer, can read the value back.
 
 ### Integration
 
@@ -89,7 +93,7 @@ Other modules interact only through the challenge module's public commands:
 - context ID;
 - status;
 - retry counters;
-- proof material for the simulated provider;
+- a keyed HMAC-SHA256 digest of the proof material (`code_hash`), never the raw value, compared with `MessageDigest.isEqual` for a constant-time check; cleared once a challenge reaches `VERIFIED`, `FAILED`, or `EXPIRED`, since nothing needs to compare against it again;
 - creation and expiry timestamps;
 - consumption timestamp;
 - optimistic-lock version.
@@ -137,15 +141,13 @@ Consumption is an internal application operation. It is not exposed as a generic
 - no module reads or writes the challenge schema directly;
 - purpose, context, and account binding are checked before status details are exposed;
 - consumed challenges cannot return to another state;
-- proof material is never logged or included in integration events;
+- proof material is never logged, persisted, or included in outbox/integration events — it exists only in the synchronous `ChallengeIssued` in-process application event published at creation, never serialized outside the JVM;
 - tests cover mismatches, retries, expiry, reuse, and concurrent consumption.
 
 ## Revisit criteria
 
 Revisit this ADR when:
 
-- real provider adapters are introduced;
-- provider-specific proof contracts replace the shared simulated-code model;
-- challenge secrets are hashed or HMAC-protected;
+- real provider adapters are introduced (they would subscribe to `ChallengeIssued` instead of the caller discarding it);
 - configurable retry and TTL policies are introduced;
 - a privileged-operation purpose is split into more granular purpose values.

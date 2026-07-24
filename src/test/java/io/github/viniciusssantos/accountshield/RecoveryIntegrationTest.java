@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeIssued;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
@@ -36,15 +37,19 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 
 @SpringBootTest
 @Import(PostgreSqlTestConfiguration.class)
+@RecordApplicationEvents
 class RecoveryIntegrationTest {
 
     @Autowired private RecoveryService recoveryService;
     @Autowired private ChallengeService challengeService;
     @Autowired private ProtectionDecisionService protectionDecisionService;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private ApplicationEvents events;
 
     @Test
     void protectionDecisionIssuesConsumableAuthorizationTransactionally() {
@@ -89,13 +94,10 @@ class RecoveryIntegrationTest {
                 "recovery-classification-0.1",
                 initiated.recoveryId());
 
-        String expectedCode = jdbcTemplate.queryForObject(
-                "SELECT expected_code FROM challenge.challenge_plan WHERE id = ?",
-                String.class,
-                initiated.identityChallengeId());
+        String issuedCode = issuedCodeFor(initiated.identityChallengeId());
         challengeService.verify(new ChallengeVerificationCommand(
                 initiated.identityChallengeId(),
-                expectedCode,
+                issuedCode,
                 ChallengePurpose.RECOVERY_IDENTITY,
                 initiated.recoveryId()));
 
@@ -217,20 +219,25 @@ class RecoveryIntegrationTest {
     }
 
     private RecoveryFlow verifyAndConfirmIdentity(RecoveryFlow flow) {
-        String expectedCode = jdbcTemplate.queryForObject(
-                "SELECT expected_code FROM challenge.challenge_plan WHERE id = ?",
-                String.class,
-                flow.identityChallengeId());
+        String issuedCode = issuedCodeFor(flow.identityChallengeId());
 
         var verification = challengeService.verify(new ChallengeVerificationCommand(
                 flow.identityChallengeId(),
-                expectedCode,
+                issuedCode,
                 ChallengePurpose.RECOVERY_IDENTITY,
                 flow.recoveryId()));
         assertThat(verification.status()).isEqualTo(ChallengeStatus.VERIFIED);
 
         return recoveryService.confirmIdentity(new ConfirmIdentityCommand(
                 flow.recoveryId(), flow.identityChallengeId()));
+    }
+
+    private String issuedCodeFor(UUID challengeId) {
+        return events.stream(ChallengeIssued.class)
+                .filter(event -> event.challengeId().equals(challengeId))
+                .findFirst()
+                .orElseThrow()
+                .issuedCode();
     }
 
     private AuthorizationFixture createAuthorization(

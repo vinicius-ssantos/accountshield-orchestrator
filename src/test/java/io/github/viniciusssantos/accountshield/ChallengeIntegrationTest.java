@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeIssued;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
@@ -29,10 +30,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Import(PostgreSqlTestConfiguration.class)
+@RecordApplicationEvents
 class ChallengeIntegrationTest {
 
     @Autowired
@@ -46,6 +50,9 @@ class ChallengeIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private ApplicationEvents events;
 
     @Test
     @Transactional
@@ -281,9 +288,10 @@ class ChallengeIntegrationTest {
     }
 
     private String expectedCode(UUID challengeId) {
-        return jdbcTemplate.queryForObject(
-                "SELECT expected_code FROM challenge.challenge_plan WHERE id = ?",
-                String.class,
-                challengeId);
+        return events.stream(ChallengeIssued.class)
+                .filter(event -> event.challengeId().equals(challengeId))
+                .reduce((first, second) -> second)
+                .orElseThrow()
+                .issuedCode();
     }
 }

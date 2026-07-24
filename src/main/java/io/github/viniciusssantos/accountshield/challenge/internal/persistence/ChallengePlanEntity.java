@@ -36,8 +36,8 @@ public class ChallengePlanEntity {
     @Column(name = "remaining_attempts", nullable = false)
     private short remainingAttempts;
 
-    @Column(name = "expected_code", nullable = false, length = 64)
-    private String expectedCode;
+    @Column(name = "code_hash", length = 64)
+    private String codeHash;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -64,7 +64,7 @@ public class ChallengePlanEntity {
             String status,
             short maxAttempts,
             short remainingAttempts,
-            String expectedCode,
+            String codeHash,
             Instant createdAt,
             Instant expiresAt,
             Instant consumedAt) {
@@ -76,7 +76,7 @@ public class ChallengePlanEntity {
         this.status = status;
         this.maxAttempts = maxAttempts;
         this.remainingAttempts = remainingAttempts;
-        this.expectedCode = expectedCode;
+        this.codeHash = codeHash;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
         this.consumedAt = consumedAt;
@@ -106,8 +106,12 @@ public class ChallengePlanEntity {
         return maxAttempts;
     }
 
-    public String getExpectedCode() {
-        return expectedCode;
+    public String getCodeHash() {
+        return codeHash;
+    }
+
+    public void setCodeHash(String codeHash) {
+        this.codeHash = codeHash;
     }
 
     public Instant getExpiresAt() {

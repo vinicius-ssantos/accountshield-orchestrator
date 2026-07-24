@@ -41,6 +41,8 @@ logging:
     level: "%5p [${spring.application.name:},%X{correlationId:-},%X{traceId:-},%X{spanId:-}]"
 
 accountshield:
+  challenge:
+    hmac-secret: ${CHALLENGE_HMAC_SECRET:accountshield-local-only-challenge-secret}
   protection:
     rate-limit:
       max-requests: 10
