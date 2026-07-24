@@ -10,8 +10,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
+import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
+import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
+import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
@@ -190,7 +193,7 @@ class PolicyLifecycleApplicationServiceTest {
 
         assertThatThrownBy(() -> service.createDraft(
                 new CreatePolicyCommand(POLICY_KEY, VERSION, (short) 30, (short) 70)))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(DuplicatePolicyVersionException.class);
     }
 
     @Test
@@ -202,7 +205,7 @@ class PolicyLifecycleApplicationServiceTest {
 
         assertThatThrownBy(() -> service.createDraft(
                 new CreatePolicyCommand(POLICY_KEY, VERSION, (short) 30, (short) 70)))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(PendingPolicyVersionExistsException.class);
     }
 
     @Test
@@ -222,7 +225,7 @@ class PolicyLifecycleApplicationServiceTest {
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.validate(POLICY_KEY, VERSION))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(PolicyVersionNotFoundException.class);
     }
 
     private PolicyVersionEntity draftPolicy() {
