@@ -33,6 +33,15 @@ jobs:
       - name: Verify
         run: mvn --batch-mode --no-transfer-progress verify
 
+      - name: Summarize test failure causes
+        if: failure()
+        shell: bash
+        run: |
+          if compgen -G "target/surefire-reports/*.txt" > /dev/null; then
+            grep -h -E "^(Caused by:|[[:space:]]*Caused by:|\[ERROR\]|org\.flywaydb|jakarta\.persistence|org\.springframework\.beans)" \
+              target/surefire-reports/*.txt | head -n 250 || true
+          fi
+
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@v4
