@@ -35,7 +35,9 @@ export default async function Home() {
             <h1>Account protection at a glance</h1>
             <p className="muted">Investigate decisions, explain risk, and prepare safe operator workflows.</p>
           </div>
-          <button type="button">Search correlation ID</button>
+          <a className="actionLink" href="/decisions">
+            Search correlation ID
+          </a>
         </header>
 
         <section aria-label="Operations metrics" className="metrics">
