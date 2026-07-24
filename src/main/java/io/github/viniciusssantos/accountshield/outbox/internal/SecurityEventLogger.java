@@ -2,7 +2,9 @@ package io.github.viniciusssantos.accountshield.outbox.internal;
 
 import io.github.viniciusssantos.accountshield.challenge.ChallengeCompleted;
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
+import io.github.viniciusssantos.accountshield.policy.PrivilegedPolicyActionAttempted;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade;
+import io.github.viniciusssantos.accountshield.recovery.PrivilegedRecoveryActionAttempted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,5 +50,26 @@ public class SecurityEventLogger {
                 "security_event type=RECOVERY_COMPLETED event_type={} recovery_id={}",
                 event.eventType(),
                 event.recoveryId());
+    }
+
+    @EventListener
+    public void onPrivilegedPolicyActionAttempted(PrivilegedPolicyActionAttempted event) {
+        log.info(
+                "security_event type=PRIVILEGED_ACTION_ATTEMPTED action={} policy={}:{} actor={} authorized={}",
+                event.action(),
+                event.policyKey(),
+                event.version(),
+                event.actor(),
+                event.authorized());
+    }
+
+    @EventListener
+    public void onPrivilegedRecoveryActionAttempted(PrivilegedRecoveryActionAttempted event) {
+        log.info(
+                "security_event type=PRIVILEGED_ACTION_ATTEMPTED action={} recovery_id={} actor={} authorized={}",
+                event.action(),
+                event.recoveryId(),
+                event.actor(),
+                event.authorized());
     }
 }

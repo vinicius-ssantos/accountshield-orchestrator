@@ -9,6 +9,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeUseRejectedException;
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
@@ -16,6 +22,7 @@ import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExists
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
+import io.github.viniciusssantos.accountshield.policy.PrivilegedPolicyActionAttempted;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
 import java.time.Clock;
@@ -33,12 +40,29 @@ class PolicyLifecycleApplicationServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-22T12:00:00Z");
     private static final String POLICY_KEY = "account-protection-default";
     private static final String VERSION = "2.0.0";
+    private static final String ACTOR = "admin-alice";
+    private static final UUID STEP_UP_CHALLENGE_ID = UUID.randomUUID();
 
     private final PolicyVersionRepository repository = mock(PolicyVersionRepository.class);
+    private final ChallengeService challengeService = mock(ChallengeService.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final PolicyLifecycleApplicationService service =
-            new PolicyLifecycleApplicationService(repository, clock, eventPublisher);
+            new PolicyLifecycleApplicationService(repository, challengeService, clock, eventPublisher);
+
+    private void stubSuccessfulStepUp() {
+        when(challengeService.consume(any())).thenReturn(consumedChallengePlan());
+    }
+
+    private void stubRejectedStepUp() {
+        when(challengeService.consume(any())).thenThrow(new ChallengeUseRejectedException());
+    }
+
+    private ChallengePlan consumedChallengePlan() {
+        return new ChallengePlan(
+                STEP_UP_CHALLENGE_ID, ACTOR, ChallengeType.TOTP_SIMULATED, ChallengePurpose.PRIVILEGED_OPERATION,
+                UUID.randomUUID(), ChallengeStatus.CONSUMED, 3, 3, NOW.minusSeconds(60), NOW.plusSeconds(600), NOW);
+    }
 
     @Test
     void createsDraftWithCorrectFields() {
@@ -86,8 +110,9 @@ class PolicyLifecycleApplicationServiceTest {
                 .thenReturn(Optional.of(candidate));
         when(repository.findByPolicyKeyAndStatus(POLICY_KEY, "ACTIVE"))
                 .thenReturn(Optional.of(currentActive));
+        stubSuccessfulStepUp();
 
-        PolicyVersionSummary result = service.activate(POLICY_KEY, VERSION);
+        PolicyVersionSummary result = service.activate(POLICY_KEY, VERSION, STEP_UP_CHALLENGE_ID, ACTOR);
 
         assertThat(currentActive.getStatus()).isEqualTo(PolicyStatus.RETIRED.name());
         assertThat(candidate.getStatus()).isEqualTo(PolicyStatus.ACTIVE.name());
@@ -103,11 +128,31 @@ class PolicyLifecycleApplicationServiceTest {
                 .thenReturn(Optional.of(candidate));
         when(repository.findByPolicyKeyAndStatus(POLICY_KEY, "ACTIVE"))
                 .thenReturn(Optional.empty());
+        stubSuccessfulStepUp();
 
-        PolicyVersionSummary result = service.activate(POLICY_KEY, VERSION);
+        PolicyVersionSummary result = service.activate(POLICY_KEY, VERSION, STEP_UP_CHALLENGE_ID, ACTOR);
 
         assertThat(candidate.getStatus()).isEqualTo(PolicyStatus.ACTIVE.name());
         assertThat(result.status()).isEqualTo(PolicyStatus.ACTIVE);
+    }
+
+    @Test
+    void activateFailsAndLeavesStateUnchangedWhenStepUpIsRejected() {
+        PolicyVersionEntity candidate = draftPolicy();
+        candidate.transitionTo(PolicyStatus.VALIDATED.name(), NOW);
+        when(repository.findByPolicyKeyAndVersion(POLICY_KEY, VERSION))
+                .thenReturn(Optional.of(candidate));
+        stubRejectedStepUp();
+
+        assertThatThrownBy(() -> service.activate(POLICY_KEY, VERSION, STEP_UP_CHALLENGE_ID, ACTOR))
+                .isInstanceOf(ChallengeUseRejectedException.class);
+
+        assertThat(candidate.getStatus()).isEqualTo(PolicyStatus.VALIDATED.name());
+        ArgumentCaptor<PrivilegedPolicyActionAttempted> audit =
+                ArgumentCaptor.forClass(PrivilegedPolicyActionAttempted.class);
+        verify(eventPublisher).publishEvent(audit.capture());
+        assertThat(audit.getValue().authorized()).isFalse();
+        assertThat(audit.getValue().action()).isEqualTo("ACTIVATE");
     }
 
     @Test
@@ -142,10 +187,28 @@ class PolicyLifecycleApplicationServiceTest {
                 NOW.minusSeconds(3600), NOW.minusSeconds(3600));
         when(repository.findByPolicyKeyAndVersion(POLICY_KEY, VERSION))
                 .thenReturn(Optional.of(entity));
+        stubSuccessfulStepUp();
 
-        PolicyVersionSummary result = service.retire(POLICY_KEY, VERSION);
+        PolicyVersionSummary result = service.retire(POLICY_KEY, VERSION, STEP_UP_CHALLENGE_ID, ACTOR);
 
         assertThat(result.status()).isEqualTo(PolicyStatus.RETIRED);
+    }
+
+    @Test
+    void retireFailsAndLeavesStateUnchangedWhenStepUpIsRejected() {
+        PolicyVersionEntity entity = new PolicyVersionEntity(
+                UUID.randomUUID(), POLICY_KEY, VERSION, "ACTIVE",
+                "{\"allowMaxScore\":30,\"stepUpMaxScore\":70}",
+                (short) 30, (short) 70,
+                NOW.minusSeconds(3600), NOW.minusSeconds(3600));
+        when(repository.findByPolicyKeyAndVersion(POLICY_KEY, VERSION))
+                .thenReturn(Optional.of(entity));
+        stubRejectedStepUp();
+
+        assertThatThrownBy(() -> service.retire(POLICY_KEY, VERSION, STEP_UP_CHALLENGE_ID, ACTOR))
+                .isInstanceOf(ChallengeUseRejectedException.class);
+
+        assertThat(entity.getStatus()).isEqualTo("ACTIVE");
     }
 
     @Test
@@ -153,8 +216,9 @@ class PolicyLifecycleApplicationServiceTest {
         PolicyVersionEntity entity = draftPolicy();
         when(repository.findByPolicyKeyAndVersion(POLICY_KEY, VERSION))
                 .thenReturn(Optional.of(entity));
+        stubSuccessfulStepUp();
 
-        assertThatThrownBy(() -> service.activate(POLICY_KEY, VERSION))
+        assertThatThrownBy(() -> service.activate(POLICY_KEY, VERSION, STEP_UP_CHALLENGE_ID, ACTOR))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
     }
 

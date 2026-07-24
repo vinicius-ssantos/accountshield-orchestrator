@@ -12,6 +12,7 @@ import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateEx
 import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
 import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateException;
+import io.github.viniciusssantos.accountshield.recovery.PrivilegedRecoveryActionAttempted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryAuthorization;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
@@ -218,6 +219,7 @@ class RecoveryApplicationService implements RecoveryService {
 
         RecoveryFlowEntity entity = loadOrThrow(command.recoveryId(), "review");
         assertState(entity, RecoveryStatus.MANUAL_REVIEW, "review");
+        consumeReviewStepUp(command.recoveryId(), command.stepUpChallengeId(), command.reviewer());
 
         Instant now = clock.instant();
         String newStatus = command.decision() == RecoveryReviewDecision.APPROVE
@@ -238,6 +240,31 @@ class RecoveryApplicationService implements RecoveryService {
         }
 
         return toDomain(entity);
+    }
+
+    @Override
+    @Transactional
+    public UUID requestReviewStepUp(UUID recoveryId, String actor) {
+        Objects.requireNonNull(recoveryId, "recoveryId must not be null");
+        Objects.requireNonNull(actor, "actor must not be null");
+        return challengeService.create(new CreateChallengeCommand(
+                actor,
+                ChallengeType.TOTP_SIMULATED,
+                ChallengePurpose.PRIVILEGED_OPERATION,
+                recoveryId)).challengeId();
+    }
+
+    private void consumeReviewStepUp(UUID recoveryId, UUID stepUpChallengeId, String actor) {
+        try {
+            challengeService.consume(new ConsumeChallengeCommand(
+                    stepUpChallengeId, actor, ChallengePurpose.PRIVILEGED_OPERATION, recoveryId));
+            eventPublisher.publishEvent(
+                    new PrivilegedRecoveryActionAttempted(recoveryId, "REVIEW", actor, true));
+        } catch (RuntimeException exception) {
+            eventPublisher.publishEvent(
+                    new PrivilegedRecoveryActionAttempted(recoveryId, "REVIEW", actor, false));
+            throw exception;
+        }
     }
 
     private void saveWithConflictCheck(RecoveryFlowEntity entity) {

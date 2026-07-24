@@ -28,10 +28,13 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").hasRole("OBSERVABILITY_READER")
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").authenticated()
                         .requestMatchers("/api/v1/protection-decisions").hasRole("PROTECTION_CLIENT")
-                        .requestMatchers("/api/v1/challenges/**").hasRole("PROTECTION_CLIENT")
+                        // shared by protection step-up, recovery identity, and privileged-operation step-up;
+                        // purpose/context/account binding inside the challenge module enforces the real safety
+                        .requestMatchers("/api/v1/challenges/**").authenticated()
                         .requestMatchers("/api/v1/recovery", "/api/v1/recovery/*/confirm-identity",
                                 "/api/v1/recovery/*/complete").hasRole("PROTECTION_CLIENT")
-                        .requestMatchers("/api/v1/recovery/*/review").hasRole("SECURITY_OPERATOR")
+                        .requestMatchers("/api/v1/recovery/*/review", "/api/v1/recovery/*/review/step-up")
+                                .hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/policies/**").hasRole("POLICY_ADMIN")
                         .requestMatchers("/api/v1/simulation/**").hasRole("SIMULATION_ANALYST")
                         .anyRequest().authenticated())

@@ -3,32 +3,47 @@ package io.github.viniciusssantos.accountshield;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeIssued;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeVerificationCommand;
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
-import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Import(PostgreSqlTestConfiguration.class)
+@RecordApplicationEvents
 class PolicyLifecycleIntegrationTest {
+
+    private static final String ACTOR = "policy-admin-integration-test";
 
     @Autowired
     private PolicyLifecycleService lifecycleService;
+
+    @Autowired
+    private ChallengeService challengeService;
 
     @Autowired
     private PolicyVersionRepository repository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ApplicationEvents events;
 
     @Test
     @Transactional
@@ -43,7 +58,7 @@ class PolicyLifecycleIntegrationTest {
         PolicyVersionSummary validated = lifecycleService.validate(key, version);
         assertThat(validated.status()).isEqualTo(PolicyStatus.VALIDATED);
 
-        PolicyVersionSummary activated = lifecycleService.activate(key, version);
+        PolicyVersionSummary activated = activate(key, version);
         assertThat(activated.status()).isEqualTo(PolicyStatus.ACTIVE);
         assertThat(activated.activatedAt()).isNotNull();
 
@@ -86,7 +101,7 @@ class PolicyLifecycleIntegrationTest {
         lifecycleService.createDraft(
                 new CreatePolicyCommand(key, "1.0.0", (short) 25, (short) 65));
 
-        assertThatThrownBy(() -> lifecycleService.activate(key, "1.0.0"))
+        assertThatThrownBy(() -> activate(key, "1.0.0"))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
     }
 
@@ -109,7 +124,7 @@ class PolicyLifecycleIntegrationTest {
         String key = "retire-policy-" + java.util.UUID.randomUUID();
 
         createAndActivate(key, "1.0.0", (short) 20, (short) 60);
-        PolicyVersionSummary result = lifecycleService.retire(key, "1.0.0");
+        PolicyVersionSummary result = retire(key, "1.0.0");
 
         assertThat(result.status()).isEqualTo(PolicyStatus.RETIRED);
 
@@ -127,11 +142,11 @@ class PolicyLifecycleIntegrationTest {
         String key = "terminal-policy-" + java.util.UUID.randomUUID();
 
         createAndActivate(key, "1.0.0", (short) 20, (short) 60);
-        lifecycleService.retire(key, "1.0.0");
+        retire(key, "1.0.0");
 
         assertThatThrownBy(() -> lifecycleService.validate(key, "1.0.0"))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
-        assertThatThrownBy(() -> lifecycleService.activate(key, "1.0.0"))
+        assertThatThrownBy(() -> activate(key, "1.0.0"))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
         assertThatThrownBy(() -> lifecycleService.reject(key, "1.0.0"))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
@@ -140,6 +155,36 @@ class PolicyLifecycleIntegrationTest {
     private PolicyVersionSummary createAndActivate(String key, String version, short allow, short stepUp) {
         lifecycleService.createDraft(new CreatePolicyCommand(key, version, allow, stepUp));
         lifecycleService.validate(key, version);
-        return lifecycleService.activate(key, version);
+        return activate(key, version);
+    }
+
+    private PolicyVersionSummary activate(String key, String version) {
+        UUID challengeId = verifiedStepUp(lifecycleService.requestActivationStepUp(key, version, ACTOR));
+        return lifecycleService.activate(key, version, challengeId, ACTOR);
+    }
+
+    private PolicyVersionSummary retire(String key, String version) {
+        UUID challengeId = verifiedStepUp(lifecycleService.requestRetirementStepUp(key, version, ACTOR));
+        return lifecycleService.retire(key, version, challengeId, ACTOR);
+    }
+
+    private UUID verifiedStepUp(UUID challengeId) {
+        String issuedCode = events.stream(ChallengeIssued.class)
+                .filter(event -> event.challengeId().equals(challengeId))
+                .reduce((first, second) -> second)
+                .orElseThrow()
+                .issuedCode();
+        challengeService.verify(new ChallengeVerificationCommand(
+                challengeId, issuedCode, ChallengePurpose.PRIVILEGED_OPERATION,
+                lookUpContextId(challengeId)));
+        return challengeId;
+    }
+
+    private UUID lookUpContextId(UUID challengeId) {
+        repository.flush();
+        return jdbcTemplate.queryForObject(
+                "SELECT context_id FROM challenge.challenge_plan WHERE id = ?",
+                UUID.class,
+                challengeId);
     }
 }
