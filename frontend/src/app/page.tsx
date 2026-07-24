@@ -1,6 +1,15 @@
+import Link from "next/link";
+
 import { fixtureDecisionsDataSource } from "@/features/decisions/fixtures";
 
-const navigationItems = ["Overview", "Decisions", "Recoveries", "Policies", "Replay", "Operations"] as const;
+const navigationItems = [
+  { label: "Overview", href: "/" },
+  { label: "Decisions", href: "/decisions" },
+  { label: "Recoveries", href: "/recoveries" },
+  { label: "Policies", href: "/policies" },
+  { label: "Replay", href: "/replay" },
+  { label: "Operations", href: "/operations" },
+] as const;
 
 export default async function Home() {
   const [metrics, decisions] = await Promise.all([
@@ -15,14 +24,14 @@ export default async function Home() {
         <p className="eyebrow">Security Operations</p>
         <nav>
           {navigationItems.map((item, index) => (
-            <a
+            <Link
               aria-current={index === 0 ? "page" : undefined}
               className={index === 0 ? "active" : ""}
-              href={index === 0 ? "/" : `/${item.toLowerCase()}`}
-              key={item}
+              href={item.href}
+              key={item.href}
             >
-              {item}
-            </a>
+              {item.label}
+            </Link>
           ))}
         </nav>
         <div className="notice">Fixture mode · no administrative mutations</div>
@@ -35,9 +44,9 @@ export default async function Home() {
             <h1>Account protection at a glance</h1>
             <p className="muted">Investigate decisions, explain risk, and prepare safe operator workflows.</p>
           </div>
-          <a className="actionLink" href="/decisions">
+          <Link className="actionLink" href="/decisions">
             Search correlation ID
-          </a>
+          </Link>
         </header>
 
         <section aria-label="Operations metrics" className="metrics">
@@ -74,10 +83,14 @@ export default async function Home() {
               <tbody>
                 {decisions.map((decision) => (
                   <tr key={decision.correlationId}>
-                    <td><code>{decision.correlationId}</code></td>
+                    <td>
+                      <code>{decision.correlationId}</code>
+                    </td>
                     <td>{decision.eventType}</td>
                     <td>{decision.riskScore}</td>
-                    <td><span className="outcome">{decision.outcome}</span></td>
+                    <td>
+                      <span className="outcome">{decision.outcome}</span>
+                    </td>
                     <td>{decision.policyVersion}</td>
                   </tr>
                 ))}
