@@ -25,6 +25,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -223,8 +224,8 @@ class RecoveryIntegrationTest {
                 "authorization-fixture-" + UUID.randomUUID(),
                 directive,
                 riskScore,
-                issuedAt,
-                expiresAt);
+                Timestamp.from(issuedAt),
+                Timestamp.from(expiresAt));
 
         return new AuthorizationFixture(authorizationId, protectionRequestId, decisionId);
     }
