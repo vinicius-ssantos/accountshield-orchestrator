@@ -4,6 +4,10 @@
 
 AccountShield is an educational and portfolio project. It is not production-ready and must not be used as the sole protection mechanism for real accounts, authentication systems, financial transactions, or regulated workloads.
 
+## Simulated challenge providers
+
+TOTP, e-mail, and WebAuthn challenge providers are simulated (see ADR 0004) and controlled by `accountshield.challenge.simulation-enabled` (default `true`). The application refuses to start if the Spring `production` profile is active while that flag remains `true` — this is a deliberate fail-fast boundary, not a runtime toggle to route around. Deploying with real proof requires implementing real provider adapters and setting the flag to `false`; the active mode is observable at `GET /actuator/info`.
+
 ## Reporting a vulnerability
 
 Do not open a public issue containing an exploitable vulnerability, secret, personal information, or instructions that could expose another system.
