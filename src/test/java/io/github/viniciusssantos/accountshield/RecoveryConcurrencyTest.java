@@ -8,6 +8,7 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeVerificationCommand;
 import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
+import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateException;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
@@ -91,6 +92,13 @@ class RecoveryConcurrencyTest {
                         initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-race"));
                 return true;
             } catch (RecoveryFlowConflictException exception) {
+                // lost the optimistic-lock race against a concurrent review
+                return false;
+            } catch (InvalidRecoveryStateException exception) {
+                // read happened after another racer had already committed COMPLETED
+                if (exception.currentStatus() != RecoveryStatus.COMPLETED) {
+                    throw exception;
+                }
                 return false;
             }
         });
