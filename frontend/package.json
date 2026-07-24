@@ -9,7 +9,13 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typegen": "next typegen",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:a11y": "playwright test e2e/accessibility.spec.ts"
   },
   "dependencies": {
     "next": "16.2.11",
