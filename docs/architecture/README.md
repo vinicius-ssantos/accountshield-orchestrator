@@ -1,5 +1,11 @@
 # Architecture baseline
 
+- Current implementation status: [feature catalog](../features/README.md)
+- Executable guarantees: [architecture invariants](invariants.md)
+- Delivery order: [roadmap](../roadmap.md)
+
+This page describes the architecture currently executable on `main`. Planned capabilities are recorded in the feature catalog and roadmap rather than presented as delivered behavior.
+
 ## System intent
 
 AccountShield evaluates security-sensitive account events and coordinates the next protective action. It is designed to demonstrate secure backend engineering, not to serve as a production identity provider or fraud engine.
@@ -48,32 +54,56 @@ Owns the step-up challenge lifecycle: creation, verification attempts, expiratio
 
 ### `recovery`
 
-Owns the secure recovery state machine with risk-based classification. Verified identity enters an enforced classification gate: immediate flows become completion-ready, delayed flows wait for eligibility, and manual-review flows require an explicit review decision. See [recovery architecture](recovery.md), ADR 0005, and ADR 0010.
+Owns explicit recovery-authorization persistence and consumption, the secure recovery state machine, risk-based classification, identity-challenge coordination, delayed eligibility, and manual review. A `START_RECOVERY` decision emits an immutable, expirable authorization; recovery never uses audit as execution authority. See [recovery architecture](recovery.md), ADR 0005, and ADR 0010.
 
 ### `simulation`
 
 Owns deterministic replay of historical decisions and shadow-policy evaluation against candidate policy versions. Both operations are side-effect-free. See ADR 0006.
 
-## Dependency direction
+## Module interaction and dependency direction
 
-The intended direction is:
+Runtime flow and source-code dependency are documented separately. An event can flow from a publisher to a consumer while the consumer depends on the publisher-owned public event contract.
 
-```text
-protection -> risk
-protection -> policy
-protection -> audit
-protection -> challenge
-protection -> recovery
-policy     -> risk public API
-recovery   -> challenge
-recovery   -> audit public API
-simulation -> audit
-simulation -> policy
+### Main runtime flow
+
+```mermaid
+flowchart LR
+    Client --> Protection
+    Protection --> Risk
+    Protection --> Policy
+    Protection --> Audit
+    Protection --> Challenge
+    Protection -- START_RECOVERY event --> RecoveryAuth[Recovery authorization]
+    RecoveryAuth --> Recovery
+    Recovery --> Challenge
+    Protection --> Outbox
+    Challenge --> Outbox
+    Recovery --> Outbox
+    Policy --> Outbox
+    Simulation --> Audit
+    Simulation --> Policy
+    Simulation --> Risk
 ```
 
-The `risk`, `policy`, `audit`, `challenge`, `recovery`, and `simulation` modules must not depend on web adapters outside their own module. Infrastructure implementations remain internal to the module that owns the port.
+### Current public module dependencies
 
-Cross-module access must occur through public module APIs or domain events. Repositories and internal persistence entities are never shared between modules.
+```text
+protection -> risk public API
+protection -> policy public API
+protection -> audit public API
+protection -> challenge public API
+policy     -> risk public API
+recovery   -> challenge public API
+recovery   -> protection public RecoveryAuthorizationIssued event
+simulation -> audit public API
+simulation -> policy public API
+simulation -> risk public API
+outbox     -> public domain events from producing modules
+```
+
+There is deliberately no `recovery -> audit` operational dependency. Recovery stores audit identifiers as correlation evidence but authorizes initiation only through its own persisted `RecoveryAuthorization`.
+
+Modules must not depend on web adapters outside their own package. Infrastructure implementations remain internal to the module that owns the port. Cross-module access occurs through public module APIs or domain events; repositories and persistence entities are never shared.
 
 ## Core invariants
 
@@ -87,6 +117,10 @@ Cross-module access must occur through public module APIs or domain events. Repo
 8. Sensitive raw signals are minimized; derived values are preferred where possible.
 9. Replay never executes external side effects.
 10. Shadow-policy evaluation cannot change the live user outcome.
+11. Audit evidence cannot act as the operational recovery credential.
+12. A recovery authorization is immutable, expires, and can create at most one recovery flow.
+13. Recovery classification gates remain enforced after successful identity verification.
+14. Internal repositories and persistence entities never cross module boundaries.
 
 ## Trust boundaries
 
