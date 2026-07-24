@@ -27,6 +27,9 @@ public class RecoveryFlowEntity {
     @Column(name = "classification", nullable = false, length = 24)
     private String classification;
 
+    @Column(name = "classification_rule_version", nullable = false, length = 64)
+    private String classificationRuleVersion;
+
     @Column(name = "identity_challenge_id")
     private UUID identityChallengeId;
 
@@ -67,43 +70,7 @@ public class RecoveryFlowEntity {
             String eventType,
             String status,
             String classification,
-            UUID identityChallengeId,
-            int riskScore,
-            Instant initiatedAt,
-            Instant updatedAt,
-            Instant eligibleAfter,
-            String reviewer,
-            UUID protectionRequestId) {
-        this(id, accountReference, eventType, status, classification, identityChallengeId,
-                riskScore, initiatedAt, updatedAt, eligibleAfter, reviewer,
-                protectionRequestId, protectionRequestId, protectionRequestId);
-    }
-
-    public RecoveryFlowEntity(
-            UUID id,
-            String accountReference,
-            String eventType,
-            String status,
-            String classification,
-            UUID identityChallengeId,
-            int riskScore,
-            Instant initiatedAt,
-            Instant updatedAt,
-            Instant eligibleAfter,
-            String reviewer,
-            UUID protectionRequestId,
-            UUID originatingDecisionId) {
-        this(id, accountReference, eventType, status, classification, identityChallengeId,
-                riskScore, initiatedAt, updatedAt, eligibleAfter, reviewer,
-                protectionRequestId, originatingDecisionId, protectionRequestId);
-    }
-
-    public RecoveryFlowEntity(
-            UUID id,
-            String accountReference,
-            String eventType,
-            String status,
-            String classification,
+            String classificationRuleVersion,
             UUID identityChallengeId,
             int riskScore,
             Instant initiatedAt,
@@ -118,6 +85,7 @@ public class RecoveryFlowEntity {
         this.eventType = eventType;
         this.status = status;
         this.classification = classification;
+        this.classificationRuleVersion = classificationRuleVersion;
         this.identityChallengeId = identityChallengeId;
         this.riskScore = riskScore;
         this.initiatedAt = initiatedAt;
@@ -145,8 +113,8 @@ public class RecoveryFlowEntity {
         return classification;
     }
 
-    public void setClassification(String classification) {
-        this.classification = classification;
+    public String getClassificationRuleVersion() {
+        return classificationRuleVersion;
     }
 
     public UUID getIdentityChallengeId() {

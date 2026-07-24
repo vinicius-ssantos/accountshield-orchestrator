@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.recovery.internal.web;
 import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateException;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
+import io.github.viniciusssantos.accountshield.recovery.UnknownRecoveryClassificationRuleException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -19,6 +20,8 @@ class RecoveryProblemHandler {
             URI.create("urn:accountshield:problem:unauthorized-recovery-initiation");
     private static final URI FLOW_CONFLICT_TYPE =
             URI.create("urn:accountshield:problem:recovery-flow-conflict");
+    private static final URI UNKNOWN_RULE_VERSION_TYPE =
+            URI.create("urn:accountshield:problem:unknown-classification-rule-version");
 
     @ExceptionHandler(InvalidRecoveryStateException.class)
     public ResponseEntity<ProblemDetail> invalidState(InvalidRecoveryStateException ex) {
@@ -55,5 +58,16 @@ class RecoveryProblemHandler {
         problem.setTitle("Recovery flow conflict");
         problem.setProperty("code", "RECOVERY_FLOW_CONFLICT");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(UnknownRecoveryClassificationRuleException.class)
+    public ResponseEntity<ProblemDetail> unknownClassificationRule(UnknownRecoveryClassificationRuleException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "This recovery flow cannot be advanced safely because its classification rule version is unknown.");
+        problem.setType(UNKNOWN_RULE_VERSION_TYPE);
+        problem.setTitle("Unknown recovery classification rule version");
+        problem.setProperty("code", "UNKNOWN_CLASSIFICATION_RULE_VERSION");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(problem);
     }
 }

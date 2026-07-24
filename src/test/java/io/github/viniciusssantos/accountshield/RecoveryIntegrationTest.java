@@ -23,6 +23,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
+import io.github.viniciusssantos.accountshield.recovery.UnknownRecoveryClassificationRuleException;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import java.sql.Timestamp;
@@ -73,6 +74,34 @@ class RecoveryIntegrationTest {
         assertThat(flow.protectionRequestId()).isEqualTo(decision.protectionRequestId());
         assertThat(flow.originatingDecisionId()).isEqualTo(decision.decisionId());
         assertThat(flow.eventType()).isEqualTo(RecoveryEventType.PASSWORD_RESET);
+        assertThat(flow.classificationRuleVersion()).isEqualTo("recovery-classification-1.0");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT classification_rule_version FROM recovery.recovery_flow WHERE id = ?",
+                String.class,
+                flow.recoveryId())).isEqualTo("recovery-classification-1.0");
+    }
+
+    @Test
+    void confirmIdentityFailsSafelyOnUnknownClassificationRuleVersion() {
+        RecoveryFlow initiated = initiateFlow(30, "PASSWORD_RESET");
+        jdbcTemplate.update(
+                "UPDATE recovery.recovery_flow SET classification_rule_version = ? WHERE id = ?",
+                "recovery-classification-0.1",
+                initiated.recoveryId());
+
+        String expectedCode = jdbcTemplate.queryForObject(
+                "SELECT expected_code FROM challenge.challenge_plan WHERE id = ?",
+                String.class,
+                initiated.identityChallengeId());
+        challengeService.verify(new ChallengeVerificationCommand(
+                initiated.identityChallengeId(),
+                expectedCode,
+                ChallengePurpose.RECOVERY_IDENTITY,
+                initiated.recoveryId()));
+
+        assertThatThrownBy(() -> recoveryService.confirmIdentity(
+                        new ConfirmIdentityCommand(initiated.recoveryId(), initiated.identityChallengeId())))
+                .isInstanceOf(UnknownRecoveryClassificationRuleException.class);
     }
 
     @Test

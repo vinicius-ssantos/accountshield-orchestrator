@@ -10,6 +10,7 @@ public record RecoveryFlow(
         RecoveryEventType eventType,
         RecoveryStatus status,
         RecoveryRiskClassification classification,
+        String classificationRuleVersion,
         UUID identityChallengeId,
         Instant initiatedAt,
         Instant updatedAt,
@@ -27,27 +28,11 @@ public record RecoveryFlow(
         Objects.requireNonNull(eventType, "eventType must not be null");
         Objects.requireNonNull(status, "status must not be null");
         Objects.requireNonNull(classification, "classification must not be null");
+        Objects.requireNonNull(classificationRuleVersion, "classificationRuleVersion must not be null");
         Objects.requireNonNull(initiatedAt, "initiatedAt must not be null");
         Objects.requireNonNull(updatedAt, "updatedAt must not be null");
         Objects.requireNonNull(authorizationId, "authorizationId must not be null");
         Objects.requireNonNull(protectionRequestId, "protectionRequestId must not be null");
         Objects.requireNonNull(originatingDecisionId, "originatingDecisionId must not be null");
-    }
-
-    public RecoveryFlow(
-            UUID recoveryId,
-            String accountReference,
-            RecoveryEventType eventType,
-            RecoveryStatus status,
-            RecoveryRiskClassification classification,
-            UUID identityChallengeId,
-            Instant initiatedAt,
-            Instant updatedAt,
-            Instant eligibleAfter,
-            UUID protectionRequestId,
-            UUID originatingDecisionId) {
-        this(recoveryId, accountReference, eventType, status, classification,
-                identityChallengeId, initiatedAt, updatedAt, eligibleAfter,
-                protectionRequestId, protectionRequestId, originatingDecisionId);
     }
 }
