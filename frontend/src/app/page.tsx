@@ -20,10 +20,10 @@ export default async function Home() {
 
   return (
     <main className="shell">
-      <aside className="sidebar" aria-label="Primary navigation">
+      <aside className="sidebar" aria-label="Application sidebar">
         <div className="brand">AccountShield</div>
         <p className="eyebrow">Security Operations</p>
-        <nav>
+        <nav aria-label="Primary navigation">
           {navigationItems.map((item, index) => (
             <Link
               aria-current={index === 0 ? "page" : undefined}
