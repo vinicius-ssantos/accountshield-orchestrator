@@ -7,7 +7,7 @@ on:
     branches: [main, integration/frontend-console]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -81,6 +81,20 @@ jobs:
         run: |
           node -e 'const lock = require("./package-lock.json"); if (lock.lockfileVersion !== 3) throw new Error("Expected lockfileVersion 3"); if (lock.packages?.[""]?.name !== "accountshield-console") throw new Error("Unexpected root package");'
 
+      - name: Commit generated lockfile
+        if: github.event_name == 'push' && github.ref_name == 'feat/issue-63-frontend-lockfile'
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfile already matches the dependency manifest."
+            exit 0
+          fi
+          git commit -m "build(frontend): add reproducible npm lockfile"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
       - name: Install dependencies from lockfile
         run: npm ci --no-audit --no-fund
 
@@ -95,14 +109,6 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-package-lock
-          path: frontend/package-lock.json
-          if-no-files-found: error
-          retention-days: 1
 
   docker:
     name: Docker build
