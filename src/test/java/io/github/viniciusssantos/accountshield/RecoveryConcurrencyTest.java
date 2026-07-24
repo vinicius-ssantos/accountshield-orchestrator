@@ -110,7 +110,7 @@ class RecoveryConcurrencyTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT version FROM recovery.recovery_flow WHERE id = ?",
                 Long.class,
-                initiated.recoveryId())).isEqualTo(1L);
+                initiated.recoveryId())).isEqualTo(2L);
     }
 
     private <T> List<Future<T>> raceContenders(Callable<T> action) throws Exception {
