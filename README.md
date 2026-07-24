@@ -29,7 +29,7 @@ AccountShield is a **decision and orchestration layer**. It is not a replacement
 - protection requests for login, recovery, credential change, and sensitive actions;
 - normalized risk signals and weighted contributions;
 - versioned and explainable policies;
-- decisions such as `ALLOW`, `MONITOR`, `REQUIRE_STEP_UP`, `TEMPORARILY_BLOCK`, and `START_RECOVERY`;
+- decisions such as `ALLOW`, `REQUIRE_STEP_UP`, `TEMPORARILY_BLOCK`, and `START_RECOVERY`;
 - challenge lifecycle and retry protection;
 - secure recovery state machine;
 - idempotency, replay protection, rate limits, and cooldowns;
@@ -57,8 +57,9 @@ flowchart LR
     Risk --> Policy[Versioned Policy Evaluation]
     Policy --> Decision[Explainable Protection Decision]
     Decision --> Audit[(Immutable Decision Trace)]
-    Decision --> Challenge[Challenge Orchestrator]
-    Decision --> Recovery[Recovery Orchestrator]
+    Decision --> Challenge[Step-up Challenge]
+    Decision -- START_RECOVERY --> Authorization[Recovery Authorization]
+    Authorization --> Recovery[Recovery State Machine]
     Decision --> Events[Transactional Outbox]
 ```
 
@@ -92,12 +93,12 @@ Modules:
 | `risk` | Deterministic risk assessment from normalized signals |
 | `policy` | Versioned policy evaluation, lifecycle state machine, and shadow mode |
 | `challenge` | Step-up challenge lifecycle, attempts, expiry, and retry budget |
-| `recovery` | Secure account-recovery state machine with risk-based classification |
+| `recovery` | Expirable recovery authorization, secure state machine, risk gates, challenge binding, delay, and manual review |
 | `audit` | Immutable decision trace, replay query API, and security audit events |
 | `outbox` | Transactional outbox with scheduled relay and pluggable publisher port |
 | `simulation` | Deterministic historical replay and shadow-policy comparison |
 
-Architecture documentation lives under [`docs/architecture`](docs/architecture), and architectural decisions under [`docs/adr`](docs/adr).
+Start with the canonical [`documentation map`](docs/README.md). It links the [feature catalog](docs/features/README.md), [architecture baseline](docs/architecture/README.md), [executable invariants](docs/architecture/invariants.md), [ADR index](docs/adr/README.md), and [delivery roadmap](docs/roadmap.md).
 
 ## Engineering principles
 
@@ -119,73 +120,44 @@ Architecture documentation lives under [`docs/architecture`](docs/architecture),
 - PostgreSQL and Flyway;
 - Testcontainers;
 - ArchUnit;
-- Micrometer and OpenTelemetry;
+- Micrometer metrics and structured logging;
+- OpenTelemetry tracing planned under issue #24;
 - Docker Compose;
 - GitHub Actions.
 
 Exact dependency versions are pinned in the build and upgraded through reviewed pull requests.
 
-## Delivery status
+## Current delivery status
 
-### Phase 1 — Foundation (delivered)
+The authoritative capability status is maintained in the [feature catalog](docs/features/README.md). The catalog distinguishes implemented, partial, planned, and deferred behavior and links every known gap to an issue.
 
-- executable application skeleton;
-- modular architecture and verification tests;
-- PostgreSQL/Flyway baseline;
-- CI quality gates;
-- threat model, ADRs, and contribution guidance.
+### Implemented foundation
 
-### Phase 2 — Persistence foundation (delivered)
+- modular-monolith boundaries verified by Spring Modulith and architecture tests;
+- PostgreSQL/Flyway source of truth with Hibernate schema validation;
+- deterministic risk assessment and versioned policy lifecycle;
+- explainable outcomes and append-only decision traces;
+- purpose-bound challenge lifecycle using simulated providers;
+- risk-gated recovery state machine;
+- explicit immutable, expirable, single-use recovery authorization;
+- deterministic policy replay/shadow evaluation baseline;
+- transactional outbox and simulated relay baseline;
+- structured security logs, metrics, Maven verification, and Docker build.
 
-- PostgreSQL as source of truth with Flyway migrations;
-- decision, policy-version, idempotency, and audit schemas;
-- Testcontainers integration tests;
-- DB-level immutability triggers for policies and audit records.
+### Important partial areas
 
-### Phase 3 — Explainable decision vertical slice (delivered)
+- concurrent recovery initiation and optimistic locking: issues #18 and #37;
+- concurrent protection idempotency: issue #22;
+- challenge secrecy and provider-specific behavior: issues #20 and #38;
+- complete historical algorithm replay/provenance: issues #21 and #43;
+- stable RFC 9457 problem-code catalog: issue #36;
+- outbox claiming, backoff, and dead letters: issue #23.
 
-- protection request API;
-- deterministic signals and risk assessment;
-- versioned policies;
-- `ALLOW`, `REQUIRE_STEP_UP`, and `TEMPORARILY_BLOCK` outcomes;
-- immutable decision trace with explainable reasons.
+### Not yet delivered
 
-### Phase 4 — Idempotency and replay protection (delivered)
+Authentication/RBAC, privileged step-up authorization, maker-checker policy governance, client isolation, signed webhooks, cryptographic audit chaining, distributed tracing, production-grade challenge providers, operator mutations, SDK/CLI releases, and a reproducible 1.0 release remain planned.
 
-- caller-supplied idempotency key and deterministic request fingerprint;
-- duplicate and concurrent-request behavior;
-- conflict detection for reused keys with different payloads;
-- bounded replay windows.
-
-### Phase 5 — Challenge orchestration (delivered)
-
-- challenge plan and attempt lifecycle;
-- expiration, retry budget, and cooldown;
-- simulated TOTP, e-mail, and WebAuthn adapters.
-
-### Phase 6 — Secure recovery (delivered)
-
-- explicit recovery state machine (9 states);
-- risk-based classification (immediate, delayed, manual review);
-- identity verification via challenge module;
-- enumeration-resistant public responses.
-
-### Phase 7 — Policy lifecycle and safe rollout (delivered)
-
-- policy lifecycle state machine (draft, validated, active, retired, rejected);
-- immutable activated versions with DB-level enforcement;
-- deterministic historical replay;
-- shadow-policy evaluation and impact comparison.
-
-### Phase 8 — Operational maturity (delivered)
-
-- transactional outbox with domain event publication;
-- sliding-window rate limiting per account;
-- Micrometer metrics for decision outcomes and risk scores;
-- structured security event logging with sensitive-data redaction;
-- Prometheus metrics endpoint and Grafana dashboard definition;
-- SLO targets and error budget;
-- concurrency and resilience tests for rate limiting and idempotency.
+See the [dependency-ordered roadmap](docs/roadmap.md) for the implementation sequence. Open pull requests are not classified as delivered until merged into `main`.
 
 ## Local development
 
