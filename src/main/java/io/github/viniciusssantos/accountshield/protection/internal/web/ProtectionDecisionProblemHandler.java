@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.protection.internal.web;
 import io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException;
 import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
 import io.github.viniciusssantos.accountshield.protection.RateLimitExceededException;
+import io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -20,6 +21,7 @@ public class ProtectionDecisionProblemHandler {
     private static final URI POLICY_UNAVAILABLE_TYPE = URI.create("urn:accountshield:problem:policy-unavailable");
     private static final URI CONFLICT_TYPE = URI.create("urn:accountshield:problem:idempotency-conflict");
     private static final URI RATE_LIMIT_TYPE = URI.create("urn:accountshield:problem:rate-limit-exceeded");
+    private static final URI STALE_SIGNAL_TYPE = URI.create("urn:accountshield:problem:stale-risk-signal");
 
     @ExceptionHandler({
             MethodArgumentNotValidException.class,
@@ -69,5 +71,17 @@ public class ProtectionDecisionProblemHandler {
         problem.setProperty("code", "RATE_LIMIT_EXCEEDED");
         problem.setProperty("retryAfter", exception.retryAfter().toString());
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(problem);
+    }
+
+    @ExceptionHandler(StaleRiskSignalException.class)
+    public ResponseEntity<ProblemDetail> staleRiskSignal(StaleRiskSignalException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "The supplied risk signal envelope is too old to act on.");
+        problem.setType(STALE_SIGNAL_TYPE);
+        problem.setTitle("Stale risk signal");
+        problem.setProperty("code", "STALE_RISK_SIGNAL");
+        problem.setProperty("observedAt", exception.observedAt().toString());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(problem);
     }
 }

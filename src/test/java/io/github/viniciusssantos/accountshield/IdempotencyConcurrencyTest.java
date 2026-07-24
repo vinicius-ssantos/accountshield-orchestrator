@@ -8,7 +8,10 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResu
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,7 +40,9 @@ class IdempotencyConcurrencyTest {
     void concurrentRequestsWithSameKeyProduceSingleDecision() throws Exception {
         String idempotencyKey = "idem-concurrent-" + UUID.randomUUID();
         String accountRef = "account-concurrent-" + UUID.randomUUID();
-        RiskSignals signals = new RiskSignals(2, false, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope signals = new RiskSignalEnvelope(
+                new RiskSignals(2, false, false, false, NetworkRiskLevel.LOW),
+                "CLIENT_SUPPLIED", Instant.now(), SignalConfidence.HIGH, null, true);
 
         int threadCount = 8;
         CountDownLatch ready = new CountDownLatch(threadCount);

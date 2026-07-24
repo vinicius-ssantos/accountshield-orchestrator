@@ -11,7 +11,10 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.IdempotencyRecordRepository;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,7 +47,7 @@ class IdempotencyIntegrationTest {
     void returnsSameDecisionForIdenticalIdempotencyKey() {
         String idempotencyKey = "idem-dup-" + UUID.randomUUID();
         String accountRef = "account-dup-" + UUID.randomUUID();
-        RiskSignals signals = new RiskSignals(3, false, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope signals = envelope(new RiskSignals(3, false, false, false, NetworkRiskLevel.LOW));
 
         ProtectionDecisionResult first = protectionDecisionService.decide(new ProtectionDecisionCommand(
                 accountRef,
@@ -76,7 +79,7 @@ class IdempotencyIntegrationTest {
         protectionDecisionService.decide(new ProtectionDecisionCommand(
                 "account-conflict-" + UUID.randomUUID(),
                 ProtectionEventType.LOGIN_ATTEMPT,
-                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
                 idempotencyKey));
 
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
@@ -84,7 +87,7 @@ class IdempotencyIntegrationTest {
                 protectionDecisionService.decide(new ProtectionDecisionCommand(
                         "account-conflict-" + UUID.randomUUID(),
                         ProtectionEventType.LOGIN_ATTEMPT,
-                        new RiskSignals(5, true, false, false, NetworkRiskLevel.LOW),
+                        envelope(new RiskSignals(5, true, false, false, NetworkRiskLevel.LOW)),
                         idempotencyKey))))
                 .isInstanceOf(ConflictingIdempotencyRequestException.class);
     }
@@ -92,7 +95,7 @@ class IdempotencyIntegrationTest {
     @Test
     void createsDistinctDecisionsWhenNoIdempotencyKeyIsProvided() {
         String accountRef = "account-nokey-" + UUID.randomUUID();
-        RiskSignals signals = new RiskSignals(2, false, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope signals = envelope(new RiskSignals(2, false, false, false, NetworkRiskLevel.LOW));
 
         ProtectionDecisionResult first = protectionDecisionService.decide(new ProtectionDecisionCommand(
                 accountRef,
@@ -117,7 +120,7 @@ class IdempotencyIntegrationTest {
         ProtectionDecisionResult result = protectionDecisionService.decide(new ProtectionDecisionCommand(
                 "account-persist-" + UUID.randomUUID(),
                 ProtectionEventType.LOGIN_ATTEMPT,
-                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
                 idempotencyKey));
 
         String fp = jdbcTemplate.queryForObject(
@@ -146,5 +149,9 @@ class IdempotencyIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT created_at < expires_at FROM protection.idempotency_record WHERE idempotency_key = ?",
                 Boolean.class, idempotencyKey)).isTrue();
+    }
+
+    private static RiskSignalEnvelope envelope(RiskSignals signals) {
+        return new RiskSignalEnvelope(signals, "CLIENT_SUPPLIED", Instant.now(), SignalConfidence.HIGH, null, true);
     }
 }
