@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { fixtureDecisionsDataSource } from "@/features/decisions/fixtures";
+import { getDecisionsDataSource } from "@/features/decisions/get-data-source";
 
 const navigationItems = [
   { label: "Overview", href: "/" },
@@ -12,9 +12,10 @@ const navigationItems = [
 ] as const;
 
 export default async function Home() {
+  const decisionsDataSource = getDecisionsDataSource();
   const [metrics, decisions] = await Promise.all([
-    fixtureDecisionsDataSource.listOverviewMetrics(),
-    fixtureDecisionsDataSource.listRecent(),
+    decisionsDataSource.listOverviewMetrics(),
+    decisionsDataSource.listRecent(),
   ]);
 
   return (
