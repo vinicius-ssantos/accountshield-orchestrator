@@ -44,3 +44,12 @@ page -> feature query/service -> adapter -> generated client -> BFF -> Spring AP
 - no generic verified challenge reused for privileged actions;
 - correlation IDs are safe operational references, not authorization;
 - administrative commands require explicit confirmation and auditable reasons.
+
+## Accepted architecture decisions
+
+- [ADR 0011 — Colocate the Next.js operations console](../adr/0011-colocate-nextjs-operations-console.md)
+- [ADR 0012 — Adopt a read-only-first operator console](../adr/0012-adopt-read-only-first-operator-console.md)
+- [ADR 0013 — Use a backend-for-frontend security boundary](../adr/0013-use-backend-for-frontend-security-boundary.md)
+- [ADR 0014 — Generate frontend API clients from OpenAPI](../adr/0014-generate-frontend-api-clients-from-openapi.md)
+- [ADR 0015 — Use deterministic frontend data sources](../adr/0015-use-deterministic-frontend-data-sources.md)
+- [ADR 0016 — Prefer React Server Components](../adr/0016-prefer-react-server-components.md)
