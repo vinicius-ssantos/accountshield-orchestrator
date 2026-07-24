@@ -127,6 +127,30 @@ class PersistenceIntegrationTest {
     }
 
     @Test
+    void rejectsDelayedRecoveryFlowWithoutEligibleAfter() {
+        UUID protectionRequestId = insertProtectionRequest();
+        UUID authorizationId = insertRecoveryAuthorization();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                        """
+                        INSERT INTO recovery.recovery_flow (
+                            id, account_reference, event_type, status, classification,
+                            risk_score, initiated_at, updated_at, eligible_after, protection_request_id,
+                            originating_decision_id, authorization_id
+                        ) VALUES (?, ?, 'LOGIN', 'DELAYED', 'DELAYED', 45, ?, ?, NULL, ?, ?, ?)
+                        """,
+                        UUID.randomUUID(),
+                        "acct-delayed-no-eligibility",
+                        now,
+                        now,
+                        protectionRequestId,
+                        UUID.randomUUID(),
+                        authorizationId))
+                .isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
     void rejectsDuplicateProtectionRequestIdAcrossRecoveryFlows() {
         UUID protectionRequestId = insertProtectionRequest();
         UUID firstAuthorizationId = insertRecoveryAuthorization();

@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.protection.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -15,6 +16,7 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 class DatabaseIdempotencyGuardTest {
 
@@ -85,6 +87,15 @@ class DatabaseIdempotencyGuardTest {
     @Test
     void resourceTypeIsProtectionDecision() {
         assertThat(guard.resourceType()).isEqualTo("protection_decision");
+    }
+
+    @Test
+    void recordTranslatesConcurrentConstraintViolationIntoConflict() {
+        when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        assertThatThrownBy(() -> guard.record(
+                "key-1", "fp-1", "protection_decision", UUID.randomUUID(), "{}", NOW, NOW.plusSeconds(300)))
+                .isInstanceOf(ConflictingIdempotencyRequestException.class);
     }
 
     private IdempotencyRecordEntity activeRecord(String key, String fp, UUID resourceId, String payload) {

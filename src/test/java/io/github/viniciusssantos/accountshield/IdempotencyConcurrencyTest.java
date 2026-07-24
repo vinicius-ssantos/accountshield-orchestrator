@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
@@ -9,13 +10,13 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,9 +44,8 @@ class IdempotencyConcurrencyTest {
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
 
-        List<ProtectionDecisionResult> successes = new ArrayList<>();
-        List<Throwable> failures = new ArrayList<>();
-        AtomicReference<UUID> firstRequestId = new AtomicReference<>();
+        List<ProtectionDecisionResult> successes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> failures = Collections.synchronizedList(new ArrayList<>());
 
         try {
             for (int i = 0; i < threadCount; i++) {
@@ -64,7 +64,7 @@ class IdempotencyConcurrencyTest {
                                         ProtectionEventType.LOGIN_ATTEMPT,
                                         signals,
                                         idempotencyKey));
-                        firstRequestId.compareAndSet(null, result.protectionRequestId());
+                        successes.add(result);
                     } catch (Throwable t) {
                         failures.add(t);
                     }
@@ -93,9 +93,13 @@ class IdempotencyConcurrencyTest {
                 Long.class, idempotencyKey);
         assertThat(requestCount).as("only one protection request should exist").isEqualTo(1);
 
+        assertThat(successes)
+                .as("exactly one racer should receive a real decision")
+                .hasSize(1);
         assertThat(failures)
-                .as("threads that lost the race should receive errors, not silent duplicates")
-                .isNotEmpty();
+                .as("every racer that lost the race should get a stable conflict, never a raw database error")
+                .hasSize(threadCount - 1)
+                .allSatisfy(failure -> assertThat(failure).isInstanceOf(ConflictingIdempotencyRequestException.class));
 
         jdbcTemplate.update("DELETE FROM protection.idempotency_record WHERE idempotency_key = ?", idempotencyKey);
         jdbcTemplate.update("DELETE FROM protection.protection_request WHERE account_reference = ?", accountRef);

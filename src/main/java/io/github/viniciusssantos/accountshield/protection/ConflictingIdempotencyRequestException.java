@@ -7,7 +7,11 @@ public class ConflictingIdempotencyRequestException extends RuntimeException {
     private final String idempotencyKey;
 
     public ConflictingIdempotencyRequestException(String idempotencyKey) {
-        super("A previous request with the same idempotency key produced a different result");
+        this(idempotencyKey, null);
+    }
+
+    public ConflictingIdempotencyRequestException(String idempotencyKey, Throwable cause) {
+        super("A previous request with the same idempotency key produced a different result", cause);
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey);
     }
 

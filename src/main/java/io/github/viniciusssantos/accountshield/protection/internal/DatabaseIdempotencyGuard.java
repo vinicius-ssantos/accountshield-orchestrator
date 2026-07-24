@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -71,15 +72,19 @@ class DatabaseIdempotencyGuard implements IdempotencyGuard {
         Objects.requireNonNull(createdAt, "createdAt must not be null");
         Objects.requireNonNull(expiresAt, "expiresAt must not be null");
 
-        repository.save(new IdempotencyRecordEntity(
-                UUID.randomUUID(),
-                idempotencyKey,
-                fingerprint,
-                resourceType,
-                resourceId,
-                responsePayload,
-                createdAt,
-                expiresAt));
+        try {
+            repository.saveAndFlush(new IdempotencyRecordEntity(
+                    UUID.randomUUID(),
+                    idempotencyKey,
+                    fingerprint,
+                    resourceType,
+                    resourceId,
+                    responsePayload,
+                    createdAt,
+                    expiresAt));
+        } catch (DataIntegrityViolationException exception) {
+            throw new ConflictingIdempotencyRequestException(idempotencyKey, exception);
+        }
     }
 
     Instant defaultExpiry(Instant createdAt) {
