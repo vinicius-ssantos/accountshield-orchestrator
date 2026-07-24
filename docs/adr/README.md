@@ -16,6 +16,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0008](0008-in-memory-rate-limiting.md) | Accepted | Use in-memory rate limiting for the current single-instance baseline | [Architecture baseline](../architecture/README.md) |
 | [0009](0009-outbox-relay-with-simulated-publisher.md) | Accepted | Persist publication intent transactionally and use a simulated relay | Outbox section in the [feature catalog](../features/README.md) |
 | [0010](0010-recovery-trust-boundaries.md) | Accepted | Use explicit `START_RECOVERY` and an immutable consumable recovery authorization; audit remains evidence | [Recovery](../architecture/recovery.md), [invariants](../architecture/invariants.md) |
+| [0011](0011-jwt-resource-server-with-local-issuer.md) | Accepted | Authorize sensitive APIs with a JWT resource server backed by a local, per-boot key pair | Issue #19 |
 
 ## ADR lifecycle
 

@@ -13,6 +13,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -54,9 +55,10 @@ class RecoveryController {
     @PostMapping("/{recoveryId}/review")
     public ResponseEntity<RecoveryResponse> review(
             @PathVariable UUID recoveryId,
-            @Valid @RequestBody RecoveryReviewRequest request) {
+            @Valid @RequestBody RecoveryReviewRequest request,
+            Authentication authentication) {
         RecoveryFlow flow = recoveryService.review(new RecoveryReviewCommand(
-                recoveryId, RecoveryReviewDecision.valueOf(request.decision()), request.reviewer()));
+                recoveryId, RecoveryReviewDecision.valueOf(request.decision()), authentication.getName()));
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 
@@ -70,7 +72,7 @@ class RecoveryController {
     record ConfirmIdentityRequest(@NotNull UUID challengeId) {
     }
 
-    record RecoveryReviewRequest(@NotBlank String decision, @NotBlank String reviewer) {
+    record RecoveryReviewRequest(@NotBlank String decision) {
     }
 
     record RecoveryResponse(
