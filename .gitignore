@@ -32,6 +32,7 @@ target/
 # Frontend
 frontend/node_modules/
 frontend/.next/
+frontend/next-env.d.ts
 frontend/out/
 frontend/coverage/
 frontend/playwright-report/
