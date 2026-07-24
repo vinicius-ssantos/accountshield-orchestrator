@@ -45,6 +45,9 @@ jobs:
     name: Frontend verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      ACCOUNTSHIELD_DATA_SOURCE: fixtures
+      NEXT_PUBLIC_APP_ENV: ci
 
     defaults:
       run:
