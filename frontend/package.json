@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
+    "typegen": "next typegen",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
