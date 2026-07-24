@@ -47,7 +47,39 @@ class OutboxEventIntegrationTest {
         assertThat(row.get("occurred_at")).isNotNull();
         assertThat(row.get("published_at")).isNull();
         assertThat(row.get("attempt_count")).isEqualTo(0);
-        assertThat(row.get("payload").toString()).contains(accountReference);
+        assertThat(row.get("payload").toString()).doesNotContain(accountReference);
+        assertThat(row.get("payload").toString()).contains("subjectToken");
+    }
+
+    @Test
+    void sameAccountAlwaysProducesTheSameSubjectToken() {
+        String accountReference = "outbox-pseudonym-" + UUID.randomUUID();
+
+        ProtectionDecisionResult first = protectionDecisionService.decide(new ProtectionDecisionCommand(
+                accountReference,
+                ProtectionEventType.LOGIN_ATTEMPT,
+                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                "idem-" + UUID.randomUUID()));
+        ProtectionDecisionResult second = protectionDecisionService.decide(new ProtectionDecisionCommand(
+                accountReference,
+                ProtectionEventType.LOGIN_ATTEMPT,
+                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                "idem-" + UUID.randomUUID()));
+
+        String firstToken = subjectTokenOf(first.decisionId());
+        String secondToken = subjectTokenOf(second.decisionId());
+
+        assertThat(firstToken).isNotBlank().isEqualTo(secondToken);
+    }
+
+    private String subjectTokenOf(UUID decisionId) {
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT payload FROM outbox.outbox_event WHERE aggregate_id = ? AND event_type = 'PROTECTION_DECISION_MADE'",
+                decisionId.toString());
+        String payload = row.get("payload").toString();
+        int start = payload.indexOf("\"subjectToken\":\"") + "\"subjectToken\":\"".length();
+        int end = payload.indexOf('"', start);
+        return payload.substring(start, end);
     }
 
     @Test

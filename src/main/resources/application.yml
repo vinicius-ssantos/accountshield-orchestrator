@@ -44,6 +44,9 @@ accountshield:
   challenge:
     hmac-secret: ${CHALLENGE_HMAC_SECRET:accountshield-local-only-challenge-secret}
     simulation-enabled: ${CHALLENGE_SIMULATION_ENABLED:true}
+    retention:
+      terminal-ttl: 1d
+      fixed-delay: 1h
   protection:
     rate-limit:
       max-requests: 10
@@ -53,6 +56,8 @@ accountshield:
       fixed-delay: 5s
       batch-size: 50
       max-attempts: 5
+  privacy:
+    pseudonym-secret: ${ACCOUNT_PSEUDONYM_SECRET:accountshield-local-only-pseudonym-secret}
   recovery:
     retention:
       terminal-ttl: 30d

@@ -166,6 +166,25 @@ Administrative and simulation operations are separate from the public decision A
 
 Logs must not contain forbidden data. Sensitive values require explicit structured fields and redaction rules.
 
+### Per-table classification and retention
+
+| Schema.table | Classification | Retention | Mechanism |
+| --- | --- | --- | --- |
+| `protection.protection_request` | Sensitive (account reference) | No automated purge yet | Source-of-truth decision input; deletion policy tracked with future protection-module retention work |
+| `protection.idempotency_record` | Internal (request fingerprints) | Bounded by `expires_at`, cleanup not yet automated | Tracked separately under issue #22 |
+| `policy.policy_version` | Internal (no account data) | Retained indefinitely | Immutable policy history is intentionally kept for audit and rollback |
+| `audit.decision_trace` / `audit.decision_reason` | Sensitive (decision evidence) | Retained indefinitely | Append-only compliance evidence; no automated deletion by design |
+| `challenge.challenge_plan` | Sensitive (account reference); code is hashed, never stored raw | Terminal rows (VERIFIED/CONSUMED/FAILED/EXPIRED) purged after `accountshield.challenge.retention.terminal-ttl` (default 1 day) past expiry | `ChallengePlanRetentionCleanup` (`challenge/internal`), mirrors the recovery-flow job below |
+| `recovery.recovery_flow` | Sensitive (account reference, risk data) | Terminal rows purged after `accountshield.recovery.retention.terminal-ttl` (default 30 days) | `RecoveryFlowRetentionCleanup` (`recovery/internal`), added in issue #18 |
+| `recovery.recovery_authorization` | Sensitive (account reference) | No automated purge yet | Deletion policy tracked with future recovery-module retention work |
+| `outbox.outbox_event` | Sensitive prior to pseudonymization, Internal after | Retained as the append-only integration log | Not purged here — a distinct concern from the future outbox-relay/archival design |
+
+### Pseudonymization
+
+Domain events stay in-process only and are never logged with raw account identifiers (verified: `SecurityEventLogger` logs no `accountReference` field). The one place a full event payload leaves the in-process boundary is the outbox (`outbox.outbox_event.payload`), which is the actual "integration event" surface per the outbox-relay design.
+
+`AccountPseudonymizer` (`outbox/internal`) computes a deterministic, keyed HMAC-SHA256 pseudonym (`accountshield.privacy.pseudonym-secret`) from a raw account reference. `OutboxEventRecorder` substitutes this `subjectToken` for the raw `accountReference` before persisting the payload for `ProtectionDecisionMade`, `ChallengeCompleted`, and `RecoveryCompleted` (the three outbox-recorded event types that carry an account reference). The same account always maps to the same token, so downstream consumers can still correlate events for one subject without the outbox ever storing the raw identifier.
+
 ## Persistence direction
 
 PostgreSQL is the source of truth for decisions, policy versions, recovery state, idempotency records, and the transactional outbox. Ephemeral controls such as rate-limit counters use in-process storage; ADR 0008 documents this choice and the conditions under which a distributed store may be introduced.
