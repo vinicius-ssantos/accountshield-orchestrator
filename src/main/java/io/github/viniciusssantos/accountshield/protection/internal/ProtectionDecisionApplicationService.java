@@ -21,6 +21,7 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResu
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.protection.ProtectionRateLimiter;
+import io.github.viniciusssantos.accountshield.protection.RecoveryAuthorizationIssued;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestEntity;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
@@ -49,6 +51,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
 
     private static final String DEFAULT_POLICY_KEY = "account-protection-default";
     private static final String DECIDED_STATUS = "DECIDED";
+    private static final Duration RECOVERY_AUTHORIZATION_TTL = Duration.ofMinutes(15);
 
     private final RiskAssessmentService riskAssessmentService;
     private final PolicyEvaluationService policyEvaluationService;
@@ -132,6 +135,20 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 now,
                 auditReasons(assessment.reasons())));
 
+        UUID recoveryAuthorizationId = null;
+        if (evaluation.outcome() == ProtectionOutcome.START_RECOVERY) {
+            recoveryAuthorizationId = UUID.randomUUID();
+            eventPublisher.publishEvent(new RecoveryAuthorizationIssued(
+                    recoveryAuthorizationId,
+                    protectionRequestId,
+                    decisionId,
+                    command.accountReference(),
+                    recoveryDirective(command.eventType()),
+                    assessment.score(),
+                    now,
+                    now.plus(RECOVERY_AUTHORIZATION_TTL)));
+        }
+
         ChallengePlan challenge = null;
         if (evaluation.outcome() == ProtectionOutcome.REQUIRE_STEP_UP) {
             challenge = challengeService.create(new CreateChallengeCommand(
@@ -144,6 +161,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         ProtectionDecisionResult result = new ProtectionDecisionResult(
                 decisionId,
                 protectionRequestId,
+                recoveryAuthorizationId,
                 evaluation.outcome(),
                 assessment.score(),
                 assessment.band(),
@@ -211,6 +229,17 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 "networkRiskLevel", signals.networkRiskLevel().name(),
                 "protectionEventType", command.eventType().name(),
                 "recoveryRequest", command.eventType().recoveryRequest());
+    }
+
+    private String recoveryDirective(ProtectionEventType eventType) {
+        return switch (eventType) {
+            case LOGIN_RECOVERY_ATTEMPT -> "LOGIN";
+            case PASSWORD_RESET_ATTEMPT -> "PASSWORD_RESET";
+            case CREDENTIAL_CHANGE_ATTEMPT -> "CREDENTIAL_CHANGE";
+            case DEVICE_TRUST_RESET_ATTEMPT -> "DEVICE_TRUST_RESET";
+            default -> throw new IllegalStateException(
+                    "START_RECOVERY requires a recovery-request event type");
+        };
     }
 
     private List<DecisionReasonContribution> auditReasons(List<RiskReason> reasons) {

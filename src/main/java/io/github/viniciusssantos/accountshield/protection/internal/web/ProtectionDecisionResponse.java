@@ -11,6 +11,7 @@ import java.util.UUID;
 public record ProtectionDecisionResponse(
         UUID decisionId,
         UUID protectionRequestId,
+        UUID recoveryAuthorizationId,
         ProtectionOutcome outcome,
         int riskScore,
         RiskBand riskBand,
@@ -31,6 +32,7 @@ public record ProtectionDecisionResponse(
         return new ProtectionDecisionResponse(
                 result.decisionId(),
                 result.protectionRequestId(),
+                result.recoveryAuthorizationId(),
                 result.outcome(),
                 result.riskScore(),
                 result.riskBand(),

@@ -50,6 +50,9 @@ public class RecoveryFlowEntity {
     @Column(name = "originating_decision_id", nullable = false)
     private UUID originatingDecisionId;
 
+    @Column(name = "authorization_id", nullable = false, unique = true)
+    private UUID authorizationId;
+
     protected RecoveryFlowEntity() {
     }
 
@@ -68,7 +71,7 @@ public class RecoveryFlowEntity {
             UUID protectionRequestId) {
         this(id, accountReference, eventType, status, classification, identityChallengeId,
                 riskScore, initiatedAt, updatedAt, eligibleAfter, reviewer,
-                protectionRequestId, protectionRequestId);
+                protectionRequestId, protectionRequestId, protectionRequestId);
     }
 
     public RecoveryFlowEntity(
@@ -85,6 +88,26 @@ public class RecoveryFlowEntity {
             String reviewer,
             UUID protectionRequestId,
             UUID originatingDecisionId) {
+        this(id, accountReference, eventType, status, classification, identityChallengeId,
+                riskScore, initiatedAt, updatedAt, eligibleAfter, reviewer,
+                protectionRequestId, originatingDecisionId, protectionRequestId);
+    }
+
+    public RecoveryFlowEntity(
+            UUID id,
+            String accountReference,
+            String eventType,
+            String status,
+            String classification,
+            UUID identityChallengeId,
+            int riskScore,
+            Instant initiatedAt,
+            Instant updatedAt,
+            Instant eligibleAfter,
+            String reviewer,
+            UUID protectionRequestId,
+            UUID originatingDecisionId,
+            UUID authorizationId) {
         this.id = id;
         this.accountReference = accountReference;
         this.eventType = eventType;
@@ -98,6 +121,7 @@ public class RecoveryFlowEntity {
         this.reviewer = reviewer;
         this.protectionRequestId = protectionRequestId;
         this.originatingDecisionId = originatingDecisionId;
+        this.authorizationId = authorizationId;
     }
 
     public UUID getId() {
@@ -174,5 +198,9 @@ public class RecoveryFlowEntity {
 
     public UUID getOriginatingDecisionId() {
         return originatingDecisionId;
+    }
+
+    public UUID getAuthorizationId() {
+        return authorizationId;
     }
 }

@@ -3,19 +3,19 @@ package io.github.viniciusssantos.accountshield.recovery;
 import java.util.Objects;
 import java.util.UUID;
 
-public record InitiateRecoveryCommand(UUID protectionRequestId) {
+public record InitiateRecoveryCommand(UUID authorizationId) {
 
     public InitiateRecoveryCommand {
-        Objects.requireNonNull(protectionRequestId, "protectionRequestId must not be null");
+        Objects.requireNonNull(authorizationId, "authorizationId must not be null");
     }
 
     /**
      * Compatibility constructor. The supplied event type is intentionally ignored;
-     * recovery derives it exclusively from the originating decision trace.
+     * recovery derives every operational attribute from the authorization.
      */
     public InitiateRecoveryCommand(
-            UUID protectionRequestId,
+            UUID authorizationId,
             RecoveryEventType ignoredCallerEventType) {
-        this(protectionRequestId);
+        this(authorizationId);
     }
 }

@@ -32,7 +32,7 @@ class RecoveryController {
     @PostMapping
     public ResponseEntity<RecoveryResponse> initiate(@Valid @RequestBody InitiateRecoveryRequest request) {
         RecoveryFlow flow = recoveryService.initiate(
-                new InitiateRecoveryCommand(request.protectionRequestId()));
+                new InitiateRecoveryCommand(request.authorizationId()));
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 
@@ -62,9 +62,9 @@ class RecoveryController {
 
     record InitiateRecoveryRequest(
             @Schema(
-                    description = "Protection request whose immutable decision outcome is START_RECOVERY",
+                    description = "Unexpired recovery authorization returned by a START_RECOVERY decision",
                     example = "550e8400-e29b-41d4-a716-446655440000")
-            @NotNull UUID protectionRequestId) {
+            @NotNull UUID authorizationId) {
     }
 
     record ConfirmIdentityRequest(@NotNull UUID challengeId) {
@@ -83,6 +83,7 @@ class RecoveryController {
             Instant initiatedAt,
             Instant updatedAt,
             Instant eligibleAfter,
+            UUID authorizationId,
             UUID protectionRequestId,
             UUID originatingDecisionId) {
 
@@ -97,6 +98,7 @@ class RecoveryController {
                     flow.initiatedAt(),
                     flow.updatedAt(),
                     flow.eligibleAfter(),
+                    flow.authorizationId(),
                     flow.protectionRequestId(),
                     flow.originatingDecisionId());
         }
