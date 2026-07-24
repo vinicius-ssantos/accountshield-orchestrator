@@ -1,0 +1,59 @@
+name: Bootstrap issue 75
+
+on:
+  push:
+    branches: [feat/issue-75-frontend-testing-foundation]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-issue-75-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install declared npm version
+        run: npm install --global npm@11.4.2 --no-audit --no-fund
+
+      - name: Pin testing dependencies
+        working-directory: frontend
+        run: |
+          npm install --save-dev --save-exact --ignore-scripts --no-audit --no-fund \
+            vitest@latest \
+            @vitest/coverage-v8@latest \
+            @vitejs/plugin-react@latest \
+            vite-tsconfig-paths@latest \
+            jsdom@latest \
+            @testing-library/react@latest \
+            @testing-library/dom@latest \
+            @testing-library/jest-dom@latest \
+            @testing-library/user-event@latest \
+            @playwright/test@latest \
+            @axe-core/playwright@latest
+
+      - name: Commit dependency manifests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package.json frontend/package-lock.json
+          if git diff --cached --quiet; then
+            echo "Testing dependencies are already pinned."
+            exit 0
+          fi
+          git commit -m "test(frontend): pin testing dependencies"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
