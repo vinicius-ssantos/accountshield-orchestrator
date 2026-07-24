@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 export default function ErrorState({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <main className="statePage" role="alert">
@@ -13,9 +15,9 @@ export default function ErrorState({ reset }: { error: Error & { digest?: string
           <button type="button" onClick={reset}>
             Retry
           </button>
-          <a className="secondaryLink" href="/">
+          <Link className="secondaryLink" href="/">
             Return to overview
-          </a>
+          </Link>
         </div>
       </section>
     </main>
