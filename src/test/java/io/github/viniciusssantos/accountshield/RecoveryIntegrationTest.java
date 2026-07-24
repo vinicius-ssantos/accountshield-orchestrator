@@ -214,6 +214,16 @@ class RecoveryIntegrationTest {
         Instant issuedAt = Instant.now().minus(30, ChronoUnit.SECONDS);
 
         jdbcTemplate.update(
+                "INSERT INTO protection.protection_request "
+                        + "(id, account_reference, event_type, request_fingerprint, status, requested_at) "
+                        + "VALUES (?, ?, ?, ?, 'DECIDED', ?)",
+                protectionRequestId,
+                "authorization-fixture-" + protectionRequestId,
+                directive,
+                "fingerprint-" + protectionRequestId,
+                Timestamp.from(issuedAt));
+
+        jdbcTemplate.update(
                 "INSERT INTO recovery.recovery_authorization "
                         + "(id, protection_request_id, decision_id, account_reference, directive, "
                         + "risk_score, issued_at, expires_at, consumed_at) "

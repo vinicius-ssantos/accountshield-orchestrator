@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshield.recovery.internal.web;
 
 import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateException;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,8 @@ class RecoveryProblemHandler {
             URI.create("urn:accountshield:problem:invalid-recovery-state");
     private static final URI UNAUTHORIZED_TYPE =
             URI.create("urn:accountshield:problem:unauthorized-recovery-initiation");
+    private static final URI FLOW_CONFLICT_TYPE =
+            URI.create("urn:accountshield:problem:recovery-flow-conflict");
 
     @ExceptionHandler(InvalidRecoveryStateException.class)
     public ResponseEntity<ProblemDetail> invalidState(InvalidRecoveryStateException ex) {
@@ -41,5 +44,16 @@ class RecoveryProblemHandler {
         problem.setTitle("Unauthorized recovery initiation");
         problem.setProperty("code", "UNAUTHORIZED_RECOVERY_INITIATION");
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(problem);
+    }
+
+    @ExceptionHandler(RecoveryFlowConflictException.class)
+    public ResponseEntity<ProblemDetail> flowConflict(RecoveryFlowConflictException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "The recovery flow was concurrently modified by another request. Retry with the latest state.");
+        problem.setType(FLOW_CONFLICT_TYPE);
+        problem.setTitle("Recovery flow conflict");
+        problem.setProperty("code", "RECOVERY_FLOW_CONFLICT");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 }
