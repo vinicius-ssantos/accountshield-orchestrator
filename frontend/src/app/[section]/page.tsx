@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 const sections = {
@@ -47,9 +48,9 @@ export default async function PlannedSectionPage({
           This route is intentionally available before live API integration so navigation remains stable while
           backend contracts evolve.
         </p>
-        <a className="actionLink" href="/">
+        <Link className="actionLink" href="/">
           Return to overview
-        </a>
+        </Link>
       </section>
     </main>
   );
