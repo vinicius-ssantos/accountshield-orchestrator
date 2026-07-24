@@ -286,8 +286,11 @@ class RecoveryApplicationServiceTest {
         return new DecisionTraceView(
                 UUID.randomUUID(), protectionRequestId, accountRef, "fingerprint",
                 "risk-rules-1.0", "account-protection-default", "1.0.0",
-                "REQUIRE_STEP_UP", riskScore,
-                Map.of(), NOW, List.of());
+                "START_RECOVERY", riskScore,
+                Map.of(
+                        "protectionEventType", "PASSWORD_RESET_ATTEMPT",
+                        "recoveryRequest", true),
+                NOW, List.of());
     }
 
     private RecoveryFlowEntity entity(

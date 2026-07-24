@@ -9,6 +9,7 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
+import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
@@ -102,7 +103,12 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         UUID decisionId = UUID.randomUUID();
 
         RiskAssessment assessment = riskAssessmentService.assess(command.signals());
-        PolicyEvaluation evaluation = policyEvaluationService.evaluate(DEFAULT_POLICY_KEY, assessment.score());
+        PolicyEvaluation evaluation = command.eventType().recoveryRequest()
+                ? policyEvaluationService.evaluate(
+                        DEFAULT_POLICY_KEY,
+                        assessment.score(),
+                        PolicyEvaluationContext.recoveryRequestContext())
+                : policyEvaluationService.evaluate(DEFAULT_POLICY_KEY, assessment.score());
 
         protectionRequestRepository.save(new ProtectionRequestEntity(
                 protectionRequestId,
@@ -122,7 +128,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 evaluation.policyVersion(),
                 evaluation.outcome().name(),
                 assessment.score(),
-                normalizedContext(command.signals()),
+                normalizedContext(command),
                 now,
                 auditReasons(assessment.reasons())));
 
@@ -195,13 +201,16 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         }
     }
 
-    private Map<String, Object> normalizedContext(RiskSignals signals) {
+    private Map<String, Object> normalizedContext(ProtectionDecisionCommand command) {
+        RiskSignals signals = command.signals();
         return Map.of(
                 "failedAttempts", signals.failedAttempts(),
                 "newDevice", signals.newDevice(),
                 "impossibleTravel", signals.impossibleTravel(),
                 "compromisedCredential", signals.compromisedCredential(),
-                "networkRiskLevel", signals.networkRiskLevel().name());
+                "networkRiskLevel", signals.networkRiskLevel().name(),
+                "protectionEventType", command.eventType().name(),
+                "recoveryRequest", command.eventType().recoveryRequest());
     }
 
     private List<DecisionReasonContribution> auditReasons(List<RiskReason> reasons) {

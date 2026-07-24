@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.simulation.internal;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceQuery;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceView;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
+import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.simulation.ReplayResult;
@@ -39,10 +40,17 @@ class SimulationApplicationService implements SimulationService {
 
         DecisionTraceView trace = traceOpt.get();
 
-        PolicyEvaluation replayed = policyEvaluationService.evaluateVersion(
-                trace.policyKey(),
-                trace.policyVersion(),
-                trace.riskScore());
+        PolicyEvaluation replayed = Boolean.TRUE.equals(
+                trace.normalizedContext().get("recoveryRequest"))
+                ? policyEvaluationService.evaluateVersion(
+                        trace.policyKey(),
+                        trace.policyVersion(),
+                        trace.riskScore(),
+                        PolicyEvaluationContext.recoveryRequestContext())
+                : policyEvaluationService.evaluateVersion(
+                        trace.policyKey(),
+                        trace.policyVersion(),
+                        trace.riskScore());
 
         if (replayed.outcome().name().equals(trace.outcome())
                 && replayed.outcome().name().equals(trace.outcome())) {

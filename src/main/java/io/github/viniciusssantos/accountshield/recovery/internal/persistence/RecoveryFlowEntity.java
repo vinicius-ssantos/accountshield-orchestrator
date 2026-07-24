@@ -44,8 +44,11 @@ public class RecoveryFlowEntity {
     @Column(name = "reviewer", length = 128)
     private String reviewer;
 
-    @Column(name = "protection_request_id")
+    @Column(name = "protection_request_id", nullable = false)
     private UUID protectionRequestId;
+
+    @Column(name = "originating_decision_id", nullable = false)
+    private UUID originatingDecisionId;
 
     protected RecoveryFlowEntity() {
     }
@@ -63,6 +66,25 @@ public class RecoveryFlowEntity {
             Instant eligibleAfter,
             String reviewer,
             UUID protectionRequestId) {
+        this(id, accountReference, eventType, status, classification, identityChallengeId,
+                riskScore, initiatedAt, updatedAt, eligibleAfter, reviewer,
+                protectionRequestId, protectionRequestId);
+    }
+
+    public RecoveryFlowEntity(
+            UUID id,
+            String accountReference,
+            String eventType,
+            String status,
+            String classification,
+            UUID identityChallengeId,
+            int riskScore,
+            Instant initiatedAt,
+            Instant updatedAt,
+            Instant eligibleAfter,
+            String reviewer,
+            UUID protectionRequestId,
+            UUID originatingDecisionId) {
         this.id = id;
         this.accountReference = accountReference;
         this.eventType = eventType;
@@ -75,6 +97,7 @@ public class RecoveryFlowEntity {
         this.eligibleAfter = eligibleAfter;
         this.reviewer = reviewer;
         this.protectionRequestId = protectionRequestId;
+        this.originatingDecisionId = originatingDecisionId;
     }
 
     public UUID getId() {
@@ -147,5 +170,9 @@ public class RecoveryFlowEntity {
 
     public UUID getProtectionRequestId() {
         return protectionRequestId;
+    }
+
+    public UUID getOriginatingDecisionId() {
+        return originatingDecisionId;
     }
 }

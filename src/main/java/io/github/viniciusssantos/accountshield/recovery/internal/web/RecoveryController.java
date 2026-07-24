@@ -1,12 +1,12 @@
 package io.github.viniciusssantos.accountshield.recovery.internal.web;
 
+import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
-import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
-import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
-import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -31,9 +31,8 @@ class RecoveryController {
 
     @PostMapping
     public ResponseEntity<RecoveryResponse> initiate(@Valid @RequestBody InitiateRecoveryRequest request) {
-        RecoveryFlow flow = recoveryService.initiate(new InitiateRecoveryCommand(
-                request.protectionRequestId(),
-                RecoveryEventType.valueOf(request.eventType())));
+        RecoveryFlow flow = recoveryService.initiate(
+                new InitiateRecoveryCommand(request.protectionRequestId()));
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 
@@ -62,8 +61,10 @@ class RecoveryController {
     }
 
     record InitiateRecoveryRequest(
-            @NotNull UUID protectionRequestId,
-            @NotBlank String eventType) {
+            @Schema(
+                    description = "Protection request whose immutable decision outcome is START_RECOVERY",
+                    example = "550e8400-e29b-41d4-a716-446655440000")
+            @NotNull UUID protectionRequestId) {
     }
 
     record ConfirmIdentityRequest(@NotNull UUID challengeId) {
@@ -82,7 +83,8 @@ class RecoveryController {
             Instant initiatedAt,
             Instant updatedAt,
             Instant eligibleAfter,
-            UUID protectionRequestId) {
+            UUID protectionRequestId,
+            UUID originatingDecisionId) {
 
         static RecoveryResponse from(RecoveryFlow flow) {
             return new RecoveryResponse(
@@ -95,7 +97,8 @@ class RecoveryController {
                     flow.initiatedAt(),
                     flow.updatedAt(),
                     flow.eligibleAfter(),
-                    flow.protectionRequestId());
+                    flow.protectionRequestId(),
+                    flow.originatingDecisionId());
         }
     }
 }

@@ -104,7 +104,7 @@ class ProtectionDecisionIntegrationTest {
                     "SELECT policy_version FROM audit.decision_trace WHERE id = ?",
                     String.class,
                     decision.decisionId()))
-                    .isEqualTo("1.0.0");
+                    .isEqualTo("1.1.0");
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT normalized_context ->> 'networkRiskLevel' FROM audit.decision_trace WHERE id = ?",
                     String.class,
