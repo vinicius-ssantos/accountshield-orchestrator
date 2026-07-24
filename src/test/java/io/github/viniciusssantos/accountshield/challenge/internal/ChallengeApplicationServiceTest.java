@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeIssued;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
@@ -26,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 
@@ -35,8 +38,9 @@ class ChallengeApplicationServiceTest {
     private static final UUID CONTEXT_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
 
     private final ChallengePlanRepository repository = mock(ChallengePlanRepository.class);
-    private final SimulatedChallengeProvider provider =
-            new SimulatedChallengeProvider(java.util.random.RandomGenerator.getDefault());
+    private final ChallengeCodecRegistry codecRegistry =
+            new ChallengeCodecRegistry(new NumericCodeCodec(), new WebAuthnAssertionCodec());
+    private final HmacChallengeCodeHasher codeHasher = new HmacChallengeCodeHasher("test-secret");
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
@@ -44,7 +48,7 @@ class ChallengeApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ChallengeApplicationService(repository, provider, clock, eventPublisher);
+        service = new ChallengeApplicationService(repository, codecRegistry, codeHasher, clock, eventPublisher);
     }
 
     @Test
@@ -68,6 +72,23 @@ class ChallengeApplicationServiceTest {
         assertThat(plan.createdAt()).isEqualTo(NOW);
         assertThat(plan.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(10)));
         assertThat(plan.consumedAt()).isNull();
+    }
+
+    @Test
+    void createPublishesTheIssuedCodeExactlyOnceAndNeverPersistsItRaw() {
+        ArgumentCaptor<ChallengePlanEntity> savedEntity = ArgumentCaptor.forClass(ChallengePlanEntity.class);
+        when(repository.save(savedEntity.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(new CreateChallengeCommand(
+                "account-1", ChallengeType.TOTP_SIMULATED, ChallengePurpose.PROTECTION_STEP_UP, CONTEXT_ID));
+
+        ArgumentCaptor<ChallengeIssued> issued = ArgumentCaptor.forClass(ChallengeIssued.class);
+        verify(eventPublisher).publishEvent(issued.capture());
+
+        String issuedCode = issued.getValue().issuedCode();
+        assertThat(issuedCode).matches("\\d{6}");
+        assertThat(savedEntity.getValue().getCodeHash()).isNotEqualTo(issuedCode);
+        assertThat(savedEntity.getValue().getCodeHash()).isEqualTo(codeHasher.hash(issuedCode));
     }
 
     @Test
@@ -184,7 +205,8 @@ class ChallengeApplicationServiceTest {
 
         ChallengeApplicationService expiredService = new ChallengeApplicationService(
                 repository,
-                provider,
+                codecRegistry,
+                codeHasher,
                 Clock.fixed(NOW.plus(Duration.ofMinutes(11)), ZoneOffset.UTC),
                 eventPublisher);
 
@@ -225,7 +247,7 @@ class ChallengeApplicationServiceTest {
                 status.name(),
                 (short) 3,
                 (short) 3,
-                code,
+                codeHasher.hash(code),
                 NOW,
                 NOW.plus(Duration.ofMinutes(10)),
                 null);

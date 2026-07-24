@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshield.challenge.internal;
 
 import io.github.viniciusssantos.accountshield.challenge.ChallengeCompleted;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeIssued;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
@@ -32,17 +33,20 @@ class ChallengeApplicationService implements ChallengeService {
     private static final Duration DEFAULT_TTL = Duration.ofMinutes(10);
 
     private final ChallengePlanRepository challengePlanRepository;
-    private final SimulatedChallengeProvider challengeProvider;
+    private final ChallengeCodecRegistry codecRegistry;
+    private final HmacChallengeCodeHasher codeHasher;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
 
     ChallengeApplicationService(
             ChallengePlanRepository challengePlanRepository,
-            SimulatedChallengeProvider challengeProvider,
+            ChallengeCodecRegistry codecRegistry,
+            HmacChallengeCodeHasher codeHasher,
             @Qualifier("decisionClock") Clock clock,
             ApplicationEventPublisher eventPublisher) {
         this.challengePlanRepository = challengePlanRepository;
-        this.challengeProvider = challengeProvider;
+        this.codecRegistry = codecRegistry;
+        this.codeHasher = codeHasher;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
     }
@@ -54,7 +58,8 @@ class ChallengeApplicationService implements ChallengeService {
 
         Instant now = clock.instant();
         UUID challengeId = UUID.randomUUID();
-        String expectedCode = challengeProvider.generateCode();
+        Instant expiresAt = now.plus(DEFAULT_TTL);
+        String issuedCode = codecRegistry.issue(command.challengeType());
 
         ChallengePlanEntity entity = new ChallengePlanEntity(
                 challengeId,
@@ -65,11 +70,20 @@ class ChallengeApplicationService implements ChallengeService {
                 ChallengeStatus.CHALLENGED.name(),
                 (short) DEFAULT_MAX_ATTEMPTS,
                 (short) DEFAULT_MAX_ATTEMPTS,
-                expectedCode,
+                codeHasher.hash(issuedCode),
                 now,
-                now.plus(DEFAULT_TTL),
+                expiresAt,
                 null);
         challengePlanRepository.save(entity);
+
+        eventPublisher.publishEvent(new ChallengeIssued(
+                challengeId,
+                command.accountReference(),
+                command.challengeType(),
+                command.purpose(),
+                command.contextId(),
+                issuedCode,
+                expiresAt));
 
         return toDomain(entity);
     }
@@ -97,6 +111,7 @@ class ChallengeApplicationService implements ChallengeService {
         }
         if (plan.getExpiresAt().isBefore(now)) {
             plan.setStatus(ChallengeStatus.EXPIRED.name());
+            plan.setCodeHash(null);
             challengePlanRepository.save(plan);
             throw new InvalidChallengeStateException(command.challengeId(), ChallengeStatus.EXPIRED);
         }
@@ -106,8 +121,9 @@ class ChallengeApplicationService implements ChallengeService {
 
         plan.setRemainingAttempts((short) (plan.getRemainingAttempts() - 1));
 
-        if (challengeProvider.verifyCode(command.providedCode(), plan.getExpectedCode())) {
+        if (codeHasher.matches(command.providedCode(), plan.getCodeHash())) {
             plan.setStatus(ChallengeStatus.VERIFIED.name());
+            plan.setCodeHash(null);
             challengePlanRepository.save(plan);
             eventPublisher.publishEvent(new ChallengeCompleted(
                     plan.getId(),
@@ -125,6 +141,7 @@ class ChallengeApplicationService implements ChallengeService {
 
         if (plan.getRemainingAttempts() <= 0) {
             plan.setStatus(ChallengeStatus.FAILED.name());
+            plan.setCodeHash(null);
             challengePlanRepository.save(plan);
             eventPublisher.publishEvent(new ChallengeCompleted(
                     plan.getId(),

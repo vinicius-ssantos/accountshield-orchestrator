@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengeIssued;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
@@ -34,15 +35,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 
 @SpringBootTest
 @Import(PostgreSqlTestConfiguration.class)
+@RecordApplicationEvents
 class RecoveryConcurrencyTest {
 
     private static final int CONTENDER_COUNT = 8;
 
     @Autowired private RecoveryService recoveryService;
     @Autowired private ChallengeService challengeService;
+    @Autowired private ApplicationEvents events;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @Test
@@ -73,13 +78,14 @@ class RecoveryConcurrencyTest {
         UUID authorizationId = createAuthorization(75, "CREDENTIAL_CHANGE", Instant.now().plusSeconds(600));
         RecoveryFlow initiated = recoveryService.initiate(new InitiateRecoveryCommand(authorizationId));
 
-        String expectedCode = jdbcTemplate.queryForObject(
-                "SELECT expected_code FROM challenge.challenge_plan WHERE id = ?",
-                String.class,
-                initiated.identityChallengeId());
+        String issuedCode = events.stream(ChallengeIssued.class)
+                .filter(event -> event.challengeId().equals(initiated.identityChallengeId()))
+                .findFirst()
+                .orElseThrow()
+                .issuedCode();
         challengeService.verify(new ChallengeVerificationCommand(
                 initiated.identityChallengeId(),
-                expectedCode,
+                issuedCode,
                 ChallengePurpose.RECOVERY_IDENTITY,
                 initiated.recoveryId()));
         RecoveryFlow readyForReview = recoveryService.confirmIdentity(
