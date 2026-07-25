@@ -20,7 +20,7 @@ test("design-system showcase keeps masked values out of rendered output", async 
   expect(response.ok()).toBe(true);
 
   const html = await response.text();
-  expect(html).toContain("acct_72••••7291");
+  expect(html).toContain("acct_72••••4291");
   expect(html).not.toContain(RAW_SHOWCASE_IDENTIFIER);
 });
 
