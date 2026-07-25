@@ -19,6 +19,10 @@ try {
   await access(publicSource);
   await rm(publicTarget, { force: true, recursive: true });
   await cp(publicSource, publicTarget, { recursive: true });
-} catch {
+} catch (error) {
+  if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+    throw error;
+  }
+
   // The console currently has no public assets. Keep the runtime minimal.
 }
