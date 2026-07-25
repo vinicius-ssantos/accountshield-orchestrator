@@ -29,12 +29,14 @@ class DatabaseIdempotencyGuard implements IdempotencyGuard {
     }
 
     @Override
-    public IdempotencyResult resolve(String idempotencyKey, String fingerprint, Instant now) {
+    public IdempotencyResult resolve(String clientId, String idempotencyKey, String fingerprint, Instant now) {
+        Objects.requireNonNull(clientId, "clientId must not be null");
         Objects.requireNonNull(idempotencyKey, "idempotencyKey must not be null");
         Objects.requireNonNull(fingerprint, "fingerprint must not be null");
         Objects.requireNonNull(now, "now must not be null");
 
-        Optional<IdempotencyRecordEntity> existing = repository.findByIdempotencyKey(idempotencyKey);
+        Optional<IdempotencyRecordEntity> existing =
+                repository.findByClientIdAndIdempotencyKey(clientId, idempotencyKey);
         if (existing.isEmpty()) {
             return IdempotencyResult.absent();
         }
@@ -58,6 +60,7 @@ class DatabaseIdempotencyGuard implements IdempotencyGuard {
 
     @Override
     public void record(
+            String clientId,
             String idempotencyKey,
             String fingerprint,
             String resourceType,
@@ -65,6 +68,7 @@ class DatabaseIdempotencyGuard implements IdempotencyGuard {
             String responsePayload,
             Instant createdAt,
             Instant expiresAt) {
+        Objects.requireNonNull(clientId, "clientId must not be null");
         Objects.requireNonNull(idempotencyKey, "idempotencyKey must not be null");
         Objects.requireNonNull(fingerprint, "fingerprint must not be null");
         Objects.requireNonNull(resourceType, "resourceType must not be null");
@@ -75,6 +79,7 @@ class DatabaseIdempotencyGuard implements IdempotencyGuard {
         try {
             repository.saveAndFlush(new IdempotencyRecordEntity(
                     UUID.randomUUID(),
+                    clientId,
                     idempotencyKey,
                     fingerprint,
                     resourceType,

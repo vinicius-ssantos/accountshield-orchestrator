@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRecordEntity, UUID> {
 
-    Optional<IdempotencyRecordEntity> findByIdempotencyKey(String idempotencyKey);
+    Optional<IdempotencyRecordEntity> findByClientIdAndIdempotencyKey(String clientId, String idempotencyKey);
 }

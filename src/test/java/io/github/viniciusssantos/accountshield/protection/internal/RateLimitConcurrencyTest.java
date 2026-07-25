@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.protection.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.viniciusssantos.accountshield.protection.ClientId;
 import io.github.viniciusssantos.accountshield.protection.ProtectionRateLimiter;
 import io.github.viniciusssantos.accountshield.protection.RateLimitExceededException;
 import java.time.Duration;
@@ -33,7 +34,7 @@ class RateLimitConcurrencyTest {
                 pool.submit(() -> {
                     try {
                         startGate.await();
-                        limiter.checkLimit("concurrent-acct", NOW);
+                        limiter.checkLimit(ClientId.DEFAULT, "concurrent-acct", NOW);
                         allowed.incrementAndGet();
                     } catch (RateLimitExceededException e) {
                         rejected.incrementAndGet();
@@ -67,7 +68,7 @@ class RateLimitConcurrencyTest {
                 pool.submit(() -> {
                     try {
                         startGate.await();
-                        limiter.checkLimit(account, NOW);
+                        limiter.checkLimit(ClientId.DEFAULT, account, NOW);
                         allowed.incrementAndGet();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();

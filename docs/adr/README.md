@@ -22,6 +22,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0014](0014-explicit-degradation-strategies-for-dependency-failures.md) | Accepted | Classify dependency failures with explicit degradation strategies; degrade challenge-provider failure to a recorded, safe `TEMPORARILY_BLOCK` | Issue #44 |
 | [0015](0015-policy-threshold-analyzer.md) | Accepted | Add a deterministic policy-threshold analyzer as a real `validate()` gate, with versioned, auditable results | Issue #46 |
 | [0016](0016-maker-checker-policy-approval.md) | Accepted | Add a maker-checker `APPROVED` stage with self-approval prevention before policy activation | Issue #33 |
+| [0017](0017-client-context-and-policy-routing.md) | Accepted | Scope idempotency and rate limiting per client and add a `PolicyRoutingService` for client/event-aware policy selection | Issue #26 |
 
 ## ADR lifecycle
 

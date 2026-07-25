@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.protection.internal;
 
+import io.github.viniciusssantos.accountshield.protection.ClientId;
 import io.github.viniciusssantos.accountshield.protection.ProtectionRateLimiter;
 import io.github.viniciusssantos.accountshield.protection.RateLimitExceededException;
 import java.time.Duration;
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class InMemorySlidingWindowRateLimiter implements ProtectionRateLimiter {
 
-    private final ConcurrentHashMap<String, ConcurrentLinkedDeque<Instant>> windows = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<WindowKey, ConcurrentLinkedDeque<Instant>> windows = new ConcurrentHashMap<>();
     private final int maxRequests;
     private final Duration window;
 
@@ -32,9 +33,9 @@ public class InMemorySlidingWindowRateLimiter implements ProtectionRateLimiter {
     }
 
     @Override
-    public void checkLimit(String accountReference, Instant now) {
-        ConcurrentLinkedDeque<Instant> deque =
-                windows.computeIfAbsent(accountReference, k -> new ConcurrentLinkedDeque<>());
+    public void checkLimit(ClientId clientId, String accountReference, Instant now) {
+        WindowKey key = new WindowKey(clientId, accountReference);
+        ConcurrentLinkedDeque<Instant> deque = windows.computeIfAbsent(key, k -> new ConcurrentLinkedDeque<>());
         Instant cutoff = now.minus(window);
 
         synchronized (deque) {
@@ -42,10 +43,14 @@ public class InMemorySlidingWindowRateLimiter implements ProtectionRateLimiter {
             if (deque.size() >= maxRequests) {
                 Instant oldest = deque.peekFirst();
                 throw new RateLimitExceededException(
+                        clientId,
                         accountReference,
                         oldest != null ? oldest.plus(window) : now.plus(window));
             }
             deque.addLast(now);
         }
+    }
+
+    private record WindowKey(ClientId clientId, String accountReference) {
     }
 }

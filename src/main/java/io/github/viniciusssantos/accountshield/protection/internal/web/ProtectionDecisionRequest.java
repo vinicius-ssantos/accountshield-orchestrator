@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.protection.internal.web;
 
+import io.github.viniciusssantos.accountshield.protection.ClientId;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
@@ -24,7 +25,8 @@ public record ProtectionDecisionRequest(
         @Size(max = 100) String signalProvider,
         Instant signalObservedAt,
         SignalConfidence signalConfidence,
-        @Size(max = 128) String idempotencyKey) {
+        @Size(max = 128) String idempotencyKey,
+        @Size(max = 100) String clientId) {
 
     private static final String DEFAULT_PROVIDER = "CLIENT_SUPPLIED";
 
@@ -54,6 +56,7 @@ public record ProtectionDecisionRequest(
                         signalConfidence,
                         null,
                         true),
-                idempotencyKey);
+                idempotencyKey,
+                clientId == null || clientId.isBlank() ? ClientId.DEFAULT : new ClientId(clientId));
     }
 }

@@ -32,7 +32,7 @@ AccountShield does not receive or persist passwords. Account identifiers are opa
 
 ### `protection`
 
-Owns the inbound protection use case and the final decision contract. It may orchestrate risk and policy evaluation, but it must not calculate individual signal scores or mutate audit history directly.
+Owns the inbound protection use case and the final decision contract. It may orchestrate risk and policy evaluation, but it must not calculate individual signal scores or mutate audit history directly. Every request carries an opaque `ClientId` (defaulting to a single-tenant `default-client` when omitted, ADR 0017) that scopes idempotency keys and rate limits per client and is passed to `policy.PolicyRoutingService` to resolve which policy key a given client/event combination should be evaluated against.
 
 ### `risk`
 
@@ -40,7 +40,7 @@ Owns normalized signals, risk contributions, score calculation, and risk-level c
 
 ### `policy`
 
-Owns versioned rules that convert a risk assessment and account context into a protection decision. Policies must be immutable after activation; corrections create a new version. The `DRAFT → VALIDATED` transition runs a deterministic static analyzer (`PolicyAnalyzer`, ADR 0015) over the candidate's thresholds; a version with a missing, out-of-range, or shadowed threshold is rejected there rather than failing unpredictably at evaluation time, and the analysis is persisted alongside the version once it passes. A further `VALIDATED → APPROVED` gate (ADR 0016) requires a step-up-authenticated actor other than the version's author to approve it with a recorded reason before `activate()` will accept it; self-approval is rejected structurally, not just by convention.
+Owns versioned rules that convert a risk assessment and account context into a protection decision. Policies must be immutable after activation; corrections create a new version. The `DRAFT → VALIDATED` transition runs a deterministic static analyzer (`PolicyAnalyzer`, ADR 0015) over the candidate's thresholds; a version with a missing, out-of-range, or shadowed threshold is rejected there rather than failing unpredictably at evaluation time, and the analysis is persisted alongside the version once it passes. A further `VALIDATED → APPROVED` gate (ADR 0016) requires a step-up-authenticated actor other than the version's author to approve it with a recorded reason before `activate()` will accept it; self-approval is rejected structurally, not just by convention. `PolicyRoutingService` (ADR 0017) resolves which `policy_key` a client/event-type combination should be evaluated against via a seeded `client_policy_route` table; because `uq_single_active_policy` is already scoped per `policy_key`, giving different clients different policy keys isolates their activation lifecycles without any change to the entity or its migrations.
 
 ### `audit`
 
@@ -173,6 +173,7 @@ Logs must not contain forbidden data. Sensitive values require explicit structur
 | `protection.protection_request` | Sensitive (account reference) | No automated purge yet | Source-of-truth decision input; deletion policy tracked with future protection-module retention work |
 | `protection.idempotency_record` | Internal (request fingerprints) | Bounded by `expires_at`, cleanup not yet automated | Tracked separately under issue #22 |
 | `policy.policy_version` | Internal (no account data) | Retained indefinitely | Immutable policy history is intentionally kept for audit and rollback |
+| `policy.client_policy_route` | Internal (client id + policy key, no account data) | Retained indefinitely | Simple client/event-to-policy-key mapping, not a governed lifecycle artifact |
 | `audit.decision_trace` / `audit.decision_reason` | Sensitive (decision evidence) | Retained indefinitely | Append-only compliance evidence; no automated deletion by design |
 | `challenge.challenge_plan` | Sensitive (account reference); code is hashed, never stored raw | Terminal rows (VERIFIED/CONSUMED/FAILED/EXPIRED) purged after `accountshield.challenge.retention.terminal-ttl` (default 1 day) past expiry | `ChallengePlanRetentionCleanup` (`challenge/internal`), mirrors the recovery-flow job below |
 | `recovery.recovery_flow` | Sensitive (account reference, risk data) | Terminal rows purged after `accountshield.recovery.retention.terminal-ttl` (default 30 days) | `RecoveryFlowRetentionCleanup` (`recovery/internal`), added in issue #18 |

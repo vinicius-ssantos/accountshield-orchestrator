@@ -13,5 +13,6 @@ public record ProtectionDecisionMade(
         String policyVersion,
         Instant decidedAt,
         boolean degraded,
-        String degradationReason) {
+        String degradationReason,
+        String clientId) {
 }

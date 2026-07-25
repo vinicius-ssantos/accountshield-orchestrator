@@ -45,7 +45,7 @@ class SecurityEventLoggerTest {
         logger.onProtectionDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-sensitive@example.com",
                 "REQUIRE_STEP_UP", 78, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z"), false, null));
+                Instant.parse("2026-07-22T12:00:00Z"), false, null, "default-client"));
 
         String formatted = appender.list.getFirst().getFormattedMessage();
 
@@ -60,7 +60,7 @@ class SecurityEventLoggerTest {
         logger.onProtectionDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-degraded",
                 "TEMPORARILY_BLOCK", 0, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z"), true, "CHALLENGE_PROVIDER_UNAVAILABLE"));
+                Instant.parse("2026-07-22T12:00:00Z"), true, "CHALLENGE_PROVIDER_UNAVAILABLE", "default-client"));
 
         String formatted = appender.list.getFirst().getFormattedMessage();
 
@@ -75,7 +75,7 @@ class SecurityEventLoggerTest {
         logger.onProtectionDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), sensitiveAccount,
                 "ALLOW", 0, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z"), false, null));
+                Instant.parse("2026-07-22T12:00:00Z"), false, null, "default-client"));
 
         String formatted = appender.list.getFirst().getFormattedMessage();
 
@@ -129,7 +129,7 @@ class SecurityEventLoggerTest {
     void allEventsAtInfoLevel() {
         logger.onProtectionDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct",
-                "ALLOW", 0, "policy", "1.0", Instant.now(), false, null));
+                "ALLOW", 0, "policy", "1.0", Instant.now(), false, null, "default-client"));
 
         List<ILoggingEvent> events = appender.list;
         assertThat(events).hasSize(1);
