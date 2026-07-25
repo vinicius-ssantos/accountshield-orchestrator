@@ -51,6 +51,11 @@ accountshield:
     rate-limit:
       max-requests: 10
       window: 60s
+    idempotency:
+      ttl: 24h
+      retention:
+        batch-size: 500
+        fixed-delay: 1h
   outbox:
     relay:
       fixed-delay: 5s

@@ -23,7 +23,7 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | Deterministic risk scoring | **Implemented** | Normalized signals produce bounded score, band, ordered reason codes, and contributions | Risk module tests; provenance hardening: [#45](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/45) |
 | Versioned policy evaluation | **Implemented** | Active immutable policy versions route standard and recovery-request events | ADR 0007; ADR 0015 |
 | Explicit protection outcomes | **Implemented** | `ALLOW`, `REQUIRE_STEP_UP`, `START_RECOVERY`, and `TEMPORARILY_BLOCK` are distinct decisions | ADR 0010 |
-| Decision idempotency | **Partial** | Repeated sequential equivalent requests return the same logical decision, scoped per client (ADR 0017); fingerprint conflicts are detected | Concurrent winner re-read and abstraction cleanup: [#22](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/22) |
+| Decision idempotency | **Implemented** | Concurrent and sequential equivalent requests return the identical decision, scoped per client (ADR 0017); the claim happens before any side effect (ADR 0018), so losing racers are never left with a partial protection request; fingerprint conflicts are detected without leaking raw database exceptions | ADR 0018 |
 | In-memory rate limiting | **Implemented** | Bounded sliding-window limits are scoped per client and account reference in the current single-instance demo | ADR 0008; ADR 0017 |
 | Fail-safe dependency degradation | **Implemented** | Active policy, risk-signal staleness, and challenge-provider failures each have an explicit, classified strategy; challenge-provider failure degrades to a recorded, safe `TEMPORARILY_BLOCK` | ADR 0014 |
 

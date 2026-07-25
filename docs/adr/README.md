@@ -23,6 +23,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0015](0015-policy-threshold-analyzer.md) | Accepted | Add a deterministic policy-threshold analyzer as a real `validate()` gate, with versioned, auditable results | Issue #46 |
 | [0016](0016-maker-checker-policy-approval.md) | Accepted | Add a maker-checker `APPROVED` stage with self-approval prevention before policy activation | Issue #33 |
 | [0017](0017-client-context-and-policy-routing.md) | Accepted | Scope idempotency and rate limiting per client and add a `PolicyRoutingService` for client/event-aware policy selection | Issue #26 |
+| [0018](0018-idempotency-claim-before-work.md) | Accepted | Claim idempotency before any side effect (insert-first, `ON CONFLICT DO NOTHING`) instead of recording after work; remove implementation leakage | Issue #22 |
 
 ## ADR lifecycle
 

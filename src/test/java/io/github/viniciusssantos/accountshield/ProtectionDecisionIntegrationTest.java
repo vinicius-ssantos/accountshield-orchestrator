@@ -151,12 +151,12 @@ class ProtectionDecisionIntegrationTest {
         };
         IdempotencyGuard noOpGuard = new IdempotencyGuard() {
             @Override
-            public IdempotencyResult resolve(String clientId, String key, String fingerprint, Instant now) {
+            public IdempotencyResult claim(
+                    String clientId, String key, String fingerprint, UUID resourceId, Instant now) {
                 return IdempotencyResult.absent();
             }
             @Override
-            public void record(String clientId, String key, String fingerprint, String resourceType,
-                    UUID resourceId, String responsePayload, Instant createdAt, Instant expiresAt) {
+            public void finalizeResult(String clientId, String key, String responsePayload) {
             }
         };
         var failingService = new ProtectionDecisionApplicationService(

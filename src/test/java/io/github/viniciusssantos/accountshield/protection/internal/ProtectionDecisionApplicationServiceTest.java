@@ -90,7 +90,7 @@ class ProtectionDecisionApplicationServiceTest {
                         "account-protection-default",
                         "1.0.0",
                         ProtectionOutcome.REQUIRE_STEP_UP));
-        when(idempotencyGuard.resolve(anyString(), anyString(), anyString(), any()))
+        when(idempotencyGuard.claim(anyString(), anyString(), anyString(), any(), any()))
                 .thenReturn(IdempotencyResult.absent());
         when(challengeService.create(any(CreateChallengeCommand.class)))
                 .thenAnswer(invocation -> {
@@ -125,6 +125,7 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(result.challenge().purpose()).isEqualTo(ChallengePurpose.PROTECTION_STEP_UP);
         assertThat(result.challenge().contextId()).isEqualTo(result.protectionRequestId());
         verify(protectionRequestRepository).save(any());
+        verify(idempotencyGuard).finalizeResult(anyString(), anyString(), anyString());
 
         ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);
         verify(decisionTraceRecorder).record(traceCaptor.capture());
@@ -181,7 +182,7 @@ class ProtectionDecisionApplicationServiceTest {
         when(policyEvaluationService.evaluate("account-protection-default", 0))
                 .thenThrow(new io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException(
                         "account-protection-default"));
-        when(idempotencyGuard.resolve(anyString(), anyString(), anyString(), any()))
+        when(idempotencyGuard.claim(anyString(), anyString(), anyString(), any(), any()))
                 .thenReturn(IdempotencyResult.absent());
 
         org.junit.jupiter.api.Assertions.assertThrows(
@@ -212,7 +213,7 @@ class ProtectionDecisionApplicationServiceTest {
         when(policyEvaluationService.evaluate("account-protection-default", 30))
                 .thenReturn(new PolicyEvaluation(
                         "account-protection-default", "1.0.0", ProtectionOutcome.REQUIRE_STEP_UP));
-        when(idempotencyGuard.resolve(anyString(), anyString(), anyString(), any()))
+        when(idempotencyGuard.claim(anyString(), anyString(), anyString(), any(), any()))
                 .thenReturn(IdempotencyResult.absent());
         when(challengeService.create(any(CreateChallengeCommand.class)))
                 .thenThrow(new IllegalStateException("simulated challenge provider outage"));
@@ -255,7 +256,7 @@ class ProtectionDecisionApplicationServiceTest {
         when(riskAssessmentService.assess(envelope)).thenReturn(assessment);
         when(policyEvaluationService.evaluate("acme-login-policy", 0))
                 .thenReturn(new PolicyEvaluation("acme-login-policy", "1.0.0", ProtectionOutcome.ALLOW));
-        when(idempotencyGuard.resolve(anyString(), anyString(), anyString(), any()))
+        when(idempotencyGuard.claim(anyString(), anyString(), anyString(), any(), any()))
                 .thenReturn(IdempotencyResult.absent());
 
         PolicyRoutingService acmeAwareRouting = (clientId, eventType) -> {
