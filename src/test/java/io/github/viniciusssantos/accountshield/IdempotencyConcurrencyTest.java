@@ -2,7 +2,6 @@ package io.github.viniciusssantos.accountshield;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
@@ -37,7 +36,7 @@ class IdempotencyConcurrencyTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void concurrentRequestsWithSameKeyProduceSingleDecision() throws Exception {
+    void eightConcurrentEquivalentRequestsAllReceiveTheSameResult() throws Exception {
         String idempotencyKey = "idem-concurrent-" + UUID.randomUUID();
         String accountRef = "account-concurrent-" + UUID.randomUUID();
         RiskSignalEnvelope signals = new RiskSignalEnvelope(
@@ -87,24 +86,41 @@ class IdempotencyConcurrencyTest {
             }
         }
 
-        long rowCount = jdbcTemplate.queryForObject(
+        assertThat(failures)
+                .as("no racer should see a raw database error or a spurious conflict")
+                .isEmpty();
+        assertThat(successes)
+                .as("eight or more equivalent concurrent requests all receive the same result")
+                .hasSize(threadCount);
+        assertThat(successes.stream().map(ProtectionDecisionResult::decisionId).distinct().count())
+                .as("every racer receives the same decisionId, not just an equal-looking copy")
+                .isEqualTo(1);
+        assertThat(successes.stream().map(ProtectionDecisionResult::protectionRequestId).distinct().count())
+                .isEqualTo(1);
+
+        UUID decisionId = successes.getFirst().decisionId();
+        UUID protectionRequestId = successes.getFirst().protectionRequestId();
+
+        long idempotencyRows = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM protection.idempotency_record WHERE idempotency_key = ?",
                 Long.class, idempotencyKey);
-        assertThat(rowCount).as("only one idempotency record should exist").isEqualTo(1);
+        assertThat(idempotencyRows).as("only one idempotency record should exist").isEqualTo(1);
 
-        long requestCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM protection.protection_request WHERE request_fingerprint = ("
-                        + "SELECT request_fingerprint FROM protection.idempotency_record WHERE idempotency_key = ?)",
-                Long.class, idempotencyKey);
-        assertThat(requestCount).as("only one protection request should exist").isEqualTo(1);
+        long requestRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM protection.protection_request WHERE id = ?",
+                Long.class, protectionRequestId);
+        assertThat(requestRows).as("only one protection request should exist").isEqualTo(1);
 
-        assertThat(successes)
-                .as("exactly one racer should receive a real decision")
-                .hasSize(1);
-        assertThat(failures)
-                .as("every racer that lost the race should get a stable conflict, never a raw database error")
-                .hasSize(threadCount - 1)
-                .allSatisfy(failure -> assertThat(failure).isInstanceOf(ConflictingIdempotencyRequestException.class));
+        long traceRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit.decision_trace WHERE id = ?",
+                Long.class, decisionId);
+        assertThat(traceRows).as("only one decision trace should exist").isEqualTo(1);
+
+        long outboxRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM outbox.outbox_event WHERE aggregate_type = 'ProtectionDecision' "
+                        + "AND aggregate_id = ?",
+                Long.class, decisionId.toString());
+        assertThat(outboxRows).as("only one outbox record should exist").isEqualTo(1);
 
         jdbcTemplate.update("DELETE FROM protection.idempotency_record WHERE idempotency_key = ?", idempotencyKey);
         jdbcTemplate.update("DELETE FROM protection.protection_request WHERE account_reference = ?", accountRef);

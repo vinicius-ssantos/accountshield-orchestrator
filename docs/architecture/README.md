@@ -171,7 +171,7 @@ Logs must not contain forbidden data. Sensitive values require explicit structur
 | Schema.table | Classification | Retention | Mechanism |
 | --- | --- | --- | --- |
 | `protection.protection_request` | Sensitive (account reference) | No automated purge yet | Source-of-truth decision input; deletion policy tracked with future protection-module retention work |
-| `protection.idempotency_record` | Internal (request fingerprints) | Bounded by `expires_at`, cleanup not yet automated | Tracked separately under issue #22 |
+| `protection.idempotency_record` | Internal (request fingerprints) | Bounded by `expires_at`; expired rows purged in bounded batches | `IdempotencyRecordRetentionCleanup` (`protection/internal`), ADR 0018 |
 | `policy.policy_version` | Internal (no account data) | Retained indefinitely | Immutable policy history is intentionally kept for audit and rollback |
 | `policy.client_policy_route` | Internal (client id + policy key, no account data) | Retained indefinitely | Simple client/event-to-policy-key mapping, not a governed lifecycle artifact |
 | `audit.decision_trace` / `audit.decision_reason` | Sensitive (decision evidence) | Retained indefinitely | Append-only compliance evidence; no automated deletion by design |

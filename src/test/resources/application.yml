@@ -21,3 +21,7 @@ accountshield:
   recovery:
     retention:
       fixed-delay: 9999s
+  protection:
+    idempotency:
+      retention:
+        fixed-delay: 9999s

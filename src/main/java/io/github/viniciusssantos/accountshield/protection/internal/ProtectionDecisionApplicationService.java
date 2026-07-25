@@ -14,7 +14,6 @@ import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
-import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
 import io.github.viniciusssantos.accountshield.protection.DegradationReason;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
@@ -118,13 +117,13 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         String requestFingerprint = fingerprint(command);
         String idempotencyKey = resolveIdempotencyKey(command, requestFingerprint);
 
-        IdempotencyResult existing = idempotencyGuard.resolve(
-                command.clientId().value(), idempotencyKey, requestFingerprint, now);
-        if (existing.duplicate()) {
-            return restoreDecision(existing);
+        UUID protectionRequestId = UUID.randomUUID();
+        IdempotencyResult claim = idempotencyGuard.claim(
+                command.clientId().value(), idempotencyKey, requestFingerprint, protectionRequestId, now);
+        if (claim.duplicate()) {
+            return restoreDecision(claim);
         }
 
-        UUID protectionRequestId = UUID.randomUUID();
         UUID decisionId = UUID.randomUUID();
 
         RiskAssessment assessment = riskAssessmentService.assess(command.signalEnvelope());
@@ -216,15 +215,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 degraded,
                 degradationReason);
 
-        idempotencyGuard.record(
-                command.clientId().value(),
-                idempotencyKey,
-                requestFingerprint,
-                idempotencyGuard instanceof DatabaseIdempotencyGuard dbg ? dbg.resourceType() : "protection_decision",
-                protectionRequestId,
-                serializeResult(result),
-                now,
-                now.plus(java.time.Duration.ofHours(24)));
+        idempotencyGuard.finalizeResult(command.clientId().value(), idempotencyKey, serializeResult(result));
 
         eventPublisher.publishEvent(new ProtectionDecisionMade(
                 decisionId,
