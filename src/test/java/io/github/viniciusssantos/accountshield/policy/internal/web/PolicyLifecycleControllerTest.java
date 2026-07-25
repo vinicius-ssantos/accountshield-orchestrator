@@ -12,6 +12,10 @@ import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisFailedException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisResult;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalyzer;
+import io.github.viniciusssantos.accountshield.policy.PolicyDefinition;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
@@ -20,6 +24,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,14 +36,51 @@ class PolicyLifecycleControllerTest {
     private static final UUID STEP_UP_CHALLENGE_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     private final PolicyLifecycleService lifecycleService = mock(PolicyLifecycleService.class);
+    private final PolicyAnalyzer policyAnalyzer = new PolicyAnalyzer();
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new PolicyLifecycleController(lifecycleService))
+                .standaloneSetup(new PolicyLifecycleController(lifecycleService, policyAnalyzer))
                 .setControllerAdvice(new PolicyLifecycleProblemHandler())
                 .build();
+    }
+
+    @Test
+    void analyzeReturnsCleanResultForWellFormedDefinition() throws Exception {
+        mockMvc.perform(post("/api/v1/policies/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "allowMaxScore": 29, "stepUpMaxScore": 69, "recoveryMaxScore": 89 }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnostics").isEmpty());
+    }
+
+    @Test
+    void analyzeReturnsDiagnosticsForShadowedBandWithoutPersisting() throws Exception {
+        mockMvc.perform(post("/api/v1/policies/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "allowMaxScore": 70, "stepUpMaxScore": 70, "recoveryMaxScore": 89 }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnostics[0].code").value("STEP_UP_BAND_SHADOWED"))
+                .andExpect(jsonPath("$.diagnostics[0].severity").value("ERROR"));
+
+        Mockito.verifyNoInteractions(lifecycleService);
+    }
+
+    @Test
+    void analyzeReportsMissingThresholds() throws Exception {
+        mockMvc.perform(post("/api/v1/policies/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnostics[0].code").value("ALLOW_MAX_SCORE_MISSING"))
+                .andExpect(jsonPath("$.diagnostics[1].code").value("STEP_UP_MAX_SCORE_MISSING"))
+                .andExpect(jsonPath("$.diagnostics[2].code").value("RECOVERY_MAX_SCORE_MISSING"));
     }
 
     @Test
@@ -143,6 +185,20 @@ class PolicyLifecycleControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void validateReturns422WhenAnalysisFails() throws Exception {
+        PolicyAnalysisResult result = policyAnalyzer.analyze(
+                new PolicyDefinition((short) 70, (short) 70, (short) 89));
+        when(lifecycleService.validate("test-policy", "1.0.0"))
+                .thenThrow(new PolicyAnalysisFailedException("test-policy", "1.0.0", result));
+
+        mockMvc.perform(post("/api/v1/policies/test-policy/1.0.0/validate")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("POLICY_ANALYSIS_FAILED"))
+                .andExpect(jsonPath("$.diagnostics[0].code").value("STEP_UP_BAND_SHADOWED"));
     }
 
     @Test

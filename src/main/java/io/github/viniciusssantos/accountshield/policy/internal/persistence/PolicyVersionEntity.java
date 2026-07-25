@@ -30,6 +30,10 @@ public class PolicyVersionEntity {
     @Column(name = "definition", nullable = false, columnDefinition = "jsonb")
     private String definition;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "analysis", columnDefinition = "jsonb")
+    private String analysis;
+
     @Column(name = "allow_max_score")
     private Short allowMaxScore;
 
@@ -148,6 +152,14 @@ public class PolicyVersionEntity {
 
     public Short getRecoveryMaxScore() {
         return recoveryMaxScore;
+    }
+
+    public String getAnalysis() {
+        return analysis;
+    }
+
+    public void setAnalysis(String analysis) {
+        this.analysis = analysis;
     }
 
     public Instant getCreatedAt() {

@@ -20,6 +20,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0012](0012-pseudonymous-subject-tokens-for-integration-events.md) | Accepted | Pseudonymize account identifiers at the outbox integration boundary and add challenge-plan retention | Issue #32 |
 | [0013](0013-risk-signal-provenance-envelope.md) | Accepted | Wrap risk signals in a provenance envelope with staleness rejection and confidence-based scoring | Issue #45 |
 | [0014](0014-explicit-degradation-strategies-for-dependency-failures.md) | Accepted | Classify dependency failures with explicit degradation strategies; degrade challenge-provider failure to a recorded, safe `TEMPORARILY_BLOCK` | Issue #44 |
+| [0015](0015-policy-threshold-analyzer.md) | Accepted | Add a deterministic policy-threshold analyzer as a real `validate()` gate, with versioned, auditable results | Issue #46 |
 
 ## ADR lifecycle
 

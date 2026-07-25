@@ -21,11 +21,11 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | --- | --- | --- | --- |
 | Protection decision orchestration | **Implemented** | Accepts an opaque account reference, explicit event type, risk signals, and idempotency key; returns one versioned outcome | [Protection architecture](../architecture/protection-decisions.md) |
 | Deterministic risk scoring | **Implemented** | Normalized signals produce bounded score, band, ordered reason codes, and contributions | Risk module tests; provenance hardening: [#45](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/45) |
-| Versioned policy evaluation | **Implemented** | Active immutable policy versions route standard and recovery-request events | ADR 0007; analyzer planned in [#46](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/46) |
+| Versioned policy evaluation | **Implemented** | Active immutable policy versions route standard and recovery-request events | ADR 0007; ADR 0015 |
 | Explicit protection outcomes | **Implemented** | `ALLOW`, `REQUIRE_STEP_UP`, `START_RECOVERY`, and `TEMPORARILY_BLOCK` are distinct decisions | ADR 0010 |
 | Decision idempotency | **Partial** | Repeated sequential equivalent requests return the same logical decision; fingerprint conflicts are detected | Concurrent winner re-read and abstraction cleanup: [#22](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/22) |
 | In-memory rate limiting | **Implemented** | Bounded sliding-window limits protect the decision endpoint in the current single-instance demo | ADR 0008; client-aware routing planned in [#26](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/26) |
-| Fail-safe dependency degradation | **Planned** | No complete first-class degradation strategy model exists yet | [#44](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/44) |
+| Fail-safe dependency degradation | **Implemented** | Active policy, risk-signal staleness, and challenge-provider failures each have an explicit, classified strategy; challenge-provider failure degrades to a recorded, safe `TEMPORARILY_BLOCK` | ADR 0014 |
 
 ## Policy lifecycle and governance
 
@@ -33,7 +33,7 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | --- | --- | --- | --- |
 | Draft, activation, retirement, immutable versions | **Implemented** | Policy lifecycle is persisted and only one active version is permitted by the current model | ADR 0007 |
 | Recovery-specific policy threshold | **Implemented** | Versioned `recoveryMaxScore` produces `START_RECOVERY` for recovery-request events | ADR 0010 |
-| Static policy analysis | **Planned** | Semantic diagnostics such as shadowed and contradictory rules are not implemented | [#46](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/46) |
+| Static policy analysis | **Partial** | Deterministic diagnostics over the numeric-threshold model (missing/out-of-range/shadowed thresholds) gate the `validate()` transition; rule/condition/signal-reference diagnostics require a future policy DSL | ADR 0015 |
 | Maker-checker approval | **Planned** | Actor separation and self-approval prevention are not implemented | [#33](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/33) |
 | Canary rollout and rollback | **Planned** | Deterministic cohorts and progressive rollout are not implemented | [#34](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/34) |
 | Historical policy impact reports | **Partial** | Shadow evaluation exists for individual traces; aggregate transition reports and approval gates do not | [#35](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/35) |

@@ -6,8 +6,10 @@ import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateEx
 import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisFailedException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import java.net.URI;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +29,8 @@ class PolicyLifecycleProblemHandler {
             URI.create("urn:accountshield:problem:invalid-challenge-state");
     private static final URI STEP_UP_REJECTED_TYPE =
             URI.create("urn:accountshield:problem:challenge-use-rejected");
+    private static final URI ANALYSIS_FAILED_TYPE =
+            URI.create("urn:accountshield:problem:policy-analysis-failed");
 
     @ExceptionHandler(IllegalPolicyTransitionException.class)
     public ResponseEntity<ProblemDetail> illegalTransition(IllegalPolicyTransitionException ex) {
@@ -71,6 +75,20 @@ class PolicyLifecycleProblemHandler {
         problem.setTitle("Policy version not found");
         problem.setProperty("code", "POLICY_VERSION_NOT_FOUND");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(PolicyAnalysisFailedException.class)
+    public ResponseEntity<ProblemDetail> analysisFailed(PolicyAnalysisFailedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Policy " + ex.policyKey() + ":" + ex.version()
+                        + " failed semantic analysis and cannot be validated.");
+        problem.setType(ANALYSIS_FAILED_TYPE);
+        problem.setTitle("Policy analysis failed");
+        problem.setProperty("code", "POLICY_ANALYSIS_FAILED");
+        problem.setProperty("analyzerVersion", ex.result().analyzerVersion());
+        problem.setProperty("diagnostics", List.copyOf(ex.result().diagnostics()));
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(problem);
     }
 
     @ExceptionHandler(InvalidChallengeStateException.class)

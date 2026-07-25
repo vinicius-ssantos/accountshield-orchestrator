@@ -9,10 +9,13 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeVerificationCommand;
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisFailedException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisResult;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
+import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +47,9 @@ class PolicyLifecycleIntegrationTest {
 
     @Autowired
     private ApplicationEvents events;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     @Transactional
@@ -150,6 +156,52 @@ class PolicyLifecycleIntegrationTest {
                 .isInstanceOf(IllegalPolicyTransitionException.class);
         assertThatThrownBy(() -> lifecycleService.reject(key, "1.0.0"))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
+    }
+
+    @Test
+    @Transactional
+    void validatePersistsAnalysisAlongsideTheStatusTransition() {
+        String key = "analysis-policy-" + java.util.UUID.randomUUID();
+        String version = "1.0.0";
+        lifecycleService.createDraft(new CreatePolicyCommand(key, version, (short) 25, (short) 65));
+
+        PolicyVersionSummary validated = lifecycleService.validate(key, version);
+
+        assertThat(validated.status()).isEqualTo(PolicyStatus.VALIDATED);
+        assertThat(validated.analysis()).isNotNull();
+        assertThat(validated.analysis().hasErrors()).isFalse();
+        assertThat(validated.analysis().analyzerVersion())
+                .isEqualTo(PolicyAnalysisResult.CURRENT_ANALYZER_VERSION);
+
+        repository.flush();
+        String storedAnalysis = jdbcTemplate.queryForObject(
+                "SELECT analysis::text FROM policy.policy_version WHERE policy_key = ? AND version = ?",
+                String.class, key, version);
+        assertThat(storedAnalysis).contains(PolicyAnalysisResult.CURRENT_ANALYZER_VERSION);
+    }
+
+    @Test
+    @Transactional
+    void validateRejectsAndLeavesDraftWhenAPersistedThresholdIsMissing() {
+        String key = "broken-policy-" + java.util.UUID.randomUUID();
+        String version = "1.0.0";
+        lifecycleService.createDraft(new CreatePolicyCommand(key, version, (short) 25, (short) 65));
+        entityManager.flush();
+        entityManager.clear();
+        jdbcTemplate.update(
+                "UPDATE policy.policy_version SET recovery_max_score = NULL, "
+                        + "definition = definition - 'recoveryMaxScore' WHERE policy_key = ? AND version = ?",
+                key, version);
+        entityManager.clear();
+
+        assertThatThrownBy(() -> lifecycleService.validate(key, version))
+                .isInstanceOf(PolicyAnalysisFailedException.class);
+
+        repository.flush();
+        String dbStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM policy.policy_version WHERE policy_key = ? AND version = ?",
+                String.class, key, version);
+        assertThat(dbStatus).isEqualTo("DRAFT");
     }
 
     private PolicyVersionSummary createAndActivate(String key, String version, short allow, short stepUp) {

@@ -1,6 +1,9 @@
 package io.github.viniciusssantos.accountshield.policy.internal.web;
 
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisResult;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalyzer;
+import io.github.viniciusssantos.accountshield.policy.PolicyDefinition;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -24,9 +27,18 @@ import org.springframework.web.bind.annotation.RestController;
 class PolicyLifecycleController {
 
     private final PolicyLifecycleService lifecycleService;
+    private final PolicyAnalyzer policyAnalyzer;
 
-    PolicyLifecycleController(PolicyLifecycleService lifecycleService) {
+    PolicyLifecycleController(PolicyLifecycleService lifecycleService, PolicyAnalyzer policyAnalyzer) {
         this.lifecycleService = lifecycleService;
+        this.policyAnalyzer = policyAnalyzer;
+    }
+
+    @PostMapping("/analyze")
+    public ResponseEntity<PolicyAnalysisResult> analyze(@RequestBody AnalyzeRequest request) {
+        PolicyAnalysisResult result = policyAnalyzer.analyze(new PolicyDefinition(
+                request.allowMaxScore(), request.stepUpMaxScore(), request.recoveryMaxScore()));
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping
@@ -90,6 +102,15 @@ class PolicyLifecycleController {
             Authentication authentication) {
         return ResponseEntity.ok(lifecycleService.retire(
                 policyKey, version, request.stepUpChallengeId(), authentication.getName()));
+    }
+
+    record AnalyzeRequest(
+            @Schema(description = "Candidate threshold; omitted/null triggers a *_MISSING diagnostic")
+            Short allowMaxScore,
+            @Schema(description = "Candidate threshold; omitted/null triggers a *_MISSING diagnostic")
+            Short stepUpMaxScore,
+            @Schema(description = "Candidate threshold; omitted/null triggers a *_MISSING diagnostic")
+            Short recoveryMaxScore) {
     }
 
     record CreateDraftRequest(

@@ -19,6 +19,8 @@ import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisFailedException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalyzer;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
@@ -34,6 +36,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import tools.jackson.databind.ObjectMapper;
 
 class PolicyLifecycleApplicationServiceTest {
 
@@ -47,8 +50,9 @@ class PolicyLifecycleApplicationServiceTest {
     private final ChallengeService challengeService = mock(ChallengeService.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-    private final PolicyLifecycleApplicationService service =
-            new PolicyLifecycleApplicationService(repository, challengeService, clock, eventPublisher);
+    private final PolicyAnalyzer policyAnalyzer = new PolicyAnalyzer();
+    private final PolicyLifecycleApplicationService service = new PolicyLifecycleApplicationService(
+            repository, challengeService, clock, eventPublisher, policyAnalyzer, new ObjectMapper());
 
     private void stubSuccessfulStepUp() {
         when(challengeService.consume(any())).thenReturn(consumedChallengePlan());
@@ -94,6 +98,43 @@ class PolicyLifecycleApplicationServiceTest {
         PolicyVersionSummary result = service.validate(POLICY_KEY, VERSION);
 
         assertThat(result.status()).isEqualTo(PolicyStatus.VALIDATED);
+        assertThat(result.analysis()).isNotNull();
+        assertThat(result.analysis().hasErrors()).isFalse();
+        assertThat(entity.getAnalysis()).isNotNull();
+    }
+
+    @Test
+    void validateRejectsPolicyWithMissingThresholdAndLeavesStatusAsDraft() {
+        PolicyVersionEntity entity = new PolicyVersionEntity(
+                UUID.randomUUID(), POLICY_KEY, VERSION, "DRAFT",
+                "{\"allowMaxScore\":30,\"stepUpMaxScore\":70}",
+                (short) 30, (short) 70,
+                NOW, null);
+        when(repository.findByPolicyKeyAndVersion(POLICY_KEY, VERSION))
+                .thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> service.validate(POLICY_KEY, VERSION))
+                .isInstanceOf(PolicyAnalysisFailedException.class);
+
+        assertThat(entity.getStatus()).isEqualTo("DRAFT");
+        assertThat(entity.getAnalysis()).isNull();
+    }
+
+    @Test
+    void validateRejectsShadowedStepUpBand() {
+        PolicyVersionEntity entity = new PolicyVersionEntity(
+                UUID.randomUUID(), POLICY_KEY, VERSION, "DRAFT",
+                "{\"allowMaxScore\":70,\"stepUpMaxScore\":70,\"recoveryMaxScore\":89}",
+                (short) 70, (short) 70, (short) 89,
+                NOW, null);
+        when(repository.findByPolicyKeyAndVersion(POLICY_KEY, VERSION))
+                .thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> service.validate(POLICY_KEY, VERSION))
+                .isInstanceOf(PolicyAnalysisFailedException.class)
+                .satisfies(ex -> assertThat(((PolicyAnalysisFailedException) ex).result().diagnostics())
+                        .anyMatch(d -> d.code().equals("STEP_UP_BAND_SHADOWED")));
+        assertThat(entity.getStatus()).isEqualTo("DRAFT");
     }
 
     @Test
@@ -295,8 +336,8 @@ class PolicyLifecycleApplicationServiceTest {
     private PolicyVersionEntity draftPolicy() {
         return new PolicyVersionEntity(
                 UUID.randomUUID(), POLICY_KEY, VERSION, "DRAFT",
-                "{\"allowMaxScore\":30,\"stepUpMaxScore\":70}",
-                (short) 30, (short) 70,
+                "{\"allowMaxScore\":30,\"stepUpMaxScore\":70,\"recoveryMaxScore\":89}",
+                (short) 30, (short) 70, (short) 89,
                 NOW, null);
     }
 }
