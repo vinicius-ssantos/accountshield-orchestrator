@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import process from "node:process";
 
 const APP_ENVIRONMENTS = new Set([
@@ -104,7 +105,15 @@ if (rawApiUrl) {
   }
 }
 
-const child = spawn(process.execPath, [".next/standalone/server.js"], {
+const serverEntry = existsSync(".next/standalone/server.js")
+  ? ".next/standalone/server.js"
+  : "server.js";
+
+if (!existsSync(serverEntry)) {
+  fail(`Standalone server entry not found at ${serverEntry}. Run npm run build first.`);
+}
+
+const child = spawn(process.execPath, [serverEntry], {
   env: process.env,
   stdio: "inherit",
 });
