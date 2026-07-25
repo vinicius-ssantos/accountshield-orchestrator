@@ -34,7 +34,7 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | Draft, activation, retirement, immutable versions | **Implemented** | Policy lifecycle is persisted and only one active version is permitted by the current model | ADR 0007 |
 | Recovery-specific policy threshold | **Implemented** | Versioned `recoveryMaxScore` produces `START_RECOVERY` for recovery-request events | ADR 0010 |
 | Static policy analysis | **Partial** | Deterministic diagnostics over the numeric-threshold model (missing/out-of-range/shadowed thresholds) gate the `validate()` transition; rule/condition/signal-reference diagnostics require a future policy DSL | ADR 0015 |
-| Maker-checker approval | **Planned** | Actor separation and self-approval prevention are not implemented | [#33](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/33) |
+| Maker-checker approval | **Partial** | Author/validator/approver actor identity, self-approval prevention, and an `APPROVED` gate before activation are implemented; rollback-to-a-retired-version and two-person/critical-class approval are not | ADR 0016 |
 | Canary rollout and rollback | **Planned** | Deterministic cohorts and progressive rollout are not implemented | [#34](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/34) |
 | Historical policy impact reports | **Partial** | Shadow evaluation exists for individual traces; aggregate transition reports and approval gates do not | [#35](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/35) |
 | Client/event policy routing | **Planned** | Current baseline uses a default policy without tenant/client isolation | [#26](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/26) |

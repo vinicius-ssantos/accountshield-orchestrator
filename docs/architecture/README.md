@@ -40,7 +40,7 @@ Owns normalized signals, risk contributions, score calculation, and risk-level c
 
 ### `policy`
 
-Owns versioned rules that convert a risk assessment and account context into a protection decision. Policies must be immutable after activation; corrections create a new version. The `DRAFT → VALIDATED` transition runs a deterministic static analyzer (`PolicyAnalyzer`, ADR 0015) over the candidate's thresholds; a version with a missing, out-of-range, or shadowed threshold is rejected there rather than failing unpredictably at evaluation time, and the analysis is persisted alongside the version once it passes.
+Owns versioned rules that convert a risk assessment and account context into a protection decision. Policies must be immutable after activation; corrections create a new version. The `DRAFT → VALIDATED` transition runs a deterministic static analyzer (`PolicyAnalyzer`, ADR 0015) over the candidate's thresholds; a version with a missing, out-of-range, or shadowed threshold is rejected there rather than failing unpredictably at evaluation time, and the analysis is persisted alongside the version once it passes. A further `VALIDATED → APPROVED` gate (ADR 0016) requires a step-up-authenticated actor other than the version's author to approve it with a recorded reason before `activate()` will accept it; self-approval is rejected structurally, not just by convention.
 
 ### `audit`
 

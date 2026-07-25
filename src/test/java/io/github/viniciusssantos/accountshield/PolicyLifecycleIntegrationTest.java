@@ -14,6 +14,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisResult;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
+import io.github.viniciusssantos.accountshield.policy.SelfApprovalNotAllowedException;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
 import jakarta.persistence.EntityManager;
 import java.util.UUID;
@@ -32,6 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 class PolicyLifecycleIntegrationTest {
 
     private static final String ACTOR = "policy-admin-integration-test";
+    private static final String AUTHOR = "policy-author-integration-test";
+    private static final String APPROVER = "policy-approver-integration-test";
 
     @Autowired
     private PolicyLifecycleService lifecycleService;
@@ -53,16 +56,19 @@ class PolicyLifecycleIntegrationTest {
 
     @Test
     @Transactional
-    void createsDraftValidatesAndActivatesPolicy() {
+    void createsDraftValidatesApprovesAndActivatesPolicy() {
         String key = "test-policy-" + java.util.UUID.randomUUID();
         String version = "1.0.0";
 
         PolicyVersionSummary draft = lifecycleService.createDraft(
-                new CreatePolicyCommand(key, version, (short) 25, (short) 65));
+                new CreatePolicyCommand(key, version, (short) 25, (short) 65), AUTHOR);
         assertThat(draft.status()).isEqualTo(PolicyStatus.DRAFT);
 
-        PolicyVersionSummary validated = lifecycleService.validate(key, version);
+        PolicyVersionSummary validated = lifecycleService.validate(key, version, ACTOR);
         assertThat(validated.status()).isEqualTo(PolicyStatus.VALIDATED);
+
+        PolicyVersionSummary approved = approve(key, version);
+        assertThat(approved.status()).isEqualTo(PolicyStatus.APPROVED);
 
         PolicyVersionSummary activated = activate(key, version);
         assertThat(activated.status()).isEqualTo(PolicyStatus.ACTIVE);
@@ -74,6 +80,37 @@ class PolicyLifecycleIntegrationTest {
                 "SELECT status FROM policy.policy_version WHERE policy_key = ? AND version = ?",
                 String.class, key, version);
         assertThat(dbStatus).isEqualTo("ACTIVE");
+
+        Object[] governance = jdbcTemplate.queryForObject(
+                "SELECT created_by, approved_by, approval_reason FROM policy.policy_version "
+                        + "WHERE policy_key = ? AND version = ?",
+                (rs, rowNum) -> new Object[] {
+                        rs.getString("created_by"), rs.getString("approved_by"), rs.getString("approval_reason")},
+                key, version);
+        assertThat(governance[0]).isEqualTo(AUTHOR);
+        assertThat(governance[1]).isEqualTo(APPROVER);
+        assertThat(governance[2]).isEqualTo("integration test approval");
+    }
+
+    @Test
+    @Transactional
+    void approveRejectsSelfApprovalAndLeavesStatusAsValidated() {
+        String key = "self-approve-policy-" + java.util.UUID.randomUUID();
+        String version = "1.0.0";
+
+        lifecycleService.createDraft(
+                new CreatePolicyCommand(key, version, (short) 25, (short) 65), AUTHOR);
+        lifecycleService.validate(key, version, ACTOR);
+
+        UUID challengeId = verifiedStepUp(lifecycleService.requestApprovalStepUp(key, version, AUTHOR));
+        assertThatThrownBy(() -> lifecycleService.approve(key, version, challengeId, AUTHOR, "self sign-off"))
+                .isInstanceOf(SelfApprovalNotAllowedException.class);
+
+        repository.flush();
+        String dbStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM policy.policy_version WHERE policy_key = ? AND version = ?",
+                String.class, key, version);
+        assertThat(dbStatus).isEqualTo("VALIDATED");
     }
 
     @Test
@@ -105,7 +142,20 @@ class PolicyLifecycleIntegrationTest {
         String key = "skip-policy-" + java.util.UUID.randomUUID();
 
         lifecycleService.createDraft(
-                new CreatePolicyCommand(key, "1.0.0", (short) 25, (short) 65));
+                new CreatePolicyCommand(key, "1.0.0", (short) 25, (short) 65), AUTHOR);
+
+        assertThatThrownBy(() -> activate(key, "1.0.0"))
+                .isInstanceOf(IllegalPolicyTransitionException.class);
+    }
+
+    @Test
+    @Transactional
+    void cannotActivateMerelyValidatedPolicyWithoutApproval() {
+        String key = "unapproved-policy-" + java.util.UUID.randomUUID();
+
+        lifecycleService.createDraft(
+                new CreatePolicyCommand(key, "1.0.0", (short) 25, (short) 65), AUTHOR);
+        lifecycleService.validate(key, "1.0.0", ACTOR);
 
         assertThatThrownBy(() -> activate(key, "1.0.0"))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
@@ -117,8 +167,8 @@ class PolicyLifecycleIntegrationTest {
         String key = "reject-policy-" + java.util.UUID.randomUUID();
 
         lifecycleService.createDraft(
-                new CreatePolicyCommand(key, "1.0.0", (short) 25, (short) 65));
-        lifecycleService.validate(key, "1.0.0");
+                new CreatePolicyCommand(key, "1.0.0", (short) 25, (short) 65), AUTHOR);
+        lifecycleService.validate(key, "1.0.0", ACTOR);
         PolicyVersionSummary result = lifecycleService.reject(key, "1.0.0");
 
         assertThat(result.status()).isEqualTo(PolicyStatus.REJECTED);
@@ -150,7 +200,9 @@ class PolicyLifecycleIntegrationTest {
         createAndActivate(key, "1.0.0", (short) 20, (short) 60);
         retire(key, "1.0.0");
 
-        assertThatThrownBy(() -> lifecycleService.validate(key, "1.0.0"))
+        assertThatThrownBy(() -> lifecycleService.validate(key, "1.0.0", ACTOR))
+                .isInstanceOf(IllegalPolicyTransitionException.class);
+        assertThatThrownBy(() -> approve(key, "1.0.0"))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
         assertThatThrownBy(() -> activate(key, "1.0.0"))
                 .isInstanceOf(IllegalPolicyTransitionException.class);
@@ -163,9 +215,9 @@ class PolicyLifecycleIntegrationTest {
     void validatePersistsAnalysisAlongsideTheStatusTransition() {
         String key = "analysis-policy-" + java.util.UUID.randomUUID();
         String version = "1.0.0";
-        lifecycleService.createDraft(new CreatePolicyCommand(key, version, (short) 25, (short) 65));
+        lifecycleService.createDraft(new CreatePolicyCommand(key, version, (short) 25, (short) 65), AUTHOR);
 
-        PolicyVersionSummary validated = lifecycleService.validate(key, version);
+        PolicyVersionSummary validated = lifecycleService.validate(key, version, ACTOR);
 
         assertThat(validated.status()).isEqualTo(PolicyStatus.VALIDATED);
         assertThat(validated.analysis()).isNotNull();
@@ -185,7 +237,7 @@ class PolicyLifecycleIntegrationTest {
     void validateRejectsAndLeavesDraftWhenAPersistedThresholdIsMissing() {
         String key = "broken-policy-" + java.util.UUID.randomUUID();
         String version = "1.0.0";
-        lifecycleService.createDraft(new CreatePolicyCommand(key, version, (short) 25, (short) 65));
+        lifecycleService.createDraft(new CreatePolicyCommand(key, version, (short) 25, (short) 65), AUTHOR);
         entityManager.flush();
         entityManager.clear();
         jdbcTemplate.update(
@@ -194,7 +246,7 @@ class PolicyLifecycleIntegrationTest {
                 key, version);
         entityManager.clear();
 
-        assertThatThrownBy(() -> lifecycleService.validate(key, version))
+        assertThatThrownBy(() -> lifecycleService.validate(key, version, ACTOR))
                 .isInstanceOf(PolicyAnalysisFailedException.class);
 
         repository.flush();
@@ -205,9 +257,15 @@ class PolicyLifecycleIntegrationTest {
     }
 
     private PolicyVersionSummary createAndActivate(String key, String version, short allow, short stepUp) {
-        lifecycleService.createDraft(new CreatePolicyCommand(key, version, allow, stepUp));
-        lifecycleService.validate(key, version);
+        lifecycleService.createDraft(new CreatePolicyCommand(key, version, allow, stepUp), AUTHOR);
+        lifecycleService.validate(key, version, ACTOR);
+        approve(key, version);
         return activate(key, version);
+    }
+
+    private PolicyVersionSummary approve(String key, String version) {
+        UUID challengeId = verifiedStepUp(lifecycleService.requestApprovalStepUp(key, version, APPROVER));
+        return lifecycleService.approve(key, version, challengeId, APPROVER, "integration test approval");
     }
 
     private PolicyVersionSummary activate(String key, String version) {
