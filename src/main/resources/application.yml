@@ -58,6 +58,8 @@ accountshield:
       max-attempts: 5
   privacy:
     pseudonym-secret: ${ACCOUNT_PSEUDONYM_SECRET:accountshield-local-only-pseudonym-secret}
+  risk:
+    max-signal-age: 5m
   recovery:
     retention:
       terminal-ttl: 30d

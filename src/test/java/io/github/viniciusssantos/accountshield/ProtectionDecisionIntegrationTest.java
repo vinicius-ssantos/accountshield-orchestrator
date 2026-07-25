@@ -17,8 +17,11 @@ import io.github.viniciusssantos.accountshield.protection.internal.ProtectionDec
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -153,11 +156,12 @@ class ProtectionDecisionIntegrationTest {
                 Clock.systemUTC(),
                 new ObjectMapper(),
                 applicationContext,
-                (acct, ts) -> {});
+                (acct, ts) -> {},
+                Duration.ofMinutes(5));
         var command = new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
-                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
                 "rollback-test-" + UUID.randomUUID());
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
@@ -168,11 +172,32 @@ class ProtectionDecisionIntegrationTest {
         assertThat(requestCount(accountReference)).isEqualTo(before);
     }
 
+    @Test
+    void staleSignalEnvelopeProducesNoProtectionRequestRow() {
+        String accountReference = "integration-stale-" + UUID.randomUUID();
+        RiskSignalEnvelope staleEnvelope = new RiskSignalEnvelope(
+                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                "CLIENT_SUPPLIED",
+                Instant.now().minus(Duration.ofHours(1)),
+                SignalConfidence.HIGH,
+                null,
+                true);
+
+        assertThatThrownBy(() -> protectionDecisionService.decide(new ProtectionDecisionCommand(
+                accountReference,
+                ProtectionEventType.LOGIN_ATTEMPT,
+                staleEnvelope,
+                "idem-" + UUID.randomUUID())))
+                .isInstanceOf(io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException.class);
+
+        assertThat(requestCount(accountReference)).isZero();
+    }
+
     private ProtectionDecisionResult decide(String accountReference, RiskSignals signals) {
         return protectionDecisionService.decide(new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
-                signals,
+                envelope(signals),
                 "idem-" + UUID.randomUUID()));
     }
 
@@ -182,5 +207,9 @@ class ProtectionDecisionIntegrationTest {
                 Long.class,
                 accountReference);
         return count == null ? 0 : count;
+    }
+
+    private static RiskSignalEnvelope envelope(RiskSignals signals) {
+        return new RiskSignalEnvelope(signals, "CLIENT_SUPPLIED", Instant.now(), SignalConfidence.HIGH, null, true);
     }
 }

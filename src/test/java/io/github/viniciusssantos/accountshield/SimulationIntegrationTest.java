@@ -9,7 +9,9 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionComm
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
 import io.github.viniciusssantos.accountshield.simulation.ReplayResult;
 import io.github.viniciusssantos.accountshield.simulation.ShadowEvaluationResult;
 import io.github.viniciusssantos.accountshield.simulation.SimulationService;
@@ -39,7 +41,9 @@ class SimulationIntegrationTest {
                 new ProtectionDecisionCommand(
                         "replay-user-" + java.util.UUID.randomUUID(),
                         ProtectionEventType.LOGIN_ATTEMPT,
-                        new RiskSignals(2, true, false, false, NetworkRiskLevel.LOW),
+                        new RiskSignalEnvelope(
+                                new RiskSignals(2, true, false, false, NetworkRiskLevel.LOW),
+                                "CLIENT_SUPPLIED", java.time.Instant.now(), SignalConfidence.HIGH, null, true),
                         null));
 
         var replayOpt = simulationService.replay(original.protectionRequestId());

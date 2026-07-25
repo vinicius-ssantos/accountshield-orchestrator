@@ -28,8 +28,11 @@ import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
 import io.github.viniciusssantos.accountshield.risk.RiskBand;
 import io.github.viniciusssantos.accountshield.risk.RiskReason;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -60,17 +63,20 @@ class ProtectionDecisionApplicationServiceTest {
             clock,
             new ObjectMapper(),
             eventPublisher,
-            rateLimiter);
+            rateLimiter,
+            Duration.ofMinutes(5));
 
     @Test
     void persistsAndReturnsTheSameExplainableDecision() {
         RiskSignals signals = new RiskSignals(5, true, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope envelope = new RiskSignalEnvelope(
+                signals, "CLIENT_SUPPLIED", Instant.parse("2026-07-20T03:00:00Z"), SignalConfidence.HIGH, null, true);
         RiskAssessment assessment = new RiskAssessment(
                 30,
                 RiskBand.MEDIUM,
                 "risk-rules-1.0",
                 List.of(new RiskReason("FAILED_ATTEMPTS", 15), new RiskReason("NEW_DEVICE", 15)));
-        when(riskAssessmentService.assess(signals)).thenReturn(assessment);
+        when(riskAssessmentService.assess(envelope)).thenReturn(assessment);
         when(policyEvaluationService.evaluate("account-protection-default", 30))
                 .thenReturn(new PolicyEvaluation(
                         "account-protection-default",
@@ -98,7 +104,7 @@ class ProtectionDecisionApplicationServiceTest {
         var result = service.decide(new ProtectionDecisionCommand(
                 "account-opaque-123",
                 ProtectionEventType.LOGIN_ATTEMPT,
-                signals,
+                envelope,
                 null));
 
         assertThat(result.outcome()).isEqualTo(ProtectionOutcome.REQUIRE_STEP_UP);
@@ -121,8 +127,33 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(trace.riskScore()).isEqualTo(30);
         assertThat(trace.outcome()).isEqualTo("REQUIRE_STEP_UP");
         assertThat(trace.normalizedContext()).containsEntry("failedAttempts", 5);
+        assertThat(trace.normalizedContext()).containsEntry("signalProvider", "CLIENT_SUPPLIED");
+        assertThat(trace.normalizedContext()).containsEntry("signalConfidence", "HIGH");
+        assertThat(trace.normalizedContext()).containsEntry("signalSimulated", true);
         assertThat(trace.reasons())
                 .extracting(reason -> reason.code() + ":" + reason.contribution())
                 .containsExactly("FAILED_ATTEMPTS:15", "NEW_DEVICE:15");
+    }
+
+    @Test
+    void staleSignalEnvelopeIsRejectedBeforeAnySideEffect() {
+        RiskSignalEnvelope staleEnvelope = new RiskSignalEnvelope(
+                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                "CLIENT_SUPPLIED",
+                Instant.parse("2026-07-20T02:00:00Z"),
+                SignalConfidence.HIGH,
+                null,
+                true);
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException.class,
+                () -> service.decide(new ProtectionDecisionCommand(
+                        "account-opaque-stale",
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        staleEnvelope,
+                        null)));
+
+        verify(protectionRequestRepository, org.mockito.Mockito.never()).save(any());
+        verify(decisionTraceRecorder, org.mockito.Mockito.never()).record(any());
     }
 }

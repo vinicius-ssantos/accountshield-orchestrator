@@ -27,7 +27,9 @@ The endpoint accepts an opaque account reference, a supported event type, and bo
 
 Passwords, authentication tokens, MFA secrets, raw device fingerprints, raw IP addresses, and caller-provided scores or outcomes are forbidden.
 
-Invalid values return RFC 9457 Problem Details with `INVALID_PROTECTION_REQUEST`. If no complete active policy can be resolved, the service fails closed with `503` and `ACTIVE_POLICY_UNAVAILABLE` without exposing internal configuration.
+Every request carries a risk signal envelope (`risk.RiskSignalEnvelope`, ADR 0013) with provider, observation time, and confidence, in addition to the signal values above. Optional envelope fields default to `signalProvider: "CLIENT_SUPPLIED"`, `signalObservedAt: now`, `signalConfidence: HIGH` when omitted, so existing callers are unaffected. The envelope is always server-marked `simulated: true` — no real risk-signal provider exists yet.
+
+Invalid values return RFC 9457 Problem Details with `INVALID_PROTECTION_REQUEST`. If no complete active policy can be resolved, the service fails closed with `503` and `ACTIVE_POLICY_UNAVAILABLE` without exposing internal configuration. A signal envelope older than `accountshield.risk.max-signal-age` (default 5 minutes) is rejected with `422` and `STALE_RISK_SIGNAL` before any decision is produced — a stale signal never silently behaves as fresh.
 
 ## Deterministic risk algorithm
 
@@ -41,6 +43,7 @@ Algorithm version: `risk-rules-1.0`.
 | medium network risk | 10 |
 | high network risk | 20 |
 | new device | 15 |
+| low-confidence signal envelope | 10 |
 
 Rules execute in the listed stable order. The total is capped at 100, and the applied ordered contributions always sum exactly to the final score.
 
