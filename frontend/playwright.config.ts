@@ -35,6 +35,7 @@ export default defineConfig({
     env: {
       ...process.env,
       PORT: String(port),
+      ACCOUNTSHIELD_API_URL: "http://internal-api.invalid:8080",
       ACCOUNTSHIELD_DATA_SOURCE: "fixtures",
       NEXT_PUBLIC_APP_ENV: "test",
     },
