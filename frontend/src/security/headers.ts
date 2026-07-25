@@ -1,4 +1,4 @@
-import type { AppEnvironment } from "@/config/environment";
+import type { AppEnvironment } from "../config/environment";
 
 export interface SecurityHeader {
   key: string;
