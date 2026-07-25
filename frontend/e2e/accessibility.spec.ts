@@ -1,22 +1,40 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-test("@a11y overview has no critical or serious axe violations", async ({ page }) => {
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: "Account protection at a glance",
-    }),
-  ).toBeVisible();
+const scenarios = [
+  {
+    name: "overview",
+    path: "/",
+    heading: "Account protection at a glance",
+  },
+  {
+    name: "design-system showcase",
+    path: "/design-system",
+    heading: "AccountShield console design system",
+  },
+] as const;
 
-  const results = await new AxeBuilder({ page }).analyze();
-  const blockingViolations = results.violations.filter(
-    (violation) => violation.impact === "critical" || violation.impact === "serious",
-  );
+for (const scenario of scenarios) {
+  test(`@a11y ${scenario.name} has no critical or serious axe violations`, async ({
+    page,
+  }) => {
+    await page.goto(scenario.path);
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: scenario.heading,
+      }),
+    ).toBeVisible();
 
-  expect(
-    blockingViolations,
-    JSON.stringify(blockingViolations, null, 2),
-  ).toEqual([]);
-});
+    const results = await new AxeBuilder({ page }).analyze();
+    const blockingViolations = results.violations.filter(
+      (violation) =>
+        violation.impact === "critical" || violation.impact === "serious",
+    );
+
+    expect(
+      blockingViolations,
+      JSON.stringify(blockingViolations, null, 2),
+    ).toEqual([]);
+  });
+}
