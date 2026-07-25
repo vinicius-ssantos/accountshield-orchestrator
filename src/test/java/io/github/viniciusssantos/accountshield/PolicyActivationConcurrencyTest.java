@@ -6,11 +6,8 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengeIssued;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeVerificationCommand;
-import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
-import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
-import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -35,8 +32,6 @@ import org.springframework.test.context.event.RecordApplicationEvents;
 class PolicyActivationConcurrencyTest {
 
     private static final int CONTENDER_COUNT = 2;
-    private static final String AUTHOR = "policy-author-concurrency-test";
-    private static final String APPROVER = "policy-approver-concurrency-test";
     private static final String ACTOR = "policy-admin-concurrency-test";
 
     @Autowired
@@ -46,9 +41,6 @@ class PolicyActivationConcurrencyTest {
     private ChallengeService challengeService;
 
     @Autowired
-    private PolicyVersionRepository repository;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -56,10 +48,13 @@ class PolicyActivationConcurrencyTest {
 
     @Test
     void concurrentActivationOfTwoApprovedVersionsHasExactlyOneWinner() throws Exception {
+        // createDraft()'s "only one DRAFT/VALIDATED/APPROVED version per key" guard means two
+        // versions can never both reach APPROVED through the normal API at the same time; seed
+        // them directly to isolate and prove the activate()-time DB constraint (uq_single_active_policy)
+        // under real concurrency, independent of that guard.
         String key = "concurrency-policy-" + UUID.randomUUID();
-
-        approveDraft(key, "1.0.0", (short) 20, (short) 60);
-        approveDraft(key, "2.0.0", (short) 25, (short) 65);
+        insertApprovedVersion(key, "1.0.0", (short) 20, (short) 60);
+        insertApprovedVersion(key, "2.0.0", (short) 25, (short) 65);
 
         UUID challengeForV1 = verifiedStepUp(lifecycleService.requestActivationStepUp(key, "1.0.0", ACTOR));
         UUID challengeForV2 = verifiedStepUp(lifecycleService.requestActivationStepUp(key, "2.0.0", ACTOR));
@@ -73,7 +68,6 @@ class PolicyActivationConcurrencyTest {
         long winnerCount = results.stream().filter(Boolean::booleanValue).count();
         assertThat(winnerCount).isEqualTo(1);
 
-        repository.flush();
         Integer activeCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM policy.policy_version WHERE policy_key = ? AND status = 'ACTIVE'",
                 Integer.class, key);
@@ -91,13 +85,20 @@ class PolicyActivationConcurrencyTest {
         }
     }
 
-    private void approveDraft(String key, String version, short allow, short stepUp) {
-        lifecycleService.createDraft(new CreatePolicyCommand(key, version, allow, stepUp), AUTHOR);
-        lifecycleService.validate(key, version, ACTOR);
-        UUID challengeId = verifiedStepUp(lifecycleService.requestApprovalStepUp(key, version, APPROVER));
-        PolicyVersionSummary approved = lifecycleService.approve(
-                key, version, challengeId, APPROVER, "concurrency test approval");
-        assertThat(approved.governance().approvedBy()).isEqualTo(APPROVER);
+    private void insertApprovedVersion(String key, String version, short allow, short stepUp) {
+        String definition = "{\"allowMaxScore\":" + allow + ",\"stepUpMaxScore\":" + stepUp
+                + ",\"recoveryMaxScore\":89}";
+        jdbcTemplate.update(
+                "INSERT INTO policy.policy_version "
+                        + "(id, policy_key, version, status, definition, "
+                        + "allow_max_score, step_up_max_score, recovery_max_score, created_at, "
+                        + "created_by, validated_by, validated_at, approved_by, approved_at, approval_reason) "
+                        + "VALUES (?, ?, ?, 'APPROVED', ?::jsonb, ?, ?, ?, now(), "
+                        + "?, ?, now(), ?, now(), ?)",
+                UUID.randomUUID(), key, version, definition,
+                allow, stepUp, (short) 89,
+                "policy-author-concurrency-test", "policy-validator-concurrency-test",
+                "policy-approver-concurrency-test", "concurrency test approval");
     }
 
     private UUID verifiedStepUp(UUID challengeId) {
