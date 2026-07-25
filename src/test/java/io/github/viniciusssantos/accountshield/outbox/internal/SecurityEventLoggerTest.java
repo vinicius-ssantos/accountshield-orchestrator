@@ -45,7 +45,7 @@ class SecurityEventLoggerTest {
         logger.onProtectionDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-sensitive@example.com",
                 "REQUIRE_STEP_UP", 78, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z")));
+                Instant.parse("2026-07-22T12:00:00Z"), false, null));
 
         String formatted = appender.list.getFirst().getFormattedMessage();
 
@@ -56,13 +56,26 @@ class SecurityEventLoggerTest {
     }
 
     @Test
+    void logsDegradationFields() {
+        logger.onProtectionDecisionMade(new ProtectionDecisionMade(
+                UUID.randomUUID(), UUID.randomUUID(), "acct-degraded",
+                "TEMPORARILY_BLOCK", 0, "account-protection-default", "1.0.0",
+                Instant.parse("2026-07-22T12:00:00Z"), true, "CHALLENGE_PROVIDER_UNAVAILABLE"));
+
+        String formatted = appender.list.getFirst().getFormattedMessage();
+
+        assertThat(formatted).contains("degraded=true");
+        assertThat(formatted).contains("degradation_reason=CHALLENGE_PROVIDER_UNAVAILABLE");
+    }
+
+    @Test
     void doesNotLogAccountReference() {
         String sensitiveAccount = "user@example.com";
 
         logger.onProtectionDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), sensitiveAccount,
                 "ALLOW", 0, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z")));
+                Instant.parse("2026-07-22T12:00:00Z"), false, null));
 
         String formatted = appender.list.getFirst().getFormattedMessage();
 
@@ -116,7 +129,7 @@ class SecurityEventLoggerTest {
     void allEventsAtInfoLevel() {
         logger.onProtectionDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct",
-                "ALLOW", 0, "policy", "1.0", Instant.now()));
+                "ALLOW", 0, "policy", "1.0", Instant.now(), false, null));
 
         List<ILoggingEvent> events = appender.list;
         assertThat(events).hasSize(1);

@@ -12,6 +12,7 @@ public class ProtectionMetricsRecorder {
 
     private static final String DECISIONS_METRIC = "accountshield.protection.decisions";
     private static final String RISK_SCORE_METRIC = "accountshield.protection.risk_score";
+    private static final String DEGRADED_DECISIONS_METRIC = "accountshield.protection.degraded_decisions";
 
     private final MeterRegistry meterRegistry;
 
@@ -33,5 +34,13 @@ public class ProtectionMetricsRecorder {
                 .tag("outcome", event.outcome())
                 .register(meterRegistry)
                 .record(event.riskScore());
+
+        if (event.degraded()) {
+            Counter.builder(DEGRADED_DECISIONS_METRIC)
+                    .description("Total decisions produced under a dependency-failure degradation strategy")
+                    .tag("reason", event.degradationReason())
+                    .register(meterRegistry)
+                    .increment();
+        }
     }
 }

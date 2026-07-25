@@ -31,6 +31,7 @@ import io.github.viniciusssantos.accountshield.risk.RiskReason;
 import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -52,6 +53,7 @@ class ProtectionDecisionApplicationServiceTest {
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-20T03:00:00Z"), ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final ProtectionRateLimiter rateLimiter = (accountReference, now) -> {};
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private final ProtectionDecisionApplicationService service = new ProtectionDecisionApplicationService(
             riskAssessmentService,
@@ -64,7 +66,8 @@ class ProtectionDecisionApplicationServiceTest {
             new ObjectMapper(),
             eventPublisher,
             rateLimiter,
-            Duration.ofMinutes(5));
+            Duration.ofMinutes(5),
+            meterRegistry);
 
     @Test
     void persistsAndReturnsTheSameExplainableDecision() {
@@ -155,5 +158,85 @@ class ProtectionDecisionApplicationServiceTest {
 
         verify(protectionRequestRepository, org.mockito.Mockito.never()).save(any());
         verify(decisionTraceRecorder, org.mockito.Mockito.never()).record(any());
+
+        var counter = meterRegistry.find("accountshield.protection.degraded_decisions")
+                .tag("reason", "RISK_SIGNAL_STALE")
+                .counter();
+        assertThat(counter).isNotNull();
+        assertThat(counter.count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void activePolicyUnavailableIncrementsDegradedDecisionCounter() {
+        RiskSignals signals = new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope envelope = new RiskSignalEnvelope(
+                signals, "CLIENT_SUPPLIED", Instant.parse("2026-07-20T03:00:00Z"), SignalConfidence.HIGH, null, true);
+        RiskAssessment assessment = new RiskAssessment(0, RiskBand.LOW, "risk-rules-1.0", List.of());
+        when(riskAssessmentService.assess(envelope)).thenReturn(assessment);
+        when(policyEvaluationService.evaluate("account-protection-default", 0))
+                .thenThrow(new io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException(
+                        "account-protection-default"));
+        when(idempotencyGuard.resolve(anyString(), anyString(), any()))
+                .thenReturn(IdempotencyResult.absent());
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException.class,
+                () -> service.decide(new ProtectionDecisionCommand(
+                        "account-opaque-policy-unavailable",
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        envelope,
+                        null)));
+
+        verify(protectionRequestRepository, org.mockito.Mockito.never()).save(any());
+
+        var counter = meterRegistry.find("accountshield.protection.degraded_decisions")
+                .tag("reason", "ACTIVE_POLICY_UNAVAILABLE")
+                .counter();
+        assertThat(counter).isNotNull();
+        assertThat(counter.count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void challengeProviderFailureDuringStepUpDegradesToTemporarilyBlock() {
+        RiskSignals signals = new RiskSignals(5, true, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope envelope = new RiskSignalEnvelope(
+                signals, "CLIENT_SUPPLIED", Instant.parse("2026-07-20T03:00:00Z"), SignalConfidence.HIGH, null, true);
+        RiskAssessment assessment = new RiskAssessment(
+                30, RiskBand.MEDIUM, "risk-rules-1.0", List.of(new RiskReason("FAILED_ATTEMPTS", 30)));
+        when(riskAssessmentService.assess(envelope)).thenReturn(assessment);
+        when(policyEvaluationService.evaluate("account-protection-default", 30))
+                .thenReturn(new PolicyEvaluation(
+                        "account-protection-default", "1.0.0", ProtectionOutcome.REQUIRE_STEP_UP));
+        when(idempotencyGuard.resolve(anyString(), anyString(), any()))
+                .thenReturn(IdempotencyResult.absent());
+        when(challengeService.create(any(CreateChallengeCommand.class)))
+                .thenThrow(new IllegalStateException("simulated challenge provider outage"));
+
+        var result = service.decide(new ProtectionDecisionCommand(
+                "account-opaque-degraded",
+                ProtectionEventType.LOGIN_ATTEMPT,
+                envelope,
+                null));
+
+        assertThat(result.outcome()).isEqualTo(ProtectionOutcome.TEMPORARILY_BLOCK);
+        assertThat(result.degraded()).isTrue();
+        assertThat(result.degradationReason()).isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
+        assertThat(result.challenge()).isNull();
+
+        verify(protectionRequestRepository).save(any());
+
+        ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);
+        verify(decisionTraceRecorder).record(traceCaptor.capture());
+        DecisionTraceCommand trace = traceCaptor.getValue();
+        assertThat(trace.outcome()).isEqualTo("TEMPORARILY_BLOCK");
+        assertThat(trace.normalizedContext()).containsEntry("degraded", true);
+        assertThat(trace.normalizedContext()).containsEntry("degradationReason", "CHALLENGE_PROVIDER_UNAVAILABLE");
+
+        ArgumentCaptor<io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade> eventCaptor =
+                ArgumentCaptor.forClass(io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().outcome()).isEqualTo("TEMPORARILY_BLOCK");
+        assertThat(eventCaptor.getValue().degraded()).isTrue();
+        assertThat(eventCaptor.getValue().degradationReason()).isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
     }
 }

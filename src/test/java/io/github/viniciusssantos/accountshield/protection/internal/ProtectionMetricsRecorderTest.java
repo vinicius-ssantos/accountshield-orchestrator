@@ -18,17 +18,17 @@ class ProtectionMetricsRecorderTest {
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-1",
                 "ALLOW", 5, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z")));
+                Instant.parse("2026-07-22T12:00:00Z"), false, null));
 
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-2",
                 "TEMPORARILY_BLOCK", 85, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:01Z")));
+                Instant.parse("2026-07-22T12:00:01Z"), false, null));
 
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-3",
                 "ALLOW", 10, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:02Z")));
+                Instant.parse("2026-07-22T12:00:02Z"), false, null));
 
         var allowCounter = registry.find("accountshield.protection.decisions")
                 .tag("outcome", "ALLOW")
@@ -58,12 +58,12 @@ class ProtectionMetricsRecorderTest {
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-1",
                 "ALLOW", 0, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z")));
+                Instant.parse("2026-07-22T12:00:00Z"), false, null));
 
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-2",
                 "ALLOW", 0, "strict-summer-policy", "2.0.0",
-                Instant.parse("2026-07-22T12:00:01Z")));
+                Instant.parse("2026-07-22T12:00:01Z"), false, null));
 
         var defaultCounter = registry.find("accountshield.protection.decisions")
                 .tag("policy_key", "account-protection-default")
@@ -76,5 +76,27 @@ class ProtectionMetricsRecorderTest {
                 .counter();
         assertThat(strictCounter).isNotNull();
         assertThat(strictCounter.count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void recordsDegradedDecisionCounterTaggedByReason() {
+        var registry = new SimpleMeterRegistry();
+        var recorder = new ProtectionMetricsRecorder(registry);
+
+        recorder.onDecisionMade(new ProtectionDecisionMade(
+                UUID.randomUUID(), UUID.randomUUID(), "acct-1",
+                "TEMPORARILY_BLOCK", 0, "account-protection-default", "1.0.0",
+                Instant.parse("2026-07-22T12:00:00Z"), true, "CHALLENGE_PROVIDER_UNAVAILABLE"));
+
+        recorder.onDecisionMade(new ProtectionDecisionMade(
+                UUID.randomUUID(), UUID.randomUUID(), "acct-2",
+                "ALLOW", 0, "account-protection-default", "1.0.0",
+                Instant.parse("2026-07-22T12:00:01Z"), false, null));
+
+        var degradedCounter = registry.find("accountshield.protection.degraded_decisions")
+                .tag("reason", "CHALLENGE_PROVIDER_UNAVAILABLE")
+                .counter();
+        assertThat(degradedCounter).isNotNull();
+        assertThat(degradedCounter.count()).isEqualTo(1.0);
     }
 }

@@ -19,12 +19,15 @@ public class SecurityEventLogger {
     @EventListener
     public void onProtectionDecisionMade(ProtectionDecisionMade event) {
         log.info(
-                "security_event type=PROTECTION_DECISION outcome={} risk_score={} policy={}:{} decision_id={}",
+                "security_event type=PROTECTION_DECISION outcome={} risk_score={} policy={}:{} decision_id={}"
+                        + " degraded={} degradation_reason={}",
                 event.outcome(),
                 event.riskScore(),
                 event.policyKey(),
                 event.policyVersion(),
-                event.decisionId());
+                event.decisionId(),
+                event.degraded(),
+                event.degradationReason());
     }
 
     @EventListener

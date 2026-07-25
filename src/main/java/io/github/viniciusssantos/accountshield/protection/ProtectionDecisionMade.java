@@ -11,5 +11,7 @@ public record ProtectionDecisionMade(
         int riskScore,
         String policyKey,
         String policyVersion,
-        Instant decidedAt) {
+        Instant decidedAt,
+        boolean degraded,
+        String degradationReason) {
 }

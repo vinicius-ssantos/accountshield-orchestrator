@@ -20,7 +20,9 @@ public record ProtectionDecisionResponse(
         String policyVersion,
         List<ReasonResponse> reasons,
         Instant decidedAt,
-        ChallengeResponse challenge) {
+        ChallengeResponse challenge,
+        boolean degraded,
+        String degradationReason) {
 
     static ProtectionDecisionResponse from(ProtectionDecisionResult result) {
         ChallengeResponse challengeResponse = result.challenge() != null
@@ -43,7 +45,9 @@ public record ProtectionDecisionResponse(
                         .map(reason -> new ReasonResponse(reason.code(), reason.contribution()))
                         .toList(),
                 result.decidedAt(),
-                challengeResponse);
+                challengeResponse,
+                result.degraded(),
+                result.degradationReason());
     }
 
     public record ReasonResponse(String code, int contribution) {
