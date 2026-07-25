@@ -13,7 +13,23 @@ public record PolicyVersionSummary(
         Short recoveryMaxScore,
         Instant createdAt,
         Instant activatedAt,
-        PolicyAnalysisResult analysis) {
+        PolicyAnalysisResult analysis,
+        PolicyGovernance governance) {
+
+    public PolicyVersionSummary(
+            UUID id,
+            String policyKey,
+            String version,
+            PolicyStatus status,
+            Short allowMaxScore,
+            Short stepUpMaxScore,
+            Short recoveryMaxScore,
+            Instant createdAt,
+            Instant activatedAt,
+            PolicyAnalysisResult analysis) {
+        this(id, policyKey, version, status, allowMaxScore, stepUpMaxScore,
+                recoveryMaxScore, createdAt, activatedAt, analysis, null);
+    }
 
     public PolicyVersionSummary(
             UUID id,
@@ -26,7 +42,7 @@ public record PolicyVersionSummary(
             Instant createdAt,
             Instant activatedAt) {
         this(id, policyKey, version, status, allowMaxScore, stepUpMaxScore,
-                recoveryMaxScore, createdAt, activatedAt, null);
+                recoveryMaxScore, createdAt, activatedAt, null, null);
     }
 
     public PolicyVersionSummary(
@@ -39,6 +55,6 @@ public record PolicyVersionSummary(
             Instant createdAt,
             Instant activatedAt) {
         this(id, policyKey, version, status, allowMaxScore, stepUpMaxScore,
-                (short) 89, createdAt, activatedAt, null);
+                (short) 89, createdAt, activatedAt, null, null);
     }
 }

@@ -8,6 +8,7 @@ import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionExc
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
 import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisFailedException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
+import io.github.viniciusssantos.accountshield.policy.SelfApprovalNotAllowedException;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,8 @@ class PolicyLifecycleProblemHandler {
             URI.create("urn:accountshield:problem:challenge-use-rejected");
     private static final URI ANALYSIS_FAILED_TYPE =
             URI.create("urn:accountshield:problem:policy-analysis-failed");
+    private static final URI SELF_APPROVAL_TYPE =
+            URI.create("urn:accountshield:problem:self-approval-not-allowed");
 
     @ExceptionHandler(IllegalPolicyTransitionException.class)
     public ResponseEntity<ProblemDetail> illegalTransition(IllegalPolicyTransitionException ex) {
@@ -89,6 +92,18 @@ class PolicyLifecycleProblemHandler {
         problem.setProperty("analyzerVersion", ex.result().analyzerVersion());
         problem.setProperty("diagnostics", List.copyOf(ex.result().diagnostics()));
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(problem);
+    }
+
+    @ExceptionHandler(SelfApprovalNotAllowedException.class)
+    public ResponseEntity<ProblemDetail> selfApprovalNotAllowed(SelfApprovalNotAllowedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "Actor " + ex.actor() + " authored policy " + ex.policyKey() + ":" + ex.version()
+                        + " and cannot approve it.");
+        problem.setType(SELF_APPROVAL_TYPE);
+        problem.setTitle("Self-approval not allowed");
+        problem.setProperty("code", "SELF_APPROVAL_NOT_ALLOWED");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     @ExceptionHandler(InvalidChallengeStateException.class)

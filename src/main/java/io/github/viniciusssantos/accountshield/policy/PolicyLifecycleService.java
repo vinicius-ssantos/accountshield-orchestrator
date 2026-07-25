@@ -4,9 +4,14 @@ import java.util.UUID;
 
 public interface PolicyLifecycleService {
 
-    PolicyVersionSummary createDraft(CreatePolicyCommand command);
+    PolicyVersionSummary createDraft(CreatePolicyCommand command, String actor);
 
-    PolicyVersionSummary validate(String policyKey, String version);
+    PolicyVersionSummary validate(String policyKey, String version, String actor);
+
+    UUID requestApprovalStepUp(String policyKey, String version, String actor);
+
+    PolicyVersionSummary approve(
+            String policyKey, String version, UUID stepUpChallengeId, String actor, String reason);
 
     PolicyVersionSummary activate(String policyKey, String version, UUID stepUpChallengeId, String actor);
 

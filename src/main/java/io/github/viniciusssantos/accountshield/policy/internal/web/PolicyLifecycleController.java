@@ -42,21 +42,43 @@ class PolicyLifecycleController {
     }
 
     @PostMapping
-    public ResponseEntity<PolicyVersionSummary> createDraft(@Valid @RequestBody CreateDraftRequest request) {
+    public ResponseEntity<PolicyVersionSummary> createDraft(
+            @Valid @RequestBody CreateDraftRequest request, Authentication authentication) {
         PolicyVersionSummary summary = lifecycleService.createDraft(new CreatePolicyCommand(
                 request.policyKey(),
                 request.version(),
                 request.allowMaxScore(),
                 request.stepUpMaxScore(),
-                request.recoveryMaxScore() == null ? (short) 89 : request.recoveryMaxScore()));
+                request.recoveryMaxScore() == null ? (short) 89 : request.recoveryMaxScore()),
+                authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(summary);
     }
 
     @PostMapping("/{policyKey}/{version}/validate")
     public ResponseEntity<PolicyVersionSummary> validate(
             @PathVariable String policyKey,
-            @PathVariable String version) {
-        return ResponseEntity.ok(lifecycleService.validate(policyKey, version));
+            @PathVariable String version,
+            Authentication authentication) {
+        return ResponseEntity.ok(lifecycleService.validate(policyKey, version, authentication.getName()));
+    }
+
+    @PostMapping("/{policyKey}/{version}/approve/step-up")
+    public ResponseEntity<StepUpChallengeResponse> requestApprovalStepUp(
+            @PathVariable String policyKey,
+            @PathVariable String version,
+            Authentication authentication) {
+        UUID challengeId = lifecycleService.requestApprovalStepUp(policyKey, version, authentication.getName());
+        return ResponseEntity.ok(new StepUpChallengeResponse(challengeId));
+    }
+
+    @PostMapping("/{policyKey}/{version}/approve")
+    public ResponseEntity<PolicyVersionSummary> approve(
+            @PathVariable String policyKey,
+            @PathVariable String version,
+            @Valid @RequestBody ApproveRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(lifecycleService.approve(
+                policyKey, version, request.stepUpChallengeId(), authentication.getName(), request.reason()));
     }
 
     @PostMapping("/{policyKey}/{version}/activate/step-up")
@@ -120,6 +142,14 @@ class PolicyLifecycleController {
             @Min(1) @Max(99) short stepUpMaxScore,
             @Schema(description = "Highest recovery-request score that may produce START_RECOVERY", example = "89")
             @Min(0) @Max(99) Short recoveryMaxScore) {
+    }
+
+    record ApproveRequest(
+            @Schema(description = "Why this policy version is being approved for activation")
+            @NotBlank String reason,
+            @Schema(description = "Challenge ID returned by the matching .../approve/step-up endpoint, "
+                    + "after it has been verified via POST /api/v1/challenges/{id}/verify")
+            @NotNull UUID stepUpChallengeId) {
     }
 
     record StepUpRequest(

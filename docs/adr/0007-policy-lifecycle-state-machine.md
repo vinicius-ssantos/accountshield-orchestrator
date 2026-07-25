@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-22
+- Updated: 2026-07-25
 
 ## Context
 
@@ -11,15 +12,17 @@ The platform needs a controlled lifecycle: policies are drafted, validated, acti
 
 ## Decision
 
-Introduce a `PolicyLifecycleService` in the `policy` module with a five-state lifecycle enforced both in the domain entity and at the database level.
+Introduce a `PolicyLifecycleService` in the `policy` module with a lifecycle enforced both in the domain entity and at the database level. It originally shipped with five states; ADR 0016 (#33) inserted a sixth, `APPROVED`, between `VALIDATED` and `ACTIVE` for maker-checker separation of duties. See ADR 0015 (#46) for what `validate()` actually checks (a deterministic threshold analyzer) and ADR 0016 for the approval gate's self-approval-prevention rule — this ADR keeps describing the shape of the state machine itself.
 
 ### State machine
 
 ```
-DRAFT     -> VALIDATED   (operator validates thresholds)
+DRAFT     -> VALIDATED   (validate(): a deterministic analyzer must pass — ADR 0015)
 DRAFT     -> REJECTED    (operator discards)
-VALIDATED -> ACTIVE      (operator activates; previous ACTIVE auto-retired)
+VALIDATED -> APPROVED    (approve(): a different, non-author actor signs off — ADR 0016)
 VALIDATED -> REJECTED    (operator discards after validation)
+APPROVED  -> ACTIVE      (operator activates; previous ACTIVE auto-retired)
+APPROVED  -> REJECTED    (operator discards after approval, before activation)
 ACTIVE    -> RETIRED     (operator retires, or auto-retired by new activation)
 ```
 
@@ -29,7 +32,7 @@ Terminal states: `RETIRED`, `REJECTED`. No transitions are possible from termina
 
 When `activate(policyKey, version)` is called:
 1. The currently active version for that key (if any) transitions to `RETIRED`.
-2. The candidate version transitions from `VALIDATED` to `ACTIVE` with `activated_at` set.
+2. The candidate version transitions from `APPROVED` to `ACTIVE` with `activated_at` set.
 3. Both transitions occur in a single transaction.
 
 The partial unique index `uq_single_active_policy ON policy.policy_version (policy_key) WHERE status = 'ACTIVE'` enforces single-active at the database level.
@@ -58,18 +61,20 @@ The original immutability trigger (V1) blocked all updates to active rows. V6 re
 ### API
 
 ```
-POST /api/v1/policies                             — create draft
-POST /api/v1/policies/{key}/{version}/validate     — validate draft
-POST /api/v1/policies/{key}/{version}/activate     — activate (auto-retires previous)
-POST /api/v1/policies/{key}/{version}/reject       — reject draft or validated
-POST /api/v1/policies/{key}/{version}/retire       — retire active
+POST /api/v1/policies                              — create draft
+POST /api/v1/policies/{key}/{version}/validate      — validate draft (ADR 0015)
+POST /api/v1/policies/{key}/{version}/approve/step-up — request approval step-up (ADR 0016)
+POST /api/v1/policies/{key}/{version}/approve       — approve validated draft (ADR 0016)
+POST /api/v1/policies/{key}/{version}/activate      — activate (auto-retires previous)
+POST /api/v1/policies/{key}/{version}/reject        — reject draft, validated, or approved
+POST /api/v1/policies/{key}/{version}/retire        — retire active
 ```
 
 ## Consequences
 
 ### Positive
 
-- five-state lifecycle with explicit, auditable transitions;
+- six-state lifecycle with explicit, auditable transitions;
 - immutability enforced at both domain and database levels (defense in depth);
 - atomic version swap prevents windows with zero or two active policies;
 - shadow evaluation (ADR 0006) can safely compare candidate versions before activation;
@@ -86,7 +91,7 @@ POST /api/v1/policies/{key}/{version}/retire       — retire active
 - transition validation runs in the entity before the transaction commits;
 - the DB trigger is a hard immutability guarantee independent of application logic;
 - `IllegalPolicyTransitionException` surfaces as 409 Conflict, not 500;
-- only one `DRAFT` or `VALIDATED` version per key at a time.
+- only one `DRAFT`, `VALIDATED`, or `APPROVED` version per key at a time.
 
 ## Revisit criteria
 

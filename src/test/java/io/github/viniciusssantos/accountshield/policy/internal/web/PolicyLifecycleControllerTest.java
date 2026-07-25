@@ -20,6 +20,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
+import io.github.viniciusssantos.accountshield.policy.SelfApprovalNotAllowedException;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -88,10 +89,11 @@ class PolicyLifecycleControllerTest {
         PolicyVersionSummary summary = new PolicyVersionSummary(
                 UUID.randomUUID(), "test-policy", "1.0.0", PolicyStatus.DRAFT,
                 (short) 25, (short) 65, Instant.parse("2026-07-22T12:00:00Z"), null);
-        when(lifecycleService.createDraft(any(CreatePolicyCommand.class)))
+        when(lifecycleService.createDraft(any(CreatePolicyCommand.class), any()))
                 .thenReturn(summary);
 
         mockMvc.perform(post("/api/v1/policies")
+                        .principal(new TestingAuthenticationToken("author-bob", null))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "policyKey": "test-policy", "version": "1.0.0", "allowMaxScore": 25, "stepUpMaxScore": 65 }
@@ -128,10 +130,11 @@ class PolicyLifecycleControllerTest {
 
     @Test
     void duplicateVersionReturns409() throws Exception {
-        when(lifecycleService.createDraft(any(CreatePolicyCommand.class)))
+        when(lifecycleService.createDraft(any(CreatePolicyCommand.class), any()))
                 .thenThrow(new DuplicatePolicyVersionException("test-policy", "1.0.0"));
 
         mockMvc.perform(post("/api/v1/policies")
+                        .principal(new TestingAuthenticationToken("author-bob", null))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "policyKey": "test-policy", "version": "1.0.0", "allowMaxScore": 25, "stepUpMaxScore": 65 }
@@ -143,10 +146,11 @@ class PolicyLifecycleControllerTest {
 
     @Test
     void pendingVersionExistsReturns409() throws Exception {
-        when(lifecycleService.createDraft(any(CreatePolicyCommand.class)))
+        when(lifecycleService.createDraft(any(CreatePolicyCommand.class), any()))
                 .thenThrow(new PendingPolicyVersionExistsException("test-policy"));
 
         mockMvc.perform(post("/api/v1/policies")
+                        .principal(new TestingAuthenticationToken("author-bob", null))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "policyKey": "test-policy", "version": "1.0.0", "allowMaxScore": 25, "stepUpMaxScore": 65 }
@@ -191,14 +195,49 @@ class PolicyLifecycleControllerTest {
     void validateReturns422WhenAnalysisFails() throws Exception {
         PolicyAnalysisResult result = policyAnalyzer.analyze(
                 new PolicyDefinition((short) 70, (short) 70, (short) 89));
-        when(lifecycleService.validate("test-policy", "1.0.0"))
+        when(lifecycleService.validate(eq("test-policy"), eq("1.0.0"), any()))
                 .thenThrow(new PolicyAnalysisFailedException("test-policy", "1.0.0", result));
 
         mockMvc.perform(post("/api/v1/policies/test-policy/1.0.0/validate")
+                        .principal(new TestingAuthenticationToken("validator-vera", null))
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("POLICY_ANALYSIS_FAILED"))
                 .andExpect(jsonPath("$.diagnostics[0].code").value("STEP_UP_BAND_SHADOWED"));
+    }
+
+    @Test
+    void approveReturns200WithApprovedStatus() throws Exception {
+        PolicyVersionSummary summary = new PolicyVersionSummary(
+                UUID.randomUUID(), "test-policy", "1.0.0", PolicyStatus.APPROVED,
+                (short) 25, (short) 65, Instant.parse("2026-07-22T12:00:00Z"), null);
+        when(lifecycleService.approve(eq("test-policy"), eq("1.0.0"), eq(STEP_UP_CHALLENGE_ID),
+                        eq("approver-carol"), eq("looks good")))
+                .thenReturn(summary);
+
+        mockMvc.perform(approveRequest())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
+
+    @Test
+    void approveReturns409ForSelfApproval() throws Exception {
+        when(lifecycleService.approve(eq("test-policy"), eq("1.0.0"), eq(STEP_UP_CHALLENGE_ID),
+                        eq("approver-carol"), eq("looks good")))
+                .thenThrow(new SelfApprovalNotAllowedException("test-policy", "1.0.0", "approver-carol"));
+
+        mockMvc.perform(approveRequest())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SELF_APPROVAL_NOT_ALLOWED"));
+    }
+
+    @Test
+    void approveWithoutReasonIsRejected() throws Exception {
+        mockMvc.perform(post("/api/v1/policies/test-policy/1.0.0/approve")
+                        .principal(new TestingAuthenticationToken("approver-carol", null))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"stepUpChallengeId\": \"" + STEP_UP_CHALLENGE_ID + "\" }"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -223,6 +262,13 @@ class PolicyLifecycleControllerTest {
                 .principal(new TestingAuthenticationToken("admin-alice", null))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(stepUpBody());
+    }
+
+    private MockHttpServletRequestBuilder approveRequest() {
+        return post("/api/v1/policies/test-policy/1.0.0/approve")
+                .principal(new TestingAuthenticationToken("approver-carol", null))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{ \"reason\": \"looks good\", \"stepUpChallengeId\": \"" + STEP_UP_CHALLENGE_ID + "\" }");
     }
 
     private String stepUpBody() {

@@ -49,6 +49,24 @@ public class PolicyVersionEntity {
     @Column(name = "activated_at")
     private Instant activatedAt;
 
+    @Column(name = "created_by", length = 200)
+    private String createdBy;
+
+    @Column(name = "validated_by", length = 200)
+    private String validatedBy;
+
+    @Column(name = "validated_at")
+    private Instant validatedAt;
+
+    @Column(name = "approved_by", length = 200)
+    private String approvedBy;
+
+    @Column(name = "approved_at")
+    private Instant approvedAt;
+
+    @Column(name = "approval_reason", length = 500)
+    private String approvalReason;
+
     protected PolicyVersionEntity() {
     }
 
@@ -170,6 +188,45 @@ public class PolicyVersionEntity {
         return activatedAt;
     }
 
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public String getValidatedBy() {
+        return validatedBy;
+    }
+
+    public Instant getValidatedAt() {
+        return validatedAt;
+    }
+
+    public void recordValidation(String validatedBy, Instant validatedAt) {
+        this.validatedBy = validatedBy;
+        this.validatedAt = validatedAt;
+    }
+
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public Instant getApprovedAt() {
+        return approvedAt;
+    }
+
+    public String getApprovalReason() {
+        return approvalReason;
+    }
+
+    public void recordApproval(String approvedBy, Instant approvedAt, String approvalReason) {
+        this.approvedBy = approvedBy;
+        this.approvedAt = approvedAt;
+        this.approvalReason = approvalReason;
+    }
+
     public void transitionTo(String targetStatus, Instant now) {
         validateTransition(targetStatus);
         this.status = targetStatus;
@@ -182,7 +239,8 @@ public class PolicyVersionEntity {
         String current = this.status;
         boolean allowed = switch (current) {
             case "DRAFT" -> "VALIDATED".equals(targetStatus) || "REJECTED".equals(targetStatus);
-            case "VALIDATED" -> "ACTIVE".equals(targetStatus) || "REJECTED".equals(targetStatus);
+            case "VALIDATED" -> "APPROVED".equals(targetStatus) || "REJECTED".equals(targetStatus);
+            case "APPROVED" -> "ACTIVE".equals(targetStatus) || "REJECTED".equals(targetStatus);
             case "ACTIVE" -> "RETIRED".equals(targetStatus);
             default -> false;
         };
