@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
@@ -52,6 +53,9 @@ class ProtectionDecisionIntegrationTest {
 
     @Autowired
     private PolicyEvaluationService policyEvaluationService;
+
+    @Autowired
+    private PolicyRoutingService policyRoutingService;
 
     @Autowired
     private ProtectionRequestRepository protectionRequestRepository;
@@ -147,17 +151,18 @@ class ProtectionDecisionIntegrationTest {
         };
         IdempotencyGuard noOpGuard = new IdempotencyGuard() {
             @Override
-            public IdempotencyResult resolve(String key, String fingerprint, Instant now) {
+            public IdempotencyResult resolve(String clientId, String key, String fingerprint, Instant now) {
                 return IdempotencyResult.absent();
             }
             @Override
-            public void record(String key, String fingerprint, String resourceType,
+            public void record(String clientId, String key, String fingerprint, String resourceType,
                     UUID resourceId, String responsePayload, Instant createdAt, Instant expiresAt) {
             }
         };
         var failingService = new ProtectionDecisionApplicationService(
                 riskAssessmentService,
                 policyEvaluationService,
+                policyRoutingService,
                 protectionRequestRepository,
                 failingRecorder,
                 noOpGuard,
@@ -165,7 +170,7 @@ class ProtectionDecisionIntegrationTest {
                 Clock.systemUTC(),
                 new ObjectMapper(),
                 applicationContext,
-                (acct, ts) -> {},
+                (clientId, acct, ts) -> {},
                 Duration.ofMinutes(5),
                 meterRegistry);
         var command = new ProtectionDecisionCommand(
@@ -225,6 +230,7 @@ class ProtectionDecisionIntegrationTest {
         var degradingService = new ProtectionDecisionApplicationService(
                 riskAssessmentService,
                 policyEvaluationService,
+                policyRoutingService,
                 protectionRequestRepository,
                 applicationContext.getBean(DecisionTraceRecorder.class),
                 applicationContext.getBean(IdempotencyGuard.class),
@@ -232,7 +238,7 @@ class ProtectionDecisionIntegrationTest {
                 Clock.systemUTC(),
                 new ObjectMapper(),
                 applicationContext,
-                (acct, ts) -> {},
+                (clientId, acct, ts) -> {},
                 Duration.ofMinutes(5),
                 meterRegistry);
 
@@ -260,6 +266,42 @@ class ProtectionDecisionIntegrationTest {
                 "SELECT normalized_context ->> 'degradationReason' FROM audit.decision_trace WHERE id = ?",
                 String.class, result.decisionId()))
                 .isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
+    }
+
+    @Test
+    void twoClientsReusingTheSameAccountReferenceAndIdempotencyKeySucceedIndependently() {
+        String sharedAccountReference = "shared-across-clients-" + UUID.randomUUID();
+        String sharedIdempotencyKey = "shared-idem-" + UUID.randomUUID();
+        String otherClientId = "acme-corp-" + UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO policy.client_policy_route (id, client_id, event_type, policy_key) "
+                        + "VALUES (gen_random_uuid(), ?, 'LOGIN_ATTEMPT', 'account-protection-default')",
+                otherClientId);
+
+        ProtectionDecisionResult defaultClientResult = protectionDecisionService.decide(
+                new ProtectionDecisionCommand(
+                        sharedAccountReference,
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
+                        sharedIdempotencyKey));
+        ProtectionDecisionResult otherClientResult = protectionDecisionService.decide(
+                new ProtectionDecisionCommand(
+                        sharedAccountReference,
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
+                        sharedIdempotencyKey,
+                        new io.github.viniciusssantos.accountshield.protection.ClientId(otherClientId)));
+
+        assertThat(defaultClientResult.protectionRequestId())
+                .isNotEqualTo(otherClientResult.protectionRequestId());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM protection.idempotency_record WHERE idempotency_key = ?",
+                Long.class, sharedIdempotencyKey))
+                .isEqualTo(2L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM protection.protection_request WHERE account_reference = ?",
+                Long.class, sharedAccountReference))
+                .isEqualTo(2L);
     }
 
     private ProtectionDecisionResult decide(String accountReference, RiskSignals signals) {

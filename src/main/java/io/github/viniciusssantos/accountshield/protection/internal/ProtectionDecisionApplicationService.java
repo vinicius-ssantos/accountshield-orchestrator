@@ -12,6 +12,7 @@ import io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableExc
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
 import io.github.viniciusssantos.accountshield.protection.DegradationReason;
@@ -57,12 +58,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ProtectionDecisionApplicationService implements ProtectionDecisionService {
 
-    private static final String DEFAULT_POLICY_KEY = "account-protection-default";
     private static final String DECIDED_STATUS = "DECIDED";
     private static final Duration RECOVERY_AUTHORIZATION_TTL = Duration.ofMinutes(15);
 
     private final RiskAssessmentService riskAssessmentService;
     private final PolicyEvaluationService policyEvaluationService;
+    private final PolicyRoutingService policyRoutingService;
     private final ProtectionRequestRepository protectionRequestRepository;
     private final DecisionTraceRecorder decisionTraceRecorder;
     private final IdempotencyGuard idempotencyGuard;
@@ -77,6 +78,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     public ProtectionDecisionApplicationService(
             RiskAssessmentService riskAssessmentService,
             PolicyEvaluationService policyEvaluationService,
+            PolicyRoutingService policyRoutingService,
             ProtectionRequestRepository protectionRequestRepository,
             DecisionTraceRecorder decisionTraceRecorder,
             IdempotencyGuard idempotencyGuard,
@@ -89,6 +91,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             MeterRegistry meterRegistry) {
         this.riskAssessmentService = riskAssessmentService;
         this.policyEvaluationService = policyEvaluationService;
+        this.policyRoutingService = policyRoutingService;
         this.protectionRequestRepository = protectionRequestRepository;
         this.decisionTraceRecorder = decisionTraceRecorder;
         this.idempotencyGuard = idempotencyGuard;
@@ -111,11 +114,12 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             degradedCounter(DegradationReason.RISK_SIGNAL_STALE).increment();
             throw new StaleRiskSignalException(command.signalEnvelope().observedAt());
         }
-        rateLimiter.checkLimit(command.accountReference(), now);
+        rateLimiter.checkLimit(command.clientId(), command.accountReference(), now);
         String requestFingerprint = fingerprint(command);
         String idempotencyKey = resolveIdempotencyKey(command, requestFingerprint);
 
-        IdempotencyResult existing = idempotencyGuard.resolve(idempotencyKey, requestFingerprint, now);
+        IdempotencyResult existing = idempotencyGuard.resolve(
+                command.clientId().value(), idempotencyKey, requestFingerprint, now);
         if (existing.duplicate()) {
             return restoreDecision(existing);
         }
@@ -126,12 +130,14 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         RiskAssessment assessment = riskAssessmentService.assess(command.signalEnvelope());
         PolicyEvaluation evaluation;
         try {
+            String policyKey = policyRoutingService.resolvePolicyKey(
+                    command.clientId().value(), command.eventType().name());
             evaluation = command.eventType().recoveryRequest()
                     ? policyEvaluationService.evaluate(
-                            DEFAULT_POLICY_KEY,
+                            policyKey,
                             assessment.score(),
                             PolicyEvaluationContext.recoveryRequestContext())
-                    : policyEvaluationService.evaluate(DEFAULT_POLICY_KEY, assessment.score());
+                    : policyEvaluationService.evaluate(policyKey, assessment.score());
         } catch (ActivePolicyUnavailableException exception) {
             degradedCounter(DegradationReason.ACTIVE_POLICY_UNAVAILABLE).increment();
             throw exception;
@@ -139,6 +145,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
 
         protectionRequestRepository.save(new ProtectionRequestEntity(
                 protectionRequestId,
+                command.clientId().value(),
                 command.accountReference(),
                 command.eventType().name(),
                 requestFingerprint,
@@ -210,6 +217,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 degradationReason);
 
         idempotencyGuard.record(
+                command.clientId().value(),
                 idempotencyKey,
                 requestFingerprint,
                 idempotencyGuard instanceof DatabaseIdempotencyGuard dbg ? dbg.resourceType() : "protection_decision",
@@ -228,7 +236,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 evaluation.policyVersion(),
                 now,
                 degraded,
-                degradationReason));
+                degradationReason,
+                command.clientId().value()));
 
         return result;
     }
@@ -275,6 +284,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         context.put("signalConfidence", envelope.confidence().name());
         context.put("signalSchemaVersion", envelope.schemaVersion());
         context.put("signalSimulated", envelope.simulated());
+        context.put("clientId", command.clientId().value());
         context.put("degraded", degraded);
         if (degradationReason != null) {
             context.put("degradationReason", degradationReason);
@@ -310,6 +320,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             try (DataOutputStream output = new DataOutputStream(bytes)) {
+                output.writeUTF(command.clientId().value());
                 output.writeUTF(command.accountReference());
                 output.writeUTF(command.eventType().name());
                 output.writeInt(command.signalEnvelope().signals().failedAttempts());

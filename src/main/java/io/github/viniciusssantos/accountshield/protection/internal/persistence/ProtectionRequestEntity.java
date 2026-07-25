@@ -14,6 +14,9 @@ public class ProtectionRequestEntity {
     @Id
     private UUID id;
 
+    @Column(name = "client_id", nullable = false, length = 100)
+    private String clientId;
+
     @Column(name = "account_reference", nullable = false, length = 128)
     private String accountReference;
 
@@ -34,12 +37,14 @@ public class ProtectionRequestEntity {
 
     public ProtectionRequestEntity(
             UUID id,
+            String clientId,
             String accountReference,
             String eventType,
             String requestFingerprint,
             String status,
             Instant requestedAt) {
         this.id = id;
+        this.clientId = clientId;
         this.accountReference = accountReference;
         this.eventType = eventType;
         this.requestFingerprint = requestFingerprint;

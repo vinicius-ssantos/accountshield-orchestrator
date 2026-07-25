@@ -18,17 +18,17 @@ class ProtectionMetricsRecorderTest {
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-1",
                 "ALLOW", 5, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z"), false, null));
+                Instant.parse("2026-07-22T12:00:00Z"), false, null, "default-client"));
 
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-2",
                 "TEMPORARILY_BLOCK", 85, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:01Z"), false, null));
+                Instant.parse("2026-07-22T12:00:01Z"), false, null, "default-client"));
 
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-3",
                 "ALLOW", 10, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:02Z"), false, null));
+                Instant.parse("2026-07-22T12:00:02Z"), false, null, "default-client"));
 
         var allowCounter = registry.find("accountshield.protection.decisions")
                 .tag("outcome", "ALLOW")
@@ -58,12 +58,12 @@ class ProtectionMetricsRecorderTest {
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-1",
                 "ALLOW", 0, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z"), false, null));
+                Instant.parse("2026-07-22T12:00:00Z"), false, null, "default-client"));
 
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-2",
                 "ALLOW", 0, "strict-summer-policy", "2.0.0",
-                Instant.parse("2026-07-22T12:00:01Z"), false, null));
+                Instant.parse("2026-07-22T12:00:01Z"), false, null, "default-client"));
 
         var defaultCounter = registry.find("accountshield.protection.decisions")
                 .tag("policy_key", "account-protection-default")
@@ -86,12 +86,12 @@ class ProtectionMetricsRecorderTest {
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-1",
                 "TEMPORARILY_BLOCK", 0, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:00Z"), true, "CHALLENGE_PROVIDER_UNAVAILABLE"));
+                Instant.parse("2026-07-22T12:00:00Z"), true, "CHALLENGE_PROVIDER_UNAVAILABLE", "default-client"));
 
         recorder.onDecisionMade(new ProtectionDecisionMade(
                 UUID.randomUUID(), UUID.randomUUID(), "acct-2",
                 "ALLOW", 0, "account-protection-default", "1.0.0",
-                Instant.parse("2026-07-22T12:00:01Z"), false, null));
+                Instant.parse("2026-07-22T12:00:01Z"), false, null, "default-client"));
 
         var degradedCounter = registry.find("accountshield.protection.degraded_decisions")
                 .tag("reason", "CHALLENGE_PROVIDER_UNAVAILABLE")

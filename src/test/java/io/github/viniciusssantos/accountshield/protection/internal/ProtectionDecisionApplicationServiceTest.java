@@ -16,7 +16,9 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.protection.ClientId;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
@@ -46,18 +48,21 @@ class ProtectionDecisionApplicationServiceTest {
 
     private final RiskAssessmentService riskAssessmentService = mock(RiskAssessmentService.class);
     private final PolicyEvaluationService policyEvaluationService = mock(PolicyEvaluationService.class);
+    private final PolicyRoutingService policyRoutingService =
+            (clientId, eventType) -> "account-protection-default";
     private final ProtectionRequestRepository protectionRequestRepository = mock(ProtectionRequestRepository.class);
     private final DecisionTraceRecorder decisionTraceRecorder = mock(DecisionTraceRecorder.class);
     private final IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
     private final ChallengeService challengeService = mock(ChallengeService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-20T03:00:00Z"), ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-    private final ProtectionRateLimiter rateLimiter = (accountReference, now) -> {};
+    private final ProtectionRateLimiter rateLimiter = (clientId, accountReference, now) -> {};
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private final ProtectionDecisionApplicationService service = new ProtectionDecisionApplicationService(
             riskAssessmentService,
             policyEvaluationService,
+            policyRoutingService,
             protectionRequestRepository,
             decisionTraceRecorder,
             idempotencyGuard,
@@ -85,7 +90,7 @@ class ProtectionDecisionApplicationServiceTest {
                         "account-protection-default",
                         "1.0.0",
                         ProtectionOutcome.REQUIRE_STEP_UP));
-        when(idempotencyGuard.resolve(anyString(), anyString(), any()))
+        when(idempotencyGuard.resolve(anyString(), anyString(), anyString(), any()))
                 .thenReturn(IdempotencyResult.absent());
         when(challengeService.create(any(CreateChallengeCommand.class)))
                 .thenAnswer(invocation -> {
@@ -176,7 +181,7 @@ class ProtectionDecisionApplicationServiceTest {
         when(policyEvaluationService.evaluate("account-protection-default", 0))
                 .thenThrow(new io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException(
                         "account-protection-default"));
-        when(idempotencyGuard.resolve(anyString(), anyString(), any()))
+        when(idempotencyGuard.resolve(anyString(), anyString(), anyString(), any()))
                 .thenReturn(IdempotencyResult.absent());
 
         org.junit.jupiter.api.Assertions.assertThrows(
@@ -207,7 +212,7 @@ class ProtectionDecisionApplicationServiceTest {
         when(policyEvaluationService.evaluate("account-protection-default", 30))
                 .thenReturn(new PolicyEvaluation(
                         "account-protection-default", "1.0.0", ProtectionOutcome.REQUIRE_STEP_UP));
-        when(idempotencyGuard.resolve(anyString(), anyString(), any()))
+        when(idempotencyGuard.resolve(anyString(), anyString(), anyString(), any()))
                 .thenReturn(IdempotencyResult.absent());
         when(challengeService.create(any(CreateChallengeCommand.class)))
                 .thenThrow(new IllegalStateException("simulated challenge provider outage"));
@@ -238,5 +243,58 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(eventCaptor.getValue().outcome()).isEqualTo("TEMPORARILY_BLOCK");
         assertThat(eventCaptor.getValue().degraded()).isTrue();
         assertThat(eventCaptor.getValue().degradationReason()).isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
+    }
+
+    @Test
+    void routesANonDefaultClientToItsOwnPolicyKeyAndPropagatesClientId() {
+        ClientId acmeClientId = new ClientId("acme-corp");
+        RiskSignals signals = new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope envelope = new RiskSignalEnvelope(
+                signals, "CLIENT_SUPPLIED", Instant.parse("2026-07-20T03:00:00Z"), SignalConfidence.HIGH, null, true);
+        RiskAssessment assessment = new RiskAssessment(0, RiskBand.LOW, "risk-rules-1.0", List.of());
+        when(riskAssessmentService.assess(envelope)).thenReturn(assessment);
+        when(policyEvaluationService.evaluate("acme-login-policy", 0))
+                .thenReturn(new PolicyEvaluation("acme-login-policy", "1.0.0", ProtectionOutcome.ALLOW));
+        when(idempotencyGuard.resolve(anyString(), anyString(), anyString(), any()))
+                .thenReturn(IdempotencyResult.absent());
+
+        PolicyRoutingService acmeAwareRouting = (clientId, eventType) -> {
+            assertThat(clientId).isEqualTo("acme-corp");
+            assertThat(eventType).isEqualTo("LOGIN_ATTEMPT");
+            return "acme-login-policy";
+        };
+        ProtectionDecisionApplicationService acmeService = new ProtectionDecisionApplicationService(
+                riskAssessmentService,
+                policyEvaluationService,
+                acmeAwareRouting,
+                protectionRequestRepository,
+                decisionTraceRecorder,
+                idempotencyGuard,
+                challengeService,
+                clock,
+                new ObjectMapper(),
+                eventPublisher,
+                rateLimiter,
+                Duration.ofMinutes(5),
+                meterRegistry);
+
+        var result = acmeService.decide(new ProtectionDecisionCommand(
+                "account-opaque-acme",
+                ProtectionEventType.LOGIN_ATTEMPT,
+                envelope,
+                null,
+                acmeClientId));
+
+        assertThat(result.policyKey()).isEqualTo("acme-login-policy");
+        assertThat(result.outcome()).isEqualTo(ProtectionOutcome.ALLOW);
+
+        ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);
+        verify(decisionTraceRecorder).record(traceCaptor.capture());
+        assertThat(traceCaptor.getValue().normalizedContext()).containsEntry("clientId", "acme-corp");
+
+        ArgumentCaptor<io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade> eventCaptor =
+                ArgumentCaptor.forClass(io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().clientId()).isEqualTo("acme-corp");
     }
 }

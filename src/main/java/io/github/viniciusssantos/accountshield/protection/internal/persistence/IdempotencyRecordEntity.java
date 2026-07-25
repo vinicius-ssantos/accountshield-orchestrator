@@ -16,7 +16,10 @@ public class IdempotencyRecordEntity {
     @Id
     private UUID id;
 
-    @Column(name = "idempotency_key", nullable = false, length = 128, unique = true)
+    @Column(name = "client_id", nullable = false, length = 100)
+    private String clientId;
+
+    @Column(name = "idempotency_key", nullable = false, length = 128)
     private String idempotencyKey;
 
     @Column(name = "request_fingerprint", nullable = false, length = 64)
@@ -43,6 +46,7 @@ public class IdempotencyRecordEntity {
 
     public IdempotencyRecordEntity(
             UUID id,
+            String clientId,
             String idempotencyKey,
             String requestFingerprint,
             String resourceType,
@@ -51,6 +55,7 @@ public class IdempotencyRecordEntity {
             Instant createdAt,
             Instant expiresAt) {
         this.id = id;
+        this.clientId = clientId;
         this.idempotencyKey = idempotencyKey;
         this.requestFingerprint = requestFingerprint;
         this.resourceType = resourceType;
@@ -58,6 +63,10 @@ public class IdempotencyRecordEntity {
         this.responsePayload = responsePayload;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
+    }
+
+    public String getClientId() {
+        return clientId;
     }
 
     public String getIdempotencyKey() {

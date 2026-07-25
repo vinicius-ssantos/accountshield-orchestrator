@@ -22,24 +22,27 @@ class DatabaseIdempotencyGuardTest {
 
     private static final Instant NOW = Instant.parse("2026-07-20T03:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+    private static final String CLIENT_A = "client-a";
+    private static final String CLIENT_B = "client-b";
 
     private final IdempotencyRecordRepository repository = mock(IdempotencyRecordRepository.class);
     private final DatabaseIdempotencyGuard guard = new DatabaseIdempotencyGuard(repository, CLOCK);
 
     @Test
     void returnsAbsentWhenNoRecordExists() {
-        when(repository.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
+        when(repository.findByClientIdAndIdempotencyKey(CLIENT_A, "key-1")).thenReturn(Optional.empty());
 
-        IdempotencyResult result = guard.resolve("key-1", "fp-1", NOW);
+        IdempotencyResult result = guard.resolve(CLIENT_A, "key-1", "fp-1", NOW);
 
         assertThat(result.duplicate()).isFalse();
     }
 
     @Test
     void returnsAbsentWhenExistingRecordHasExpired() {
-        when(repository.findByIdempotencyKey("key-1")).thenReturn(Optional.of(expiredRecord("key-1", "fp-1")));
+        when(repository.findByClientIdAndIdempotencyKey(CLIENT_A, "key-1"))
+                .thenReturn(Optional.of(expiredRecord(CLIENT_A, "key-1", "fp-1")));
 
-        IdempotencyResult result = guard.resolve("key-1", "fp-1", NOW);
+        IdempotencyResult result = guard.resolve(CLIENT_A, "key-1", "fp-1", NOW);
 
         assertThat(result.duplicate()).isFalse();
     }
@@ -47,10 +50,10 @@ class DatabaseIdempotencyGuardTest {
     @Test
     void returnsDuplicateWhenFingerprintsMatch() {
         UUID resourceId = UUID.randomUUID();
-        when(repository.findByIdempotencyKey("key-1")).thenReturn(Optional.of(
-                activeRecord("key-1", "fp-1", resourceId, "{}")));
+        when(repository.findByClientIdAndIdempotencyKey(CLIENT_A, "key-1")).thenReturn(Optional.of(
+                activeRecord(CLIENT_A, "key-1", "fp-1", resourceId, "{}")));
 
-        IdempotencyResult result = guard.resolve("key-1", "fp-1", NOW);
+        IdempotencyResult result = guard.resolve(CLIENT_A, "key-1", "fp-1", NOW);
 
         assertThat(result.duplicate()).isTrue();
         assertThat(result.fingerprint()).isEqualTo("fp-1");
@@ -59,21 +62,37 @@ class DatabaseIdempotencyGuardTest {
 
     @Test
     void throwsConflictWhenFingerprintsDiffer() {
-        when(repository.findByIdempotencyKey("key-1")).thenReturn(Optional.of(
-                activeRecord("key-1", "fp-original", UUID.randomUUID(), "{}")));
+        when(repository.findByClientIdAndIdempotencyKey(CLIENT_A, "key-1")).thenReturn(Optional.of(
+                activeRecord(CLIENT_A, "key-1", "fp-original", UUID.randomUUID(), "{}")));
 
-        assertThatThrownBy(() -> guard.resolve("key-1", "fp-different", NOW))
+        assertThatThrownBy(() -> guard.resolve(CLIENT_A, "key-1", "fp-different", NOW))
                 .isInstanceOf(ConflictingIdempotencyRequestException.class)
                 .hasMessageContaining("idempotency key");
     }
 
     @Test
+    void twoDifferentClientsReusingTheSameIdempotencyKeyDoNotCollide() {
+        when(repository.findByClientIdAndIdempotencyKey(CLIENT_A, "shared-key"))
+                .thenReturn(Optional.of(activeRecord(CLIENT_A, "shared-key", "fp-a", UUID.randomUUID(), "{}")));
+        when(repository.findByClientIdAndIdempotencyKey(CLIENT_B, "shared-key"))
+                .thenReturn(Optional.empty());
+
+        IdempotencyResult resultForClientA = guard.resolve(CLIENT_A, "shared-key", "fp-a", NOW);
+        IdempotencyResult resultForClientB = guard.resolve(CLIENT_B, "shared-key", "fp-b", NOW);
+
+        assertThat(resultForClientA.duplicate()).isTrue();
+        assertThat(resultForClientB.duplicate()).isFalse();
+    }
+
+    @Test
     void rejectsNullInputs() {
-        assertThatThrownBy(() -> guard.resolve(null, "fp", NOW))
+        assertThatThrownBy(() -> guard.resolve(null, "key", "fp", NOW))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> guard.resolve("key", null, NOW))
+        assertThatThrownBy(() -> guard.resolve(CLIENT_A, null, "fp", NOW))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> guard.resolve("key", "fp", null))
+        assertThatThrownBy(() -> guard.resolve(CLIENT_A, "key", null, NOW))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> guard.resolve(CLIENT_A, "key", "fp", null))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -94,19 +113,20 @@ class DatabaseIdempotencyGuardTest {
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("duplicate key"));
 
         assertThatThrownBy(() -> guard.record(
-                "key-1", "fp-1", "protection_decision", UUID.randomUUID(), "{}", NOW, NOW.plusSeconds(300)))
+                CLIENT_A, "key-1", "fp-1", "protection_decision", UUID.randomUUID(), "{}", NOW, NOW.plusSeconds(300)))
                 .isInstanceOf(ConflictingIdempotencyRequestException.class);
     }
 
-    private IdempotencyRecordEntity activeRecord(String key, String fp, UUID resourceId, String payload) {
+    private IdempotencyRecordEntity activeRecord(String clientId, String key, String fp, UUID resourceId,
+            String payload) {
         return new IdempotencyRecordEntity(
-                UUID.randomUUID(), key, fp, "protection_decision", resourceId,
+                UUID.randomUUID(), clientId, key, fp, "protection_decision", resourceId,
                 payload, NOW.minus(java.time.Duration.ofHours(1)), NOW.plus(java.time.Duration.ofHours(23)));
     }
 
-    private IdempotencyRecordEntity expiredRecord(String key, String fp) {
+    private IdempotencyRecordEntity expiredRecord(String clientId, String key, String fp) {
         return new IdempotencyRecordEntity(
-                UUID.randomUUID(), key, fp, "protection_decision", UUID.randomUUID(),
+                UUID.randomUUID(), clientId, key, fp, "protection_decision", UUID.randomUUID(),
                 "{}", NOW.minus(java.time.Duration.ofHours(25)), NOW.minus(java.time.Duration.ofHours(1)));
     }
 }

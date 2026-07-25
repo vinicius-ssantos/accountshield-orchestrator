@@ -23,8 +23,8 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | Deterministic risk scoring | **Implemented** | Normalized signals produce bounded score, band, ordered reason codes, and contributions | Risk module tests; provenance hardening: [#45](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/45) |
 | Versioned policy evaluation | **Implemented** | Active immutable policy versions route standard and recovery-request events | ADR 0007; ADR 0015 |
 | Explicit protection outcomes | **Implemented** | `ALLOW`, `REQUIRE_STEP_UP`, `START_RECOVERY`, and `TEMPORARILY_BLOCK` are distinct decisions | ADR 0010 |
-| Decision idempotency | **Partial** | Repeated sequential equivalent requests return the same logical decision; fingerprint conflicts are detected | Concurrent winner re-read and abstraction cleanup: [#22](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/22) |
-| In-memory rate limiting | **Implemented** | Bounded sliding-window limits protect the decision endpoint in the current single-instance demo | ADR 0008; client-aware routing planned in [#26](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/26) |
+| Decision idempotency | **Partial** | Repeated sequential equivalent requests return the same logical decision, scoped per client (ADR 0017); fingerprint conflicts are detected | Concurrent winner re-read and abstraction cleanup: [#22](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/22) |
+| In-memory rate limiting | **Implemented** | Bounded sliding-window limits are scoped per client and account reference in the current single-instance demo | ADR 0008; ADR 0017 |
 | Fail-safe dependency degradation | **Implemented** | Active policy, risk-signal staleness, and challenge-provider failures each have an explicit, classified strategy; challenge-provider failure degrades to a recorded, safe `TEMPORARILY_BLOCK` | ADR 0014 |
 
 ## Policy lifecycle and governance
@@ -37,7 +37,7 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | Maker-checker approval | **Partial** | Author/validator/approver actor identity, self-approval prevention, and an `APPROVED` gate before activation are implemented; rollback-to-a-retired-version and two-person/critical-class approval are not | ADR 0016 |
 | Canary rollout and rollback | **Planned** | Deterministic cohorts and progressive rollout are not implemented | [#34](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/34) |
 | Historical policy impact reports | **Partial** | Shadow evaluation exists for individual traces; aggregate transition reports and approval gates do not | [#35](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/35) |
-| Client/event policy routing | **Planned** | Current baseline uses a default policy without tenant/client isolation | [#26](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/26) |
+| Client/event policy routing | **Partial** | `PolicyRoutingService` resolves a policy key per client and protection event type; activation isolation follows from distinct policy keys per client. Cross-client replay/recovery access-control enforcement is not implemented | ADR 0017 |
 
 ## Audit, replay, and evidence
 

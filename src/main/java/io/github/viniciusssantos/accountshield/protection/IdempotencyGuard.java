@@ -4,9 +4,10 @@ import java.time.Instant;
 
 public interface IdempotencyGuard {
 
-    IdempotencyResult resolve(String idempotencyKey, String fingerprint, Instant now);
+    IdempotencyResult resolve(String clientId, String idempotencyKey, String fingerprint, Instant now);
 
     void record(
+            String clientId,
             String idempotencyKey,
             String fingerprint,
             String resourceType,

@@ -7,7 +7,8 @@ public record ProtectionDecisionCommand(
         String accountReference,
         ProtectionEventType eventType,
         RiskSignalEnvelope signalEnvelope,
-        String idempotencyKey) {
+        String idempotencyKey,
+        ClientId clientId) {
 
     public ProtectionDecisionCommand {
         Objects.requireNonNull(accountReference, "accountReference must not be null");
@@ -21,5 +22,14 @@ public record ProtectionDecisionCommand(
             throw new IllegalArgumentException(
                     "idempotencyKey must be null or contain between 1 and 128 characters");
         }
+        Objects.requireNonNull(clientId, "clientId must not be null");
+    }
+
+    public ProtectionDecisionCommand(
+            String accountReference,
+            ProtectionEventType eventType,
+            RiskSignalEnvelope signalEnvelope,
+            String idempotencyKey) {
+        this(accountReference, eventType, signalEnvelope, idempotencyKey, ClientId.DEFAULT);
     }
 }
