@@ -63,15 +63,32 @@ test("serves representative responses with restrictive security headers", async 
   expect(routeHandlerResponse.headers()["cache-control"]).toContain("no-store");
 });
 
-test("blocks an unauthorized inline script", async ({ page }) => {
-  await page.goto("/");
+test("blocks an unauthorized inline script", async ({ page, request }) => {
+  const applicationResponse = await request.get("/");
+  const contentSecurityPolicy =
+    applicationResponse.headers()["content-security-policy"] ?? "";
+  expect(contentSecurityPolicy).toContain("'strict-dynamic'");
 
-  await page.evaluate(() => {
-    const script = document.createElement("script");
-    script.textContent =
-      "document.documentElement.dataset.accountShieldCspBypassed = 'true'";
-    document.head.appendChild(script);
+  await page.route("**/__csp-probe", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      headers: {
+        "Content-Security-Policy": contentSecurityPolicy,
+      },
+      body: `<!doctype html>
+        <html>
+          <head>
+            <script>
+              document.documentElement.dataset.accountShieldCspBypassed = "true";
+            </script>
+          </head>
+          <body>CSP probe</body>
+        </html>`,
+    });
   });
+
+  await page.goto("/__csp-probe");
 
   await expect(page.locator("html")).not.toHaveAttribute(
     "data-account-shield-csp-bypassed",
