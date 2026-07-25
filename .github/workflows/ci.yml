@@ -194,3 +194,80 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  frontend-container:
+    name: Frontend container smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          load: true
+          tags: accountshield-frontend:ci
+          build-args: |
+            NEXT_PUBLIC_APP_ENV=ci
+            ACCOUNTSHIELD_DATA_SOURCE=fixtures
+          cache-from: type=gha,scope=frontend-container
+          cache-to: type=gha,mode=max,scope=frontend-container
+
+      - name: Start frontend container
+        run: |
+          docker run --detach --name accountshield-frontend-ci \
+            --publish 127.0.0.1:3001:3000 \
+            --env ACCOUNTSHIELD_DATA_SOURCE=fixtures \
+            --env NEXT_PUBLIC_APP_ENV=ci \
+            accountshield-frontend:ci
+
+      - name: Verify frontend container
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3001/healthz >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs accountshield-frontend-ci
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent http://127.0.0.1:3001/ \
+            | grep --fixed-strings "Account protection at a glance"
+
+          test "$(docker exec accountshield-frontend-ci id -u)" != "0"
+
+          health_status=""
+          for attempt in $(seq 1 15); do
+            health_status="$(docker inspect --format='{{.State.Health.Status}}' accountshield-frontend-ci)"
+            if [ "$health_status" = "healthy" ]; then
+              break
+            fi
+            if [ "$health_status" = "unhealthy" ]; then
+              docker logs accountshield-frontend-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$health_status" = "healthy"
+
+      - name: Show frontend container logs on failure
+        if: failure()
+        run: docker logs accountshield-frontend-ci || true
+
+      - name: Remove frontend container
+        if: always()
+        run: docker rm --force accountshield-frontend-ci || true
