@@ -232,8 +232,11 @@ export function Timestamp({
 }) {
   const date = value instanceof Date ? value : new Date(value);
   const formatted = new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone,
     timeZoneName: "short",
   }).format(date);
