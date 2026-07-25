@@ -21,9 +21,13 @@ COPY . .
 RUN npm run build
 
 FROM node:${NODE_VERSION} AS runner
+ARG NEXT_PUBLIC_APP_ENV=local
+ARG ACCOUNTSHIELD_DATA_SOURCE=fixtures
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV ACCOUNTSHIELD_BUILD_APP_ENV=${NEXT_PUBLIC_APP_ENV}
+ENV ACCOUNTSHIELD_BUILD_DATA_SOURCE=${ACCOUNTSHIELD_DATA_SOURCE}
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 RUN addgroup --system --gid 1001 nodejs \
@@ -32,8 +36,9 @@ RUN addgroup --system --gid 1001 nodejs \
     && chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/start.mjs ./scripts/start.mjs
 USER nextjs
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
   CMD node -e "fetch('http://127.0.0.1:3000/healthz').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", "server.js"]
+CMD ["node", "scripts/start.mjs"]

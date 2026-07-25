@@ -271,6 +271,9 @@ jobs:
           done
           test "$health_status" = "healthy"
 
+      - name: Reject build and runtime mode mismatch
+        run: bash frontend/scripts/assert-runtime-mismatch.sh
+
       - name: Show frontend container logs on failure
         if: failure()
         run: docker logs accountshield-frontend-ci || true
