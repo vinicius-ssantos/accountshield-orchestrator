@@ -83,6 +83,38 @@ class ProtectionDecisionControllerTest {
     }
 
     @Test
+    void surfacesDegradationFieldsInResponse() throws Exception {
+        when(service.decide(any())).thenReturn(new ProtectionDecisionResult(
+                UUID.fromString("73f09515-64da-4130-91ac-f1159efaeeb1"),
+                UUID.fromString("95ba12b2-36ef-4cbb-861f-76974557e038"),
+                null,
+                ProtectionOutcome.TEMPORARILY_BLOCK,
+                30,
+                RiskBand.MEDIUM,
+                "risk-rules-1.0",
+                "account-protection-default",
+                "1.0.0",
+                List.of(),
+                Instant.parse("2026-07-20T03:00:00Z"),
+                null,
+                true,
+                "CHALLENGE_PROVIDER_UNAVAILABLE"));
+
+        mockMvc.perform(post("/api/v1/protection-decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountReference": "account-opaque-degraded",
+                                  "eventType": "LOGIN_ATTEMPT"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.outcome").value("TEMPORARILY_BLOCK"))
+                .andExpect(jsonPath("$.degraded").value(true))
+                .andExpect(jsonPath("$.degradationReason").value("CHALLENGE_PROVIDER_UNAVAILABLE"));
+    }
+
+    @Test
     void defaultsSignalProvenanceWhenOmitted() throws Exception {
         when(service.decide(any())).thenReturn(new ProtectionDecisionResult(
                 UUID.fromString("73f09515-64da-4130-91ac-f1159efaeeb1"),

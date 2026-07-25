@@ -95,6 +95,23 @@ Each decision trace stores:
 
 The fingerprint supports deterministic request identity but is not yet the durable idempotency contract. Reuse and conflict behavior belong to the next dedicated slice.
 
+## Degradation strategy
+
+Every critical-dependency failure has an explicit, classified strategy (`protection.DegradationStrategy`/`DegradationReason`, ADR 0014) rather than an ad hoc exception. No dependency failure can accidentally produce `ALLOW`.
+
+| Dependency | Reason code | Strategy | Produces a decision? | Retryable? |
+| --- | --- | --- | --- | --- |
+| Active policy resolution | `ACTIVE_POLICY_UNAVAILABLE` | `FAIL_CLOSED` | No — `503`/`ACTIVE_POLICY_UNAVAILABLE` | Yes, once a complete active policy is available |
+| Risk-signal freshness | `RISK_SIGNAL_STALE` | `REJECT_UNAVAILABLE` | No — `422`/`STALE_RISK_SIGNAL` | Yes, with a fresh `signalObservedAt` |
+| Challenge provider | `CHALLENGE_PROVIDER_UNAVAILABLE` | `FAIL_CLOSED` | Yes — downgraded to `TEMPORARILY_BLOCK`, `degraded=true` | Yes, once the provider recovers |
+| Audit persistence | *(none — transactional rollback)* | `FAIL_CLOSED` | No — whole transaction rolls back | Yes, transient |
+| Outbox recording | *(none — transactional rollback)* | `FAIL_CLOSED` | No — whole transaction rolls back | Yes, transient |
+| Database connectivity | *(none — generic error response)* | `FAIL_CLOSED` | No — generic non-enumerable `5xx` | Yes, transient |
+
+Audit persistence and outbox recording share the protection-decision transaction (`Propagation.MANDATORY`); a failure in either rolls back the entire decision, so nothing partial is ever committed and there is no decision row to mark as degraded. Database connectivity failures are not given bespoke handling — Spring Boot's default error response is already generic and non-enumerable.
+
+A degraded decision is recorded in `normalized_context` (`degraded`, `degradationReason`), returned to the caller (`ProtectionDecisionResponse.degraded`/`degradationReason`), published in `ProtectionDecisionMade` (so it flows into the outbox integration event and the `accountshield.security` structured log), and counted by the `accountshield.protection.degraded_decisions` Micrometer counter, tagged `reason`.
+
 ## Verification
 
 The implementation is covered by:

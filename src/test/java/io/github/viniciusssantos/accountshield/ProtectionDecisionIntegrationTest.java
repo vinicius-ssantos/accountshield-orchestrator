@@ -6,7 +6,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeVerificationCommand;
+import io.github.viniciusssantos.accountshield.challenge.ConsumeChallengeCommand;
+import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
@@ -20,6 +25,7 @@ import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
 import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -61,6 +67,9 @@ class ProtectionDecisionIntegrationTest {
 
     @Autowired
     private org.springframework.context.ApplicationContext applicationContext;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     @Test
     void persistsAllInitialOutcomesWithVersionedExplainability() {
@@ -157,7 +166,8 @@ class ProtectionDecisionIntegrationTest {
                 new ObjectMapper(),
                 applicationContext,
                 (acct, ts) -> {},
-                Duration.ofMinutes(5));
+                Duration.ofMinutes(5),
+                meterRegistry);
         var command = new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
@@ -191,6 +201,65 @@ class ProtectionDecisionIntegrationTest {
                 .isInstanceOf(io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException.class);
 
         assertThat(requestCount(accountReference)).isZero();
+    }
+
+    @Test
+    void challengeProviderFailureDegradesToPersistedTemporarilyBlock() {
+        String accountReference = "integration-degraded-" + UUID.randomUUID();
+        ChallengeService failingChallengeService = new ChallengeService() {
+            @Override
+            public ChallengePlan create(CreateChallengeCommand command) {
+                throw new IllegalStateException("simulated challenge provider outage");
+            }
+
+            @Override
+            public ChallengeResult verify(ChallengeVerificationCommand command) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ChallengePlan consume(ConsumeChallengeCommand command) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        var degradingService = new ProtectionDecisionApplicationService(
+                riskAssessmentService,
+                policyEvaluationService,
+                protectionRequestRepository,
+                applicationContext.getBean(DecisionTraceRecorder.class),
+                applicationContext.getBean(IdempotencyGuard.class),
+                failingChallengeService,
+                Clock.systemUTC(),
+                new ObjectMapper(),
+                applicationContext,
+                (acct, ts) -> {},
+                Duration.ofMinutes(5),
+                meterRegistry);
+
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        ProtectionDecisionResult result = transactionTemplate.execute(status -> degradingService.decide(
+                new ProtectionDecisionCommand(
+                        accountReference,
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        envelope(new RiskSignals(10, false, false, false, NetworkRiskLevel.LOW)),
+                        "idem-" + UUID.randomUUID())));
+
+        assertThat(result.outcome()).isEqualTo(ProtectionOutcome.TEMPORARILY_BLOCK);
+        assertThat(result.degraded()).isTrue();
+        assertThat(result.degradationReason()).isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT outcome FROM audit.decision_trace WHERE id = ?",
+                String.class, result.decisionId()))
+                .isEqualTo("TEMPORARILY_BLOCK");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT normalized_context ->> 'degraded' FROM audit.decision_trace WHERE id = ?",
+                String.class, result.decisionId()))
+                .isEqualTo("true");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT normalized_context ->> 'degradationReason' FROM audit.decision_trace WHERE id = ?",
+                String.class, result.decisionId()))
+                .isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
     }
 
     private ProtectionDecisionResult decide(String accountReference, RiskSignals signals) {

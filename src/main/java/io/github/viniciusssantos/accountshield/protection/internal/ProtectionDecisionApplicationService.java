@@ -8,11 +8,13 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
+import io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.protection.ConflictingIdempotencyRequestException;
+import io.github.viniciusssantos.accountshield.protection.DegradationReason;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
@@ -39,11 +41,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import tools.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -67,6 +72,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     private final ApplicationEventPublisher eventPublisher;
     private final ProtectionRateLimiter rateLimiter;
     private final Duration maxSignalAge;
+    private final MeterRegistry meterRegistry;
 
     public ProtectionDecisionApplicationService(
             RiskAssessmentService riskAssessmentService,
@@ -79,7 +85,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             ObjectMapper objectMapper,
             ApplicationEventPublisher eventPublisher,
             ProtectionRateLimiter rateLimiter,
-            @Value("${accountshield.risk.max-signal-age:5m}") Duration maxSignalAge) {
+            @Value("${accountshield.risk.max-signal-age:5m}") Duration maxSignalAge,
+            MeterRegistry meterRegistry) {
         this.riskAssessmentService = riskAssessmentService;
         this.policyEvaluationService = policyEvaluationService;
         this.protectionRequestRepository = protectionRequestRepository;
@@ -91,6 +98,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         this.eventPublisher = eventPublisher;
         this.rateLimiter = rateLimiter;
         this.maxSignalAge = maxSignalAge;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -100,6 +108,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
 
         Instant now = clock.instant();
         if (command.signalEnvelope().isStale(now, maxSignalAge)) {
+            degradedCounter(DegradationReason.RISK_SIGNAL_STALE).increment();
             throw new StaleRiskSignalException(command.signalEnvelope().observedAt());
         }
         rateLimiter.checkLimit(command.accountReference(), now);
@@ -115,12 +124,18 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         UUID decisionId = UUID.randomUUID();
 
         RiskAssessment assessment = riskAssessmentService.assess(command.signalEnvelope());
-        PolicyEvaluation evaluation = command.eventType().recoveryRequest()
-                ? policyEvaluationService.evaluate(
-                        DEFAULT_POLICY_KEY,
-                        assessment.score(),
-                        PolicyEvaluationContext.recoveryRequestContext())
-                : policyEvaluationService.evaluate(DEFAULT_POLICY_KEY, assessment.score());
+        PolicyEvaluation evaluation;
+        try {
+            evaluation = command.eventType().recoveryRequest()
+                    ? policyEvaluationService.evaluate(
+                            DEFAULT_POLICY_KEY,
+                            assessment.score(),
+                            PolicyEvaluationContext.recoveryRequestContext())
+                    : policyEvaluationService.evaluate(DEFAULT_POLICY_KEY, assessment.score());
+        } catch (ActivePolicyUnavailableException exception) {
+            degradedCounter(DegradationReason.ACTIVE_POLICY_UNAVAILABLE).increment();
+            throw exception;
+        }
 
         protectionRequestRepository.save(new ProtectionRequestEntity(
                 protectionRequestId,
@@ -130,6 +145,26 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 DECIDED_STATUS,
                 now));
 
+        ProtectionOutcome effectiveOutcome = evaluation.outcome();
+        boolean degraded = false;
+        String degradationReason = null;
+
+        ChallengePlan challenge = null;
+        if (evaluation.outcome() == ProtectionOutcome.REQUIRE_STEP_UP) {
+            try {
+                challenge = challengeService.create(new CreateChallengeCommand(
+                        command.accountReference(),
+                        ChallengeType.TOTP_SIMULATED,
+                        ChallengePurpose.PROTECTION_STEP_UP,
+                        protectionRequestId));
+            } catch (RuntimeException exception) {
+                effectiveOutcome = ProtectionOutcome.TEMPORARILY_BLOCK;
+                degraded = true;
+                degradationReason = DegradationReason.CHALLENGE_PROVIDER_UNAVAILABLE.name();
+                challenge = null;
+            }
+        }
+
         decisionTraceRecorder.record(new DecisionTraceCommand(
                 decisionId,
                 protectionRequestId,
@@ -138,14 +173,14 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 assessment.algorithmVersion(),
                 evaluation.policyKey(),
                 evaluation.policyVersion(),
-                evaluation.outcome().name(),
+                effectiveOutcome.name(),
                 assessment.score(),
-                normalizedContext(command),
+                normalizedContext(command, degraded, degradationReason),
                 now,
                 auditReasons(assessment.reasons())));
 
         UUID recoveryAuthorizationId = null;
-        if (evaluation.outcome() == ProtectionOutcome.START_RECOVERY) {
+        if (effectiveOutcome == ProtectionOutcome.START_RECOVERY) {
             recoveryAuthorizationId = UUID.randomUUID();
             eventPublisher.publishEvent(new RecoveryAuthorizationIssued(
                     recoveryAuthorizationId,
@@ -158,20 +193,11 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                     now.plus(RECOVERY_AUTHORIZATION_TTL)));
         }
 
-        ChallengePlan challenge = null;
-        if (evaluation.outcome() == ProtectionOutcome.REQUIRE_STEP_UP) {
-            challenge = challengeService.create(new CreateChallengeCommand(
-                    command.accountReference(),
-                    ChallengeType.TOTP_SIMULATED,
-                    ChallengePurpose.PROTECTION_STEP_UP,
-                    protectionRequestId));
-        }
-
         ProtectionDecisionResult result = new ProtectionDecisionResult(
                 decisionId,
                 protectionRequestId,
                 recoveryAuthorizationId,
-                evaluation.outcome(),
+                effectiveOutcome,
                 assessment.score(),
                 assessment.band(),
                 assessment.algorithmVersion(),
@@ -179,7 +205,9 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 evaluation.policyVersion(),
                 assessment.reasons(),
                 now,
-                challenge);
+                challenge,
+                degraded,
+                degradationReason);
 
         idempotencyGuard.record(
                 idempotencyKey,
@@ -194,11 +222,13 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 decisionId,
                 protectionRequestId,
                 command.accountReference(),
-                evaluation.outcome().name(),
+                effectiveOutcome.name(),
                 assessment.score(),
                 evaluation.policyKey(),
                 evaluation.policyVersion(),
-                now));
+                now,
+                degraded,
+                degradationReason));
 
         return result;
     }
@@ -228,22 +258,35 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         }
     }
 
-    private Map<String, Object> normalizedContext(ProtectionDecisionCommand command) {
+    private Map<String, Object> normalizedContext(
+            ProtectionDecisionCommand command, boolean degraded, String degradationReason) {
         RiskSignalEnvelope envelope = command.signalEnvelope();
         RiskSignals signals = envelope.signals();
-        return Map.ofEntries(
-                Map.entry("failedAttempts", signals.failedAttempts()),
-                Map.entry("newDevice", signals.newDevice()),
-                Map.entry("impossibleTravel", signals.impossibleTravel()),
-                Map.entry("compromisedCredential", signals.compromisedCredential()),
-                Map.entry("networkRiskLevel", signals.networkRiskLevel().name()),
-                Map.entry("protectionEventType", command.eventType().name()),
-                Map.entry("recoveryRequest", command.eventType().recoveryRequest()),
-                Map.entry("signalProvider", envelope.provider()),
-                Map.entry("signalObservedAt", envelope.observedAt().toString()),
-                Map.entry("signalConfidence", envelope.confidence().name()),
-                Map.entry("signalSchemaVersion", envelope.schemaVersion()),
-                Map.entry("signalSimulated", envelope.simulated()));
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("failedAttempts", signals.failedAttempts());
+        context.put("newDevice", signals.newDevice());
+        context.put("impossibleTravel", signals.impossibleTravel());
+        context.put("compromisedCredential", signals.compromisedCredential());
+        context.put("networkRiskLevel", signals.networkRiskLevel().name());
+        context.put("protectionEventType", command.eventType().name());
+        context.put("recoveryRequest", command.eventType().recoveryRequest());
+        context.put("signalProvider", envelope.provider());
+        context.put("signalObservedAt", envelope.observedAt().toString());
+        context.put("signalConfidence", envelope.confidence().name());
+        context.put("signalSchemaVersion", envelope.schemaVersion());
+        context.put("signalSimulated", envelope.simulated());
+        context.put("degraded", degraded);
+        if (degradationReason != null) {
+            context.put("degradationReason", degradationReason);
+        }
+        return context;
+    }
+
+    private Counter degradedCounter(DegradationReason reason) {
+        return Counter.builder("accountshield.protection.degraded_decisions")
+                .description("Total decisions produced under a dependency-failure degradation strategy")
+                .tag("reason", reason.name())
+                .register(meterRegistry);
     }
 
     private String recoveryDirective(ProtectionEventType eventType) {
