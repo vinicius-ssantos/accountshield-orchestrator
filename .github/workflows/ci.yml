@@ -226,8 +226,13 @@ jobs:
 
       - name: Start frontend container
         run: |
+          docker network create accountshield-ci
+          docker run --detach --name app --network accountshield-ci node:22-alpine \
+            node -e "require('node:http').createServer((request,response)=>{response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify({status:'ok'}));}).listen(8080,'0.0.0.0')"
           docker run --detach --name accountshield-frontend-ci \
+            --network accountshield-ci \
             --publish 127.0.0.1:3001:3000 \
+            --env ACCOUNTSHIELD_API_URL=http://app:8080 \
             --env ACCOUNTSHIELD_DATA_SOURCE=fixtures \
             --env NEXT_PUBLIC_APP_ENV=ci \
             accountshield-frontend:ci
@@ -249,6 +254,8 @@ jobs:
             | grep --fixed-strings "Account protection at a glance"
 
           test "$(docker exec accountshield-frontend-ci id -u)" != "0"
+          docker exec accountshield-frontend-ci node -e \
+            "fetch(process.env.ACCOUNTSHIELD_API_URL + '/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))"
 
           health_status=""
           for attempt in $(seq 1 15); do
@@ -268,6 +275,8 @@ jobs:
         if: failure()
         run: docker logs accountshield-frontend-ci || true
 
-      - name: Remove frontend container
+      - name: Remove smoke containers and network
         if: always()
-        run: docker rm --force accountshield-frontend-ci || true
+        run: |
+          docker rm --force accountshield-frontend-ci app || true
+          docker network rm accountshield-ci || true
