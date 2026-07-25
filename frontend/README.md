@@ -37,6 +37,35 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Container and Docker Compose
+
+From the repository root, copy the local defaults and start the console with its required API and database dependencies:
+
+```bash
+cp .env.example .env
+docker compose up --build frontend
+```
+
+The local endpoints are:
+
+- console: `http://localhost:3001`;
+- console health: `http://localhost:3001/healthz`;
+- Spring API: `http://localhost:8080`.
+
+The frontend image uses Next.js standalone output, runs as a non-root user, and includes a minimal healthcheck. The Compose network provides the server-only backend origin as `http://app:8080`; this internal address is not exposed through a `NEXT_PUBLIC_*` variable or passed to browser code.
+
+`ACCOUNTSHIELD_DATA_SOURCE` is supplied at both build and runtime. Keep it set to `fixtures` until the reviewed live BFF adapter exists; a production-like deployment must never fail over silently to fixtures.
+
+Useful commands:
+
+```bash
+docker compose ps
+docker compose logs --follow frontend
+docker compose down
+```
+
+All published local ports bind to `127.0.0.1` by default. Change the documented port variables deliberately rather than exposing internal services broadly.
+
 `npm ci` is the supported clean-install command. It consumes the reviewed `package-lock.json`, removes an existing `node_modules` directory, and fails when the manifest and lockfile disagree.
 
 ## Dependency updates
