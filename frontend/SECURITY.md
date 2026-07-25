@@ -68,8 +68,11 @@ The standalone container compares build and runtime markers. A fixture-built ima
 Configuration is validated:
 
 1. during `next build`, without requiring the server-only API URL to be embedded in the image;
-2. during Node.js server initialization through `src/instrumentation.ts`;
-3. on routed requests through `src/proxy.ts` as a defense-in-depth check.
+2. before the Next.js process starts through `scripts/start.mjs`, which is the authoritative fail-fast gate for standalone and container runtime;
+3. during Node.js server initialization through `src/instrumentation.ts` as defense in depth;
+4. on routed requests through `src/proxy.ts` as a final defense-in-depth check.
+
+The launcher must remain the container entrypoint. Next.js may log an instrumentation-hook exception without terminating the server, so instrumentation alone is not treated as a startup barrier.
 
 Live runtime requires `ACCOUNTSHIELD_API_URL`. Production rejects loopback API origins. Preview or production fixture mode aborts rather than silently presenting synthetic data as live data.
 
