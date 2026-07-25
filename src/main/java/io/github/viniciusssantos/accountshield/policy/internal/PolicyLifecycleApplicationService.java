@@ -9,6 +9,10 @@ import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisFailedException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisResult;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalyzer;
+import io.github.viniciusssantos.accountshield.policy.PolicyDefinition;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
@@ -26,6 +30,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class PolicyLifecycleApplicationService implements PolicyLifecycleService {
@@ -41,16 +46,22 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
     private final ChallengeService challengeService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final PolicyAnalyzer policyAnalyzer;
+    private final ObjectMapper objectMapper;
 
     public PolicyLifecycleApplicationService(
             PolicyVersionRepository repository,
             ChallengeService challengeService,
             @Qualifier("decisionClock") Clock clock,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            PolicyAnalyzer policyAnalyzer,
+            ObjectMapper objectMapper) {
         this.repository = repository;
         this.challengeService = challengeService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
+        this.policyAnalyzer = policyAnalyzer;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -89,6 +100,17 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
     @Transactional
     public PolicyVersionSummary validate(String policyKey, String version) {
         PolicyVersionEntity entity = requirePolicy(policyKey, version);
+        if (!PolicyStatus.DRAFT.name().equals(entity.getStatus())) {
+            // not a legal predecessor state for VALIDATED; throws IllegalPolicyTransitionException
+            // without mutating anything (transitionTo validates before it mutates)
+            entity.transitionTo(PolicyStatus.VALIDATED.name(), Instant.now(clock));
+        }
+        PolicyAnalysisResult result = policyAnalyzer.analyze(new PolicyDefinition(
+                entity.getAllowMaxScore(), entity.getStepUpMaxScore(), entity.getRecoveryMaxScore()));
+        if (result.hasErrors()) {
+            throw new PolicyAnalysisFailedException(policyKey, version, result);
+        }
+        entity.setAnalysis(objectMapper.writeValueAsString(result));
         entity.transitionTo(PolicyStatus.VALIDATED.name(), Instant.now(clock));
         return toSummary(entity);
     }
@@ -217,6 +239,9 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
                 entity.getStepUpMaxScore(),
                 entity.getRecoveryMaxScore(),
                 entity.getCreatedAt(),
-                entity.getActivatedAt());
+                entity.getActivatedAt(),
+                entity.getAnalysis() == null
+                        ? null
+                        : objectMapper.readValue(entity.getAnalysis(), PolicyAnalysisResult.class));
     }
 }
