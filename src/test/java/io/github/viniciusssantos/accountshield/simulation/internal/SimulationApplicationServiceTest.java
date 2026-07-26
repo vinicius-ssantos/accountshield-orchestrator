@@ -84,12 +84,14 @@ class SimulationApplicationServiceTest {
         UUID requestId = UUID.randomUUID();
         Map<String, Object> context = fullSignalContext();
         context.put("recoveryRequest", true);
-        List<DecisionReasonContribution> originalReasons = List.of();
+        List<DecisionReasonContribution> originalReasons =
+                List.of(new DecisionReasonContribution("FAILED_ATTEMPTS", 15, Map.of()));
         when(decisionTraceQuery.findByProtectionRequestId(requestId)).thenReturn(Optional.of(
                 trace(requestId, "START_RECOVERY", 15, "1.0.0", "risk-rules-1.0", context,
                         originalReasons, correctFingerprint(context))));
         RiskAssessmentService algorithm = stubAlgorithm(
-                new RiskAssessment(15, RiskBand.LOW, "risk-rules-1.0", List.of()));
+                new RiskAssessment(15, RiskBand.LOW, "risk-rules-1.0",
+                        List.of(new RiskReason("FAILED_ATTEMPTS", 15))));
         when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(algorithm);
         when(policyEvaluationService.evaluateVersion(
                         "account-protection-default", "1.0.0", 15, PolicyEvaluationContext.recoveryRequestContext()))
@@ -158,11 +160,14 @@ class SimulationApplicationServiceTest {
     void replayDetectsCanonicalInputHashMismatch() {
         UUID requestId = UUID.randomUUID();
         Map<String, Object> context = fullSignalContext();
+        List<DecisionReasonContribution> originalReasons =
+                List.of(new DecisionReasonContribution("FAILED_ATTEMPTS", 15, Map.of()));
         when(decisionTraceQuery.findByProtectionRequestId(requestId)).thenReturn(Optional.of(
                 trace(requestId, "ALLOW", 15, "1.0.0", "risk-rules-1.0", context,
-                        List.of(), "not-the-real-hash")));
+                        originalReasons, "not-the-real-hash")));
         RiskAssessmentService algorithm = stubAlgorithm(
-                new RiskAssessment(15, RiskBand.LOW, "risk-rules-1.0", List.of()));
+                new RiskAssessment(15, RiskBand.LOW, "risk-rules-1.0",
+                        List.of(new RiskReason("FAILED_ATTEMPTS", 15))));
         when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(algorithm);
         when(policyEvaluationService.evaluateVersion("account-protection-default", "1.0.0", 15))
                 .thenReturn(new PolicyEvaluation("account-protection-default", "1.0.0", ProtectionOutcome.ALLOW));
