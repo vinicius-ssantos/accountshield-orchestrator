@@ -97,7 +97,8 @@ export function assertRequestPolicy(
     );
   }
 
-  if (contentLength > 0 && policy.allowedContentTypes) {
+  const hasBody = contentLength > 0 || request.body !== null;
+  if (hasBody && policy.allowedContentTypes) {
     const contentType = request.headers
       .get("content-type")
       ?.split(";", 1)[0]
