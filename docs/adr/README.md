@@ -29,7 +29,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0021](0021-historical-policy-impact-analysis.md) | Accepted | Evaluate a candidate policy version against recent historical traces, reporting a transition matrix, segment breakdowns, and a configurable divergence threshold | Issue #35 |
 | [0022](0022-deterministic-canary-rollout.md) | Accepted | Split traffic between a stable and candidate policy version using a deterministic cohort hash, recording selection provenance and supporting immediate rollback | Issue #34 |
 | [0023](0023-outbox-claiming-backoff-and-dead-letters.md) | Accepted | Explicit outbox status machine, atomic `FOR UPDATE SKIP LOCKED` claiming, bounded backoff with jitter, visible dead letters, operator requeue, and a versioned integration-event envelope | Issue #23 |
-| [0024](0024-database-least-privilege-and-integrity.md) | Accepted | Add restricted runtime/read-only database roles, close four referential-integrity gaps, and add the remaining retention job and metrics | Issue #25 |
+| [0024](0024-database-least-privilege-and-integrity.md) | Accepted | Add restricted runtime/read-only database roles, close three referential-integrity gaps (deliberately leaving `recovery_authorization.decision_id` unconstrained per ADR 0010), and add the remaining retention job and metrics | Issue #25 |
 
 ## ADR lifecycle
 

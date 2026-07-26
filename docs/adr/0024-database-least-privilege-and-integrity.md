@@ -11,7 +11,8 @@ Direct code inspection found:
 
 - Zero `GRANT`/`REVOKE`/`CREATE ROLE` statements across all 19 existing migrations — role separation is entirely greenfield.
 - Three existing immutability triggers/functions to protect: `audit.reject_audit_mutation()` (decision_trace/decision_reason), `policy.protect_activated_policy_version()`, `recovery.protect_recovery_authorization()`.
-- Real FK gaps: `audit.decision_trace.protection_request_id`, `recovery.recovery_authorization.protection_request_id`/`.decision_id`, `recovery.recovery_flow.identity_challenge_id`, `policy.policy_rollout(policy_key, candidate_version)` — none had an enforced foreign key, despite each being a genuine "this row is meaningless without its parent" relationship. `outbox.outbox_event.aggregate_id` and `challenge.challenge_plan.context_id` are deliberately polymorphic (their target type varies) and are correctly left unconstrained, backed by a `CHECK` on their discriminator column instead.
+- Real FK gaps: `audit.decision_trace.protection_request_id`, `recovery.recovery_authorization.protection_request_id`, `recovery.recovery_flow.identity_challenge_id`, `policy.policy_rollout(policy_key, candidate_version)` — none had an enforced foreign key, despite each being a genuine "this row is meaningless without its parent" relationship. `outbox.outbox_event.aggregate_id` and `challenge.challenge_plan.context_id` are deliberately polymorphic (their target type varies) and are correctly left unconstrained, backed by a `CHECK` on their discriminator column instead.
+- `recovery.recovery_authorization.decision_id` looked like the same kind of gap at first, but is **not** one: ADR 0010 explicitly establishes that "a previously issued authorization remains usable when the audit projection is unavailable or absent," and `RecoveryIntegrationTest.existingAuthorizationWorksWithoutAuditProjection` exercises exactly that (an authorization whose `decision_id` has no corresponding `decision_trace` row, by design). An initial version of this change added the FK anyway and only caught the contradiction when that test failed in CI — see Consequences.
 - `recovery.recovery_flow.originating_decision_id` was deliberately **stripped** of its FK in migration V10 (superseded by the `authorization_id -> recovery_authorization.decision_id` chain) — confirmed this was an intentional historical design choice, not an oversight, and left untouched.
 - The four existing retention jobs (idempotency, challenge, recovery-flow, outbox — the last added in #23) share one exact shape and have no cross-instance coordination, but their batched `DELETE ... LIMIT` pattern is already safe under naive concurrent execution: a second instance deleting an already-deleted row is a harmless zero-row no-op, unlike #23's outbox-claim problem (which needed `SKIP LOCKED` because a double-claim there causes a real side effect — double-publish).
 - `recovery.recovery_authorization` had no retention job — a genuine, standalone gap (ADR 0010 already frames it as distinct from audit evidence, so purging it does not conflict with the append-only-evidence principle).
@@ -29,9 +30,9 @@ Direct code inspection found:
 - `accountshield_readonly` gets `SELECT` everywhere, nothing else.
 - Neither role owns, or has any explicit grant on, the three immutability trigger functions or their triggers. This is what makes "runtime role cannot drop or modify audit triggers" true with **no extra `REVOKE`** — Postgres's default-deny model means a non-owner role with no explicit grant cannot `ALTER`/`DROP` a function or a trigger defined on a table it doesn't own; trigger *firing* itself requires no grant to the role whose DML caused it.
 
-### Referential integrity: four real gaps closed, two deliberate non-gaps left alone
+### Referential integrity: three real gaps closed, two deliberate non-gaps left alone
 
-FKs added for `decision_trace.protection_request_id`, `recovery_authorization.protection_request_id`/`.decision_id`, `recovery_flow.identity_challenge_id`, and the composite `policy_rollout(policy_key, candidate_version) -> policy_version(policy_key, version)`. `outbox_event.aggregate_id` and `challenge_plan.context_id` remain unconstrained (genuinely polymorphic, already governed by a `CHECK` on their discriminator column) — matching, not changing, the existing documented pattern.
+FKs added for `decision_trace.protection_request_id`, `recovery_authorization.protection_request_id`, `recovery_flow.identity_challenge_id`, and the composite `policy_rollout(policy_key, candidate_version) -> policy_version(policy_key, version)`. `outbox_event.aggregate_id` and `challenge_plan.context_id` remain unconstrained (genuinely polymorphic, already governed by a `CHECK` on their discriminator column) — matching, not changing, the existing documented pattern. `recovery_authorization.decision_id` also remains unconstrained, deliberately: see Context.
 
 ### Scoping decision: prove the roles are correct without switching the running application's connection
 
@@ -45,6 +46,12 @@ Instead: the roles and grants are created and **independently proven correct** v
 
 All five retention jobs (the four existing plus this new one) gain a shared `Counter` (`accountshield.retention.purged`, tagged `job=<name>`, and `status` for the two-category outbox job) — this is the "observable" half of "cleanup jobs are bounded, observable, and safe under concurrency." "Bounded" and "safe under concurrency" already held before this change (existing `MAX_BATCHES_PER_TICK`/batch-size caps; harmless no-op double-deletes, reasoned above) and are documented here as already-satisfied guardrails rather than new infrastructure — no distributed scheduling lock (e.g. ShedLock) is introduced, since none of these jobs has a side effect that makes a duplicate delete attempt unsafe.
 
+`RecoveryAuthorizationRetentionCleanup`'s delete is **not** a plain `expires_at < cutoff` bulk delete: `recovery.recovery_flow.authorization_id` already carries a (pre-existing, unrelated to this issue) foreign key back to `recovery_authorization`, so an authorization that spawned a still-live (non-terminal) flow cannot be deleted without violating that constraint — correctly so, since the flow still needs it. The delete query adds `AND NOT EXISTS (SELECT 1 FROM recovery.recovery_flow WHERE recovery_flow.authorization_id = recovery_authorization.id)`, so an authorization is only purged once no flow references it any more (whether none was ever created, or `RecoveryFlowRetentionCleanup` already purged it). This was caught by `RecoveryAuthorizationRetentionCleanupTest` failing in CI against a shared Testcontainers instance carrying another test class's non-terminal flow fixture.
+
+### A real flush-ordering bug the new `decision_trace` FK exposed
+
+Adding `fk_decision_trace_protection_request` broke nearly every integration test that exercises `ProtectionDecisionApplicationService.decide()`. The cause: `decisionTraceRecorder` (`JdbcDecisionTraceRecorder`) inserts via a raw `JdbcTemplate` statement, entirely outside the JPA persistence context, while `protectionRequestRepository.save(...)` is a JPA operation that Hibernate may leave queued in its session write-behind cache rather than issuing to the physical connection immediately. The raw insert's FK check only sees what has actually reached the connection — so a still-queued `protection_request` row was invisible to it, even though both operations run in the same transaction and would have committed together correctly with no FK in place. The fix is `protectionRequestRepository.saveAndFlush(...)` instead of `.save(...)`: this forces the row to the physical connection (visible to the subsequent raw insert) without committing the transaction (so the whole decision still rolls back atomically on any later failure, per ADR 0010's requirement). This is a general hazard whenever a JPA write and a raw-JDBC write in the same transaction have a new FK dependency between them — worth remembering if a future migration adds another FK crossing this same boundary.
+
 ## Alternatives considered
 
 - **A `@DynamicPropertySource`-based split Flyway/runtime datasource for the whole test suite** — rejected for this issue; real, buildable, but a large, separate effort touching dozens of existing test files disproportionate to a P2 issue that can otherwise be fully and independently verified.
@@ -57,20 +64,23 @@ All five retention jobs (the four existing plus this new one) gain a shared `Cou
 
 - a restricted runtime role and read-only role now exist as real, provable, ready-to-use database artifacts;
 - the runtime role cannot alter or drop any of the three immutability triggers/functions, and cannot `UPDATE`/`DELETE` audit rows, by construction (Postgres's own default-deny model), not by application-level convention alone;
-- four real orphan-insert paths are now rejected at the database level regardless of which application code path (or bug) attempts them;
-- `recovery.recovery_authorization` no longer accumulates indefinitely;
-- all five retention jobs are now individually observable via a consistent metric.
+- three real orphan-insert paths are now rejected at the database level regardless of which application code path (or bug) attempts them;
+- `recovery.recovery_authorization` no longer accumulates indefinitely, without breaking a still-live recovery flow's reference to it;
+- all five retention jobs are now individually observable via a consistent metric;
+- ADR 0010's "audit is evidence, not authority" guarantee for `recovery_authorization` is preserved explicitly, not accidentally broken by a well-intentioned but overly broad integrity pass.
 
 ### Negative
 
 - the application's own deployed connection has not actually been switched to the restricted role within this repository's tooling — "application starts and operates with the restricted runtime role" is proven at the database-grant level and documented as a production configuration, not exercised end-to-end by this repository's own CI;
-- the composite FK on `policy_rollout` and the new FKs on `recovery_authorization`/`decision_trace` mean any future test or ops script inserting these rows directly via raw SQL must first create valid parent rows — already fixed at every existing call site found by direct inspection, but a real, ongoing constraint on future raw-SQL test fixtures in these tables.
+- the new FKs on `decision_trace`/`recovery_authorization`/`recovery_flow`/`policy_rollout` mean any future test or ops script inserting these rows directly via raw SQL must first create valid parent rows — already fixed at every existing call site found by direct inspection, but a real, ongoing constraint on future raw-SQL test fixtures in these tables;
+- a write ordering constraint now exists between `protectionRequestRepository`'s JPA save and `decisionTraceRecorder`'s raw JDBC insert within `decide()` (the former must be flushed, not just saved, before the latter runs) — a subtle dependency that would resurface if a future refactor reordered or removed the explicit flush.
 
 ## Guardrails
 
 - neither `accountshield_runtime` nor `accountshield_readonly` owns, or has any grant on, `audit.reject_audit_mutation`, `policy.protect_activated_policy_version`, `recovery.protect_recovery_authorization`, or their triggers — verified by `DatabaseRolePermissionIntegrationTest`;
 - `accountshield_runtime` has no `UPDATE`/`DELETE` grant on `audit.decision_trace`/`audit.decision_reason` — verified by the same test;
-- the four new foreign keys reject orphan inserts regardless of which role attempts them — verified by new tests in `PersistenceIntegrationTest`.
+- the three new foreign keys reject orphan inserts regardless of which role attempts them — verified by new tests in `PersistenceIntegrationTest`;
+- `recovery_authorization.decision_id` remains intentionally unconstrained — verified by `RecoveryIntegrationTest.existingAuthorizationWorksWithoutAuditProjection` continuing to pass unchanged.
 
 ## Migration/compatibility implications
 

@@ -43,7 +43,7 @@ public class RecoveryAuthorizationRetentionCleanup {
     @Transactional
     public void purgeExpiredAuthorizations() {
         Instant cutoff = clock.instant().minus(expiredTtl);
-        int deleted = repository.deleteByExpiresAtBefore(cutoff);
+        int deleted = repository.deleteExpiredAndUnreferenced(cutoff);
         if (deleted > 0) {
             log.info("recovery_authorization_retention_purged count={} cutoff={}", deleted, cutoff);
         }

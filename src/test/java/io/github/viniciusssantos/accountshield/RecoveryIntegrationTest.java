@@ -272,19 +272,10 @@ class RecoveryIntegrationTest {
                 "fingerprint-" + protectionRequestId,
                 Timestamp.from(issuedAt));
 
-        jdbcTemplate.update(
-                "INSERT INTO audit.decision_trace "
-                        + "(id, protection_request_id, account_reference, request_fingerprint, "
-                        + "algorithm_version, policy_key, policy_version, outcome, risk_score, "
-                        + "normalized_context, decided_at) "
-                        + "VALUES (?, ?, ?, ?, 'risk-rules-1.0', 'account-protection-default', '1.0.0', "
-                        + "'START_RECOVERY', ?, '{}'::jsonb, ?)",
-                decisionId,
-                protectionRequestId,
-                "authorization-fixture-" + protectionRequestId,
-                "fingerprint-" + decisionId,
-                riskScore,
-                Timestamp.from(issuedAt));
+        // decision_id is deliberately not backed by a real decision_trace row here: ADR 0010
+        // requires a previously issued authorization to remain usable even when the audit
+        // projection is absent, and this fixture (and the append-only test below) exercises
+        // exactly that
 
         jdbcTemplate.update(
                 "INSERT INTO recovery.recovery_authorization "

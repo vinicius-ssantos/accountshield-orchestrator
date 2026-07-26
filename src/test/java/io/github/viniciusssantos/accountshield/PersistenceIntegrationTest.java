@@ -123,9 +123,8 @@ class PersistenceIntegrationTest {
 
     @Test
     void rejectsRecoveryAuthorizationWithoutAValidProtectionRequest() {
-        UUID protectionRequestId = insertProtectionRequest();
-        UUID decisionId = insertDecisionTrace(protectionRequestId);
-
+        // decision_id is deliberately NOT foreign-keyed (ADR 0010 -- audit is evidence, not
+        // authority; an authorization must remain usable even without a matching decision trace)
         assertThatThrownBy(() -> jdbcTemplate.update(
                         """
                         INSERT INTO recovery.recovery_authorization (
@@ -135,28 +134,8 @@ class PersistenceIntegrationTest {
                         """,
                         UUID.randomUUID(),
                         UUID.randomUUID(),
-                        decisionId,
+                        UUID.randomUUID(),
                         "acct-orphan-authorization",
-                        OffsetDateTime.now(ZoneOffset.UTC),
-                        OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(600)))
-                .isInstanceOf(DataAccessException.class);
-    }
-
-    @Test
-    void rejectsRecoveryAuthorizationWithoutAValidDecision() {
-        UUID protectionRequestId = insertProtectionRequest();
-
-        assertThatThrownBy(() -> jdbcTemplate.update(
-                        """
-                        INSERT INTO recovery.recovery_authorization (
-                            id, protection_request_id, decision_id, account_reference, directive,
-                            risk_score, issued_at, expires_at, consumed_at
-                        ) VALUES (?, ?, ?, ?, 'LOGIN', 10, ?, ?, NULL)
-                        """,
-                        UUID.randomUUID(),
-                        protectionRequestId,
-                        UUID.randomUUID(),
-                        "acct-orphan-decision",
                         OffsetDateTime.now(ZoneOffset.UTC),
                         OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(600)))
                 .isInstanceOf(DataAccessException.class);
@@ -166,7 +145,6 @@ class PersistenceIntegrationTest {
     void rejectsRecoveryFlowWithoutAValidIdentityChallenge() {
         UUID protectionRequestId = insertProtectionRequest();
         UUID authorizationId = insertRecoveryAuthorization();
-        UUID originatingDecisionId = insertDecisionTrace(protectionRequestId);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         assertThatThrownBy(() -> jdbcTemplate.update(
@@ -182,7 +160,7 @@ class PersistenceIntegrationTest {
                         now,
                         now,
                         protectionRequestId,
-                        originatingDecisionId,
+                        UUID.randomUUID(),
                         authorizationId,
                         UUID.randomUUID()))
                 .isInstanceOf(DataAccessException.class);
@@ -290,7 +268,6 @@ class PersistenceIntegrationTest {
 
     private UUID insertRecoveryAuthorization() {
         UUID protectionRequestId = insertProtectionRequest();
-        UUID decisionId = insertDecisionTrace(protectionRequestId);
         UUID id = UUID.randomUUID();
         OffsetDateTime issuedAt = OffsetDateTime.now(ZoneOffset.UTC);
         jdbcTemplate.update(
@@ -302,29 +279,10 @@ class PersistenceIntegrationTest {
                 """,
                 id,
                 protectionRequestId,
-                decisionId,
+                UUID.randomUUID(),
                 "acct-persistence-" + id,
                 issuedAt,
                 issuedAt.plusSeconds(600));
-        return id;
-    }
-
-    private UUID insertDecisionTrace(UUID protectionRequestId) {
-        UUID id = UUID.randomUUID();
-        jdbcTemplate.update(
-                """
-                INSERT INTO audit.decision_trace (
-                    id, protection_request_id, account_reference, request_fingerprint,
-                    algorithm_version, policy_key, policy_version, outcome, risk_score,
-                    normalized_context, decided_at
-                ) VALUES (?, ?, ?, ?, 'risk-rules-1.0', 'account-protection-default', '1.0.0',
-                          'START_RECOVERY', 10, '{}'::jsonb, ?)
-                """,
-                id,
-                protectionRequestId,
-                "acct-persistence-" + id,
-                "fingerprint-decision-" + id,
-                OffsetDateTime.now(ZoneOffset.UTC));
         return id;
     }
 

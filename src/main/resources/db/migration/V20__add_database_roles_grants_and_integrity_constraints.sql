@@ -66,16 +66,18 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA outbox GRANT SELECT ON TABLES TO accountshiel
 -- Referential integrity: close real cross-module FK gaps found by inspection. Deliberately
 -- polymorphic references (outbox.outbox_event.aggregate_id, challenge.challenge_plan.context_id)
 -- are not given FKs -- they are already documented and constrained via CHECK on their
--- discriminator column (aggregate_type / purpose) instead.
+-- discriminator column (aggregate_type / purpose) instead. recovery_authorization.decision_id
+-- is also deliberately NOT given an FK: ADR 0010 ("audit is evidence, not authority") explicitly
+-- establishes that a previously issued authorization must remain usable even when the audit
+-- projection (decision_trace) is unavailable or absent -- an FK here would contradict that
+-- accepted, tested guarantee (RecoveryIntegrationTest.existingAuthorizationWorksWithoutAuditProjection).
 ALTER TABLE audit.decision_trace
     ADD CONSTRAINT fk_decision_trace_protection_request
         FOREIGN KEY (protection_request_id) REFERENCES protection.protection_request (id);
 
 ALTER TABLE recovery.recovery_authorization
     ADD CONSTRAINT fk_recovery_authorization_protection_request
-        FOREIGN KEY (protection_request_id) REFERENCES protection.protection_request (id),
-    ADD CONSTRAINT fk_recovery_authorization_decision
-        FOREIGN KEY (decision_id) REFERENCES audit.decision_trace (id);
+        FOREIGN KEY (protection_request_id) REFERENCES protection.protection_request (id);
 
 ALTER TABLE recovery.recovery_flow
     ADD CONSTRAINT fk_recovery_flow_identity_challenge
