@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
@@ -33,6 +34,9 @@ class SimulationIntegrationTest {
 
     @Autowired
     private PolicyEvaluationService policyEvaluationService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @Transactional
@@ -50,8 +54,43 @@ class SimulationIntegrationTest {
 
         assertThat(replayOpt).isPresent();
         assertThat(replayOpt.get().matches()).isTrue();
+        assertThat(replayOpt.get().mismatches()).isEmpty();
         assertThat(replayOpt.get().replayedOutcome()).isEqualTo(original.outcome().name());
         assertThat(replayOpt.get().originalRiskScore()).isEqualTo(replayOpt.get().replayedRiskScore());
+        assertThat(replayOpt.get().originalRiskBand()).isEqualTo(replayOpt.get().replayedRiskBand());
+        assertThat(replayOpt.get().originalReasons()).isEqualTo(replayOpt.get().replayedReasons());
+        assertThat(replayOpt.get().algorithmVersion()).isEqualTo("risk-rules-1.0");
+    }
+
+    @Test
+    @Transactional
+    void replayCreatesNoChallengeRecoveryOutboxOrAuditMutation() {
+        ProtectionDecisionResult original = protectionDecisionService.decide(
+                new ProtectionDecisionCommand(
+                        "replay-sideeffect-" + java.util.UUID.randomUUID(),
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        new RiskSignalEnvelope(
+                                new RiskSignals(10, false, false, false, NetworkRiskLevel.LOW),
+                                "CLIENT_SUPPLIED", java.time.Instant.now(), SignalConfidence.HIGH, null, true),
+                        null));
+
+        long challengesBefore = count("challenge.challenge_plan");
+        long recoveryFlowsBefore = count("recovery.recovery_flow");
+        long outboxEventsBefore = count("outbox.outbox_event");
+        long decisionTracesBefore = count("audit.decision_trace");
+
+        var replayOpt = simulationService.replay(original.protectionRequestId());
+        assertThat(replayOpt).isPresent();
+
+        assertThat(count("challenge.challenge_plan")).isEqualTo(challengesBefore);
+        assertThat(count("recovery.recovery_flow")).isEqualTo(recoveryFlowsBefore);
+        assertThat(count("outbox.outbox_event")).isEqualTo(outboxEventsBefore);
+        assertThat(count("audit.decision_trace")).isEqualTo(decisionTracesBefore);
+    }
+
+    private long count(String table) {
+        Long result = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
+        return result == null ? 0 : result;
     }
 
     @Test

@@ -41,6 +41,11 @@ final class DeterministicRiskAssessmentService implements RiskAssessmentService 
         return new RiskAssessment(score, RiskBand.fromScore(score), ALGORITHM_VERSION, reasons);
     }
 
+    @Override
+    public String algorithmVersion() {
+        return ALGORITHM_VERSION;
+    }
+
     private int addReason(List<RiskReason> reasons, int currentScore, String code, int requestedContribution) {
         int appliedContribution = Math.min(requestedContribution, MAX_SCORE - currentScore);
         if (appliedContribution > 0) {
