@@ -101,6 +101,9 @@ jobs:
       - name: Generate Next.js types
         run: npm run typegen
 
+      - name: Verify generated OpenAPI client
+        run: npm run openapi:check
+
       - name: Lint
         run: npm run lint
 

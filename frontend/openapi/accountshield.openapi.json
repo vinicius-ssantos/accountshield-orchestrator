@@ -1,0 +1,326 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AccountShield Orchestrator API",
+    "version": "0.1.0",
+    "description": "Versioned frontend contract snapshot generated from the published Springdoc API."
+  },
+  "paths": {
+    "/api/v1/protection-decisions": {
+      "post": {
+        "operationId": "createProtectionDecision",
+        "summary": "Evaluate an account-protection event",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtectionDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Protection decision created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProtectionDecisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "RFC 9457 problem details",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ProtectionEventType": {
+        "type": "string",
+        "enum": [
+          "LOGIN_ATTEMPT",
+          "SENSITIVE_ACTION",
+          "LOGIN_RECOVERY_ATTEMPT",
+          "PASSWORD_RESET_ATTEMPT",
+          "CREDENTIAL_CHANGE_ATTEMPT",
+          "DEVICE_TRUST_RESET_ATTEMPT"
+        ]
+      },
+      "NetworkRiskLevel": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ]
+      },
+      "ProtectionOutcome": {
+        "type": "string",
+        "enum": [
+          "ALLOW",
+          "REQUIRE_STEP_UP",
+          "START_RECOVERY",
+          "TEMPORARILY_BLOCK"
+        ]
+      },
+      "RiskBand": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ]
+      },
+      "ChallengeType": {
+        "type": "string",
+        "enum": [
+          "TOTP_SIMULATED",
+          "EMAIL_SIMULATED",
+          "WEBAUTHN_SIMULATED"
+        ]
+      },
+      "ProtectionDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountReference",
+          "eventType"
+        ],
+        "properties": {
+          "accountReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "eventType": {
+            "$ref": "#/components/schemas/ProtectionEventType"
+          },
+          "failedAttempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "default": 0
+          },
+          "newDevice": {
+            "type": "boolean",
+            "default": false
+          },
+          "impossibleTravel": {
+            "type": "boolean",
+            "default": false
+          },
+          "compromisedCredential": {
+            "type": "boolean",
+            "default": false
+          },
+          "networkRiskLevel": {
+            "$ref": "#/components/schemas/NetworkRiskLevel"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128
+          }
+        }
+      },
+      "ReasonResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "contribution"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "integer"
+          }
+        }
+      },
+      "ChallengeResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "challengeId",
+          "challengeType",
+          "expiresAt"
+        ],
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "challengeType": {
+            "$ref": "#/components/schemas/ChallengeType"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProtectionDecisionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisionId",
+          "outcome",
+          "riskScore",
+          "riskBand",
+          "algorithmVersion",
+          "policyKey",
+          "policyVersion",
+          "reasons",
+          "decidedAt"
+        ],
+        "properties": {
+          "decisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectionRequestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "recoveryAuthorizationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ProtectionOutcome"
+          },
+          "riskScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "riskBand": {
+            "$ref": "#/components/schemas/RiskBand"
+          },
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonResponse"
+            }
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "challenge": {
+            "$ref": "#/components/schemas/ChallengeResponse"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ProblemCode"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "retryAfter": {
+            "type": "string"
+          }
+        }
+      },
+      "ProblemCode": {
+        "type": "string",
+        "enum": [
+          "INVALID_PROTECTION_REQUEST",
+          "ACTIVE_POLICY_UNAVAILABLE",
+          "IDEMPOTENCY_CONFLICT",
+          "RATE_LIMIT_EXCEEDED"
+        ]
+      }
+    }
+  }
+}

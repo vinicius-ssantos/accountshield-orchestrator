@@ -10,6 +10,8 @@
     "start": "node scripts/start.mjs",
     "lint": "eslint . --max-warnings=0",
     "typegen": "next typegen",
+    "openapi:generate": "node scripts/generate-openapi-client.mjs",
+    "openapi:check": "node scripts/generate-openapi-client.mjs --check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

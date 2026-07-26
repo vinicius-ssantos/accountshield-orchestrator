@@ -28,6 +28,11 @@ test("skip navigation is keyboard visible and targets main content", async ({
   page,
 }) => {
   await page.goto("/design-system");
+  await page.evaluate(() => {
+    document.body.tabIndex = -1;
+    document.body.focus();
+  });
+  await expect(page.locator("body")).toBeFocused();
   await page.keyboard.press("Tab");
 
   const skipLink = page.getByRole("link", { name: "Skip to main content" });

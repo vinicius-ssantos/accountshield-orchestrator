@@ -22,7 +22,9 @@ GET /api/bff/runtime-status
   -> GET /actuator/health
 ```
 
-The transport seam is intentionally isolated in `src/server/bff/runtime-status-core.ts`. When the stable OpenAPI problem catalog and generated client are available, the exact read method can be replaced without changing the browser route or view model. Until then, the client exposes one checked endpoint and no arbitrary URL, path, method, query, or header parameter.
+The transport seam for runtime status is intentionally isolated in `src/server/bff/runtime-status-core.ts`. OpenAPI-generated contracts for the published protection-decision API live under `src/generated/accountshield` and are consumed only through `src/server/bff/protection-decision-contract.ts` and its tested core adapter. Generated code contains relative operations only; runtime origin, authentication, correlation, timeout, redaction, and response limits remain handwritten server responsibilities.
+
+The generated `POST /api/v1/protection-decisions` operation is not exposed through a browser Route Handler in this foundation. The current console remains read-only, and a future mutation requires its own authorization, consequence, confirmation, idempotency, audit, and failure contract before routing is added.
 
 ## Server-only ownership
 
