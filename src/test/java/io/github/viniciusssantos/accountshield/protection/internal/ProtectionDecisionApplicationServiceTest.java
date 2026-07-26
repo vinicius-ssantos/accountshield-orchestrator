@@ -139,6 +139,8 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(trace.normalizedContext()).containsEntry("signalProvider", "CLIENT_SUPPLIED");
         assertThat(trace.normalizedContext()).containsEntry("signalConfidence", "HIGH");
         assertThat(trace.normalizedContext()).containsEntry("signalSimulated", true);
+        assertThat(trace.normalizedContext()).containsEntry("reasonCatalogVersion", "risk-reason-catalog-1.0");
+        assertThat(trace.normalizedContext()).containsEntry("decisionEngineVersion", "decision-engine-1.0");
         assertThat(trace.reasons())
                 .extracting(reason -> reason.code() + ":" + reason.contribution())
                 .containsExactly("FAILED_ATTEMPTS:15", "NEW_DEVICE:15");

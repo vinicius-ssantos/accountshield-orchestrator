@@ -127,6 +127,16 @@ class ProtectionDecisionIntegrationTest {
                     decision.decisionId()))
                     .isEqualTo("LOW");
             assertThat(jdbcTemplate.queryForObject(
+                    "SELECT normalized_context ->> 'reasonCatalogVersion' FROM audit.decision_trace WHERE id = ?",
+                    String.class,
+                    decision.decisionId()))
+                    .isEqualTo("risk-reason-catalog-1.0");
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT normalized_context ->> 'decisionEngineVersion' FROM audit.decision_trace WHERE id = ?",
+                    String.class,
+                    decision.decisionId()))
+                    .isEqualTo("decision-engine-1.0");
+            assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM audit.decision_reason WHERE decision_id = ?",
                     Long.class,
                     decision.decisionId()))
