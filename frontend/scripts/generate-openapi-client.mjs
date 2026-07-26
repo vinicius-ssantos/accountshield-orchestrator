@@ -94,7 +94,9 @@ function enumDeclaration(name, schema) {
 function objectDeclaration(name, schema) {
   const properties = assertObject(schema.properties ?? {}, `${name} properties must be an object`);
   const required = new Set(Array.isArray(schema.required) ? schema.required : []);
-  const lines = [`export interface ${name} {`];
+  const nullable = Array.isArray(schema.type) && schema.type.includes("null");
+  const interfaceName = nullable ? `${name}Value` : name;
+  const lines = [`export interface ${interfaceName} {`];
 
   for (const propertyName of Object.keys(properties).sort()) {
     const propertySchema = assertObject(
@@ -108,6 +110,9 @@ function objectDeclaration(name, schema) {
   }
 
   lines.push("}");
+  if (nullable) {
+    lines.push("", `export type ${name} = ${interfaceName} | null;`);
+  }
   return lines.join("\n");
 }
 
