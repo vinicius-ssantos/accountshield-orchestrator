@@ -34,7 +34,7 @@ class WebhookDeliveryIntegrationTest {
     @Autowired
     private WebhookSecretCipher secretCipher;
 
-    @Value("${accountshield.webhook.demo-receiver.secret}")
+    @Value("${accountshield.webhook.demo-receiver.secret:accountshield-local-only-demo-receiver-secret}")
     private String demoReceiverSecret;
 
     @Value("${local.server.port}")
