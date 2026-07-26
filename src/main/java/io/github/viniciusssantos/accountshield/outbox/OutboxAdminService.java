@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.outbox;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface OutboxAdminService {
@@ -10,4 +11,7 @@ public interface OutboxAdminService {
      * DEAD_LETTERED -- requeue is a deliberate, validated reset, not a resume of arbitrary state.
      */
     void requeue(UUID eventId, String actor);
+
+    /** Delivery history, optionally filtered to one status (e.g. {@code DEAD_LETTERED}); null for all. */
+    List<OutboxEventSummary> list(String statusFilter);
 }

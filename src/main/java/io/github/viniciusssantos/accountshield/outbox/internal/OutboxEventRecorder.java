@@ -9,6 +9,7 @@ import io.github.viniciusssantos.accountshield.outbox.internal.persistence.Outbo
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryManualReviewRequired;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -58,6 +59,13 @@ public class OutboxEventRecorder {
     public void onRecoveryCompleted(RecoveryCompleted event) {
         record(event.completedAt(), "Recovery", event.recoveryId().toString(),
                 "RECOVERY_COMPLETED", pseudonymizedPayload(event, event.accountReference()));
+    }
+
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onRecoveryManualReviewRequired(RecoveryManualReviewRequired event) {
+        record(event.requiredAt(), "Recovery", event.recoveryId().toString(),
+                "RECOVERY_MANUAL_REVIEW_REQUIRED", pseudonymizedPayload(event, event.accountReference()));
     }
 
     private void record(Instant occurredAt, String aggregateType, String aggregateId,

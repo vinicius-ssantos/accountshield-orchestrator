@@ -2,10 +2,12 @@ package io.github.viniciusssantos.accountshield.outbox.internal;
 
 import io.github.viniciusssantos.accountshield.outbox.OutboxAdminService;
 import io.github.viniciusssantos.accountshield.outbox.OutboxEventNotFoundException;
+import io.github.viniciusssantos.accountshield.outbox.OutboxEventSummary;
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventEntity;
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -37,5 +39,27 @@ class OutboxAdminApplicationService implements OutboxAdminService {
                 .orElseThrow(() -> new OutboxEventNotFoundException(eventId));
         entity.requeue(clock.instant());
         log.info("outbox_event_requeued event_id={} actor={}", eventId, actor);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OutboxEventSummary> list(String statusFilter) {
+        List<OutboxEventEntity> entities = statusFilter == null
+                ? repository.findAll()
+                : repository.findByStatus(statusFilter);
+        return entities.stream().map(OutboxAdminApplicationService::toSummary).toList();
+    }
+
+    private static OutboxEventSummary toSummary(OutboxEventEntity entity) {
+        return new OutboxEventSummary(
+                entity.getId(),
+                entity.getAggregateType(),
+                entity.getAggregateId(),
+                entity.getEventType(),
+                entity.getStatus(),
+                entity.getAttemptCount(),
+                entity.getOccurredAt(),
+                entity.getPublishedAt(),
+                entity.getDeadLetteredAt());
     }
 }

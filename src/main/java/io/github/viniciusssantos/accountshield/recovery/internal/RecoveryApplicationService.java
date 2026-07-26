@@ -18,6 +18,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryManualReviewRequired;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
@@ -167,6 +168,11 @@ class RecoveryApplicationService implements RecoveryService {
         entity.setStatus(nextStatus.name());
         entity.setUpdatedAt(clock.instant());
         saveWithConflictCheck(entity);
+
+        if (nextStatus == RecoveryStatus.MANUAL_REVIEW) {
+            eventPublisher.publishEvent(new RecoveryManualReviewRequired(
+                    entity.getId(), entity.getAccountReference(), classification.name(), clock.instant()));
+        }
 
         return toDomain(entity);
     }
