@@ -132,7 +132,7 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(result.challenge().challengeType()).isEqualTo(ChallengeType.TOTP_SIMULATED);
         assertThat(result.challenge().purpose()).isEqualTo(ChallengePurpose.PROTECTION_STEP_UP);
         assertThat(result.challenge().contextId()).isEqualTo(result.protectionRequestId());
-        verify(protectionRequestRepository).save(any());
+        verify(protectionRequestRepository).saveAndFlush(any());
         verify(idempotencyGuard).finalizeResult(anyString(), anyString(), anyString());
 
         ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);
@@ -173,7 +173,7 @@ class ProtectionDecisionApplicationServiceTest {
                         staleEnvelope,
                         null)));
 
-        verify(protectionRequestRepository, org.mockito.Mockito.never()).save(any());
+        verify(protectionRequestRepository, org.mockito.Mockito.never()).saveAndFlush(any());
         verify(decisionTraceRecorder, org.mockito.Mockito.never()).record(any());
 
         var counter = meterRegistry.find("accountshield.protection.degraded_decisions")
@@ -204,7 +204,7 @@ class ProtectionDecisionApplicationServiceTest {
                         envelope,
                         null)));
 
-        verify(protectionRequestRepository, org.mockito.Mockito.never()).save(any());
+        verify(protectionRequestRepository, org.mockito.Mockito.never()).saveAndFlush(any());
 
         var counter = meterRegistry.find("accountshield.protection.degraded_decisions")
                 .tag("reason", "ACTIVE_POLICY_UNAVAILABLE")
@@ -240,7 +240,7 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(result.degradationReason()).isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
         assertThat(result.challenge()).isNull();
 
-        verify(protectionRequestRepository).save(any());
+        verify(protectionRequestRepository).saveAndFlush(any());
 
         ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);
         verify(decisionTraceRecorder).record(traceCaptor.capture());
