@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshield.outbox.internal;
 
 import io.github.viniciusssantos.accountshield.challenge.ChallengeCompleted;
+import io.github.viniciusssantos.accountshield.outbox.AccountPseudonymizer;
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventEntity;
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventRepository;
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;

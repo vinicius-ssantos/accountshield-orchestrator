@@ -65,6 +65,9 @@ accountshield:
     pseudonym-secret: ${ACCOUNT_PSEUDONYM_SECRET:accountshield-local-only-pseudonym-secret}
   risk:
     max-signal-age: 5m
+  policy:
+    impact:
+      max-divergence-percentage: 20
   recovery:
     retention:
       terminal-ttl: 30d

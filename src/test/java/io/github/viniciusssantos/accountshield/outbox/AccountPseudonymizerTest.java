@@ -1,4 +1,4 @@
-package io.github.viniciusssantos.accountshield.outbox.internal;
+package io.github.viniciusssantos.accountshield.outbox;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
