@@ -58,7 +58,7 @@ Owns explicit recovery-authorization persistence and consumption, the secure rec
 
 ### `simulation`
 
-Owns deterministic replay of historical decisions and shadow-policy evaluation against candidate policy versions. Both operations are side-effect-free. See ADR 0006.
+Owns deterministic replay of historical decisions and shadow-policy evaluation against candidate policy versions. Both operations are side-effect-free. See ADR 0006. Replay re-runs the recorded risk algorithm (not just the recorded score) via a versioned `risk.RiskAlgorithmRegistry`, reconstructing the historical signal envelope from the persisted decision trace (ADR 0019).
 
 ## Module interaction and dependency direction
 

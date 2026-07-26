@@ -8,9 +8,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.viniciusssantos.accountshield.risk.RiskBand;
+import io.github.viniciusssantos.accountshield.risk.UnknownAlgorithmVersionException;
 import io.github.viniciusssantos.accountshield.simulation.ReplayResult;
 import io.github.viniciusssantos.accountshield.simulation.ShadowEvaluationResult;
 import io.github.viniciusssantos.accountshield.simulation.SimulationService;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +30,7 @@ class SimulationControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new SimulationController(simulationService))
+                .setControllerAdvice(new SimulationProblemHandler())
                 .build();
     }
 
@@ -35,14 +39,16 @@ class SimulationControllerTest {
         UUID requestId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         when(simulationService.replay(requestId))
                 .thenReturn(Optional.of(new ReplayResult(
-                        requestId, "ALLOW", "ALLOW", 10, 10,
-                        "account-protection-default", "1.0.0", true)));
+                        requestId, true, "ALLOW", "ALLOW", 10, 10,
+                        RiskBand.LOW, RiskBand.LOW, List.of(), List.of(),
+                        "account-protection-default", "1.0.0", "risk-rules-1.0", List.of())));
 
         mockMvc.perform(get("/api/v1/simulation/replay/550e8400-e29b-41d4-a716-446655440000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.matches").value(true))
                 .andExpect(jsonPath("$.originalOutcome").value("ALLOW"))
-                .andExpect(jsonPath("$.replayedOutcome").value("ALLOW"));
+                .andExpect(jsonPath("$.replayedOutcome").value("ALLOW"))
+                .andExpect(jsonPath("$.algorithmVersion").value("risk-rules-1.0"));
     }
 
     @Test
@@ -53,6 +59,17 @@ class SimulationControllerTest {
 
         mockMvc.perform(get("/api/v1/simulation/replay/" + requestId))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void replayReturns422ForUnknownAlgorithmVersion() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        when(simulationService.replay(requestId))
+                .thenThrow(new UnknownAlgorithmVersionException("risk-rules-9.9"));
+
+        mockMvc.perform(get("/api/v1/simulation/replay/" + requestId))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("UNKNOWN_ALGORITHM_VERSION"));
     }
 
     @Test

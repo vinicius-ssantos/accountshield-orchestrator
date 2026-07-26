@@ -17,6 +17,11 @@ class DeterministicRiskAssessmentServiceTest {
     private final DeterministicRiskAssessmentService service = new DeterministicRiskAssessmentService();
 
     @Test
+    void declaresItsOwnAlgorithmVersion() {
+        assertThat(service.algorithmVersion()).isEqualTo("risk-rules-1.0");
+    }
+
+    @Test
     void returnsLowRiskWhenNoRiskSignalsArePresent() {
         RiskAssessment assessment = service.assess(envelope(
                 new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW), SignalConfidence.HIGH));
