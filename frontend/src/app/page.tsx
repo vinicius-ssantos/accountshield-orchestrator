@@ -1,15 +1,30 @@
 import Link from "next/link";
 
+import {
+  AppShell,
+  DataTable,
+  MetricCard,
+  PageHeader,
+  Panel,
+  SectionHeader,
+  StatusBadge,
+  type StatusTone,
+} from "@/design-system/components";
 import { getDecisionsDataSource } from "@/features/decisions/get-data-source";
 
-const navigationItems = [
-  { label: "Overview", href: "/" },
-  { label: "Decisions", href: "/decisions" },
-  { label: "Recoveries", href: "/recoveries" },
-  { label: "Policies", href: "/policies" },
-  { label: "Replay", href: "/replay" },
-  { label: "Operations", href: "/operations" },
-] as const;
+function outcomeTone(outcome: string): StatusTone {
+  const normalized = outcome.toLowerCase();
+  if (normalized.includes("allow")) return "positive";
+  if (normalized.includes("deny") || normalized.includes("block")) return "critical";
+  if (normalized.includes("step") || normalized.includes("challenge")) return "attention";
+  return "info";
+}
+
+function riskPresentation(score: number): { label: string; tone: StatusTone } {
+  if (score >= 75) return { label: `High risk · ${score}`, tone: "critical" };
+  if (score >= 40) return { label: `Medium risk · ${score}`, tone: "attention" };
+  return { label: `Low risk · ${score}`, tone: "positive" };
+}
 
 export default async function Home() {
   const decisionsDataSource = getDecisionsDataSource();
@@ -19,87 +34,65 @@ export default async function Home() {
   ]);
 
   return (
-    <main className="shell">
-      <aside className="sidebar" aria-label="Application sidebar">
-        <div className="brand">AccountShield</div>
-        <p className="eyebrow">Security Operations</p>
-        <nav aria-label="Primary navigation">
-          {navigationItems.map((item, index) => (
-            <Link
-              aria-current={index === 0 ? "page" : undefined}
-              className={index === 0 ? "active" : ""}
-              href={item.href}
-              key={item.href}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="notice">Fixture mode · no administrative mutations</div>
-      </aside>
-
-      <section className="content">
-        <header>
-          <div>
-            <p className="eyebrow">Operations overview</p>
-            <h1>Account protection at a glance</h1>
-            <p className="muted">Investigate decisions, explain risk, and prepare safe operator workflows.</p>
-          </div>
+    <AppShell activeHref="/">
+      <PageHeader
+        action={
           <Link className="actionLink" href="/decisions">
             Search correlation ID
           </Link>
-        </header>
+        }
+        description="Investigate decisions, explain risk, and prepare safe operator workflows."
+        eyebrow="Operations overview"
+        title="Account protection at a glance"
+      />
 
-        <section aria-label="Operations metrics" className="metrics">
-          {metrics.map((metric) => (
-            <article className="card" key={metric.label}>
-              <span>{metric.label}</span>
-              <strong>{metric.value}</strong>
-              <small>{metric.detail}</small>
-            </article>
-          ))}
-        </section>
-
-        <section className="panel">
-          <div className="panelHeader">
-            <div>
-              <p className="eyebrow">Recent decisions</p>
-              <h2>Investigation queue</h2>
-            </div>
-            <span className="badge">Read only</span>
-          </div>
-
-          <div className="tableWrapper">
-            <table>
-              <caption className="srOnly">Recent account-protection decisions</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Correlation</th>
-                  <th scope="col">Event</th>
-                  <th scope="col">Risk</th>
-                  <th scope="col">Outcome</th>
-                  <th scope="col">Policy</th>
-                </tr>
-              </thead>
-              <tbody>
-                {decisions.map((decision) => (
-                  <tr key={decision.correlationId}>
-                    <td>
-                      <code>{decision.correlationId}</code>
-                    </td>
-                    <td>{decision.eventType}</td>
-                    <td>{decision.riskScore}</td>
-                    <td>
-                      <span className="outcome">{decision.outcome}</span>
-                    </td>
-                    <td>{decision.policyVersion}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      <section aria-label="Operations metrics" className="metricGrid">
+        {metrics.map((metric) => (
+          <MetricCard
+            detail={metric.detail}
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+          />
+        ))}
       </section>
-    </main>
+
+      <Panel>
+        <SectionHeader
+          eyebrow="Recent decisions"
+          title="Investigation queue"
+          trailing={<StatusBadge label="Read only" tone="attention" />}
+        />
+
+        <DataTable
+          caption="Recent account-protection decisions"
+          columns={[
+            { key: "correlation", label: "Correlation" },
+            { key: "event", label: "Event" },
+            { key: "risk", label: "Risk" },
+            { key: "outcome", label: "Outcome" },
+            { key: "policy", label: "Policy" },
+          ]}
+          rows={decisions.map((decision) => {
+            const risk = riskPresentation(decision.riskScore);
+            return {
+              id: decision.correlationId,
+              cells: {
+                correlation: <code>{decision.correlationId}</code>,
+                event: decision.eventType,
+                risk: <StatusBadge label={risk.label} tone={risk.tone} />,
+                outcome: (
+                  <StatusBadge
+                    label={decision.outcome}
+                    tone={outcomeTone(decision.outcome)}
+                  />
+                ),
+                policy: decision.policyVersion,
+              },
+            };
+          })}
+        />
+      </Panel>
+    </AppShell>
   );
 }
