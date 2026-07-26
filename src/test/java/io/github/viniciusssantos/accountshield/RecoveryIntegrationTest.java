@@ -273,6 +273,20 @@ class RecoveryIntegrationTest {
                 Timestamp.from(issuedAt));
 
         jdbcTemplate.update(
+                "INSERT INTO audit.decision_trace "
+                        + "(id, protection_request_id, account_reference, request_fingerprint, "
+                        + "algorithm_version, policy_key, policy_version, outcome, risk_score, "
+                        + "normalized_context, decided_at) "
+                        + "VALUES (?, ?, ?, ?, 'risk-rules-1.0', 'account-protection-default', '1.0.0', "
+                        + "'START_RECOVERY', ?, '{}'::jsonb, ?)",
+                decisionId,
+                protectionRequestId,
+                "authorization-fixture-" + protectionRequestId,
+                "fingerprint-" + decisionId,
+                riskScore,
+                Timestamp.from(issuedAt));
+
+        jdbcTemplate.update(
                 "INSERT INTO recovery.recovery_authorization "
                         + "(id, protection_request_id, decision_id, account_reference, directive, "
                         + "risk_score, issued_at, expires_at, consumed_at) "

@@ -2,6 +2,8 @@ package io.github.viniciusssantos.accountshield.challenge.internal;
 
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
 import io.github.viniciusssantos.accountshield.challenge.internal.persistence.ChallengePlanRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChallengePlanRetentionCleanup {
 
     private static final Logger log = LoggerFactory.getLogger(ChallengePlanRetentionCleanup.class);
+    private static final String JOB_NAME = "challenge_plan";
 
     private static final List<String> TERMINAL_STATUSES = Arrays.stream(ChallengeStatus.values())
             .filter(ChallengeStatus::isTerminal)
@@ -28,17 +31,20 @@ public class ChallengePlanRetentionCleanup {
     private final ChallengePlanRepository repository;
     private final Clock clock;
     private final Duration terminalTtl;
+    private final MeterRegistry meterRegistry;
 
     public ChallengePlanRetentionCleanup(
             ChallengePlanRepository repository,
             @Qualifier("decisionClock") Clock clock,
-            @Value("${accountshield.challenge.retention.terminal-ttl:1d}") Duration terminalTtl) {
+            @Value("${accountshield.challenge.retention.terminal-ttl:1d}") Duration terminalTtl,
+            MeterRegistry meterRegistry) {
         if (terminalTtl.isNegative() || terminalTtl.isZero()) {
             throw new IllegalArgumentException("terminalTtl must be positive");
         }
         this.repository = repository;
         this.clock = clock;
         this.terminalTtl = terminalTtl;
+        this.meterRegistry = meterRegistry;
     }
 
     @Scheduled(fixedDelayString = "${accountshield.challenge.retention.fixed-delay:1h}")
@@ -49,5 +55,10 @@ public class ChallengePlanRetentionCleanup {
         if (deleted > 0) {
             log.info("challenge_plan_retention_purged count={} cutoff={}", deleted, cutoff);
         }
+        Counter.builder("accountshield.retention.purged")
+                .description("Total rows purged by a retention cleanup job")
+                .tag("job", JOB_NAME)
+                .register(meterRegistry)
+                .increment(deleted);
     }
 }

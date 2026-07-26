@@ -69,6 +69,7 @@ class PersistenceIntegrationTest {
 
     @Test
     void keepsDecisionTracesAppendOnly() {
+        UUID protectionRequestId = insertProtectionRequest();
         UUID decisionId = UUID.randomUUID();
         jdbcTemplate.update(
                 """
@@ -79,7 +80,7 @@ class PersistenceIntegrationTest {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}'::jsonb, ?)
                 """,
                 decisionId,
-                UUID.randomUUID(),
+                protectionRequestId,
                 "acct-test",
                 "c".repeat(64),
                 "risk-1",
@@ -95,6 +96,116 @@ class PersistenceIntegrationTest {
                 .isInstanceOf(DataAccessException.class)
                 .rootCause()
                 .hasMessageContaining("audit records are append-only");
+    }
+
+    @Test
+    void rejectsDecisionTraceWithoutAValidProtectionRequest() {
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                        """
+                        INSERT INTO audit.decision_trace (
+                            id, protection_request_id, account_reference, request_fingerprint,
+                            algorithm_version, policy_key, policy_version, outcome, risk_score,
+                            normalized_context, decided_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}'::jsonb, ?)
+                        """,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "acct-orphan-trace",
+                        "e".repeat(64),
+                        "risk-1",
+                        "default-login",
+                        "2026.07.1",
+                        "ALLOW",
+                        10,
+                        OffsetDateTime.now(ZoneOffset.UTC)))
+                .isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void rejectsRecoveryAuthorizationWithoutAValidProtectionRequest() {
+        UUID protectionRequestId = insertProtectionRequest();
+        UUID decisionId = insertDecisionTrace(protectionRequestId);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                        """
+                        INSERT INTO recovery.recovery_authorization (
+                            id, protection_request_id, decision_id, account_reference, directive,
+                            risk_score, issued_at, expires_at, consumed_at
+                        ) VALUES (?, ?, ?, ?, 'LOGIN', 10, ?, ?, NULL)
+                        """,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        decisionId,
+                        "acct-orphan-authorization",
+                        OffsetDateTime.now(ZoneOffset.UTC),
+                        OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(600)))
+                .isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void rejectsRecoveryAuthorizationWithoutAValidDecision() {
+        UUID protectionRequestId = insertProtectionRequest();
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                        """
+                        INSERT INTO recovery.recovery_authorization (
+                            id, protection_request_id, decision_id, account_reference, directive,
+                            risk_score, issued_at, expires_at, consumed_at
+                        ) VALUES (?, ?, ?, ?, 'LOGIN', 10, ?, ?, NULL)
+                        """,
+                        UUID.randomUUID(),
+                        protectionRequestId,
+                        UUID.randomUUID(),
+                        "acct-orphan-decision",
+                        OffsetDateTime.now(ZoneOffset.UTC),
+                        OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(600)))
+                .isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void rejectsRecoveryFlowWithoutAValidIdentityChallenge() {
+        UUID protectionRequestId = insertProtectionRequest();
+        UUID authorizationId = insertRecoveryAuthorization();
+        UUID originatingDecisionId = insertDecisionTrace(protectionRequestId);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                        """
+                        INSERT INTO recovery.recovery_flow (
+                            id, account_reference, event_type, status, classification,
+                            risk_score, initiated_at, updated_at, protection_request_id,
+                            originating_decision_id, authorization_id, identity_challenge_id
+                        ) VALUES (?, ?, 'LOGIN', 'VERIFYING_IDENTITY', 'IMMEDIATE', 10, ?, ?, ?, ?, ?, ?)
+                        """,
+                        UUID.randomUUID(),
+                        "acct-orphan-identity-challenge",
+                        now,
+                        now,
+                        protectionRequestId,
+                        originatingDecisionId,
+                        authorizationId,
+                        UUID.randomUUID()))
+                .isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void rejectsPolicyRolloutWithoutAValidCandidateVersion() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                        """
+                        INSERT INTO policy.policy_rollout (
+                            id, policy_key, candidate_version, rollout_percentage, status,
+                            started_at, started_by, updated_at
+                        ) VALUES (?, ?, ?, 10, 'ACTIVE', ?, ?, ?)
+                        """,
+                        UUID.randomUUID(),
+                        "orphan-rollout-policy-" + UUID.randomUUID(),
+                        "9.9.9-does-not-exist",
+                        now,
+                        "test-operator",
+                        now))
+                .isInstanceOf(DataAccessException.class);
     }
 
     @Test
@@ -178,6 +289,8 @@ class PersistenceIntegrationTest {
     }
 
     private UUID insertRecoveryAuthorization() {
+        UUID protectionRequestId = insertProtectionRequest();
+        UUID decisionId = insertDecisionTrace(protectionRequestId);
         UUID id = UUID.randomUUID();
         OffsetDateTime issuedAt = OffsetDateTime.now(ZoneOffset.UTC);
         jdbcTemplate.update(
@@ -188,11 +301,30 @@ class PersistenceIntegrationTest {
                 ) VALUES (?, ?, ?, ?, 'LOGIN', 10, ?, ?, NULL)
                 """,
                 id,
-                UUID.randomUUID(),
-                UUID.randomUUID(),
+                protectionRequestId,
+                decisionId,
                 "acct-persistence-" + id,
                 issuedAt,
                 issuedAt.plusSeconds(600));
+        return id;
+    }
+
+    private UUID insertDecisionTrace(UUID protectionRequestId) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                """
+                INSERT INTO audit.decision_trace (
+                    id, protection_request_id, account_reference, request_fingerprint,
+                    algorithm_version, policy_key, policy_version, outcome, risk_score,
+                    normalized_context, decided_at
+                ) VALUES (?, ?, ?, ?, 'risk-rules-1.0', 'account-protection-default', '1.0.0',
+                          'START_RECOVERY', 10, '{}'::jsonb, ?)
+                """,
+                id,
+                protectionRequestId,
+                "acct-persistence-" + id,
+                "fingerprint-decision-" + id,
+                OffsetDateTime.now(ZoneOffset.UTC));
         return id;
     }
 

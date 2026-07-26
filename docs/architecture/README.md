@@ -170,15 +170,26 @@ Logs must not contain forbidden data. Sensitive values require explicit structur
 
 | Schema.table | Classification | Retention | Mechanism |
 | --- | --- | --- | --- |
-| `protection.protection_request` | Sensitive (account reference) | No automated purge yet | Source-of-truth decision input; deletion policy tracked with future protection-module retention work |
+| `protection.protection_request` | Sensitive (account reference) | Retained indefinitely | Transitively pinned by `audit.decision_trace`'s FK to it (ADR 0024) — since decision traces are never deleted, purging their referenced protection requests would violate that FK; this is a deliberate consequence, not a missing purge job |
 | `protection.idempotency_record` | Internal (request fingerprints) | Bounded by `expires_at`; expired rows purged in bounded batches | `IdempotencyRecordRetentionCleanup` (`protection/internal`), ADR 0018 |
 | `policy.policy_version` | Internal (no account data) | Retained indefinitely | Immutable policy history is intentionally kept for audit and rollback |
 | `policy.client_policy_route` | Internal (client id + policy key, no account data) | Retained indefinitely | Simple client/event-to-policy-key mapping, not a governed lifecycle artifact |
 | `audit.decision_trace` / `audit.decision_reason` | Sensitive (decision evidence) | Retained indefinitely | Append-only compliance evidence; no automated deletion by design |
 | `challenge.challenge_plan` | Sensitive (account reference); code is hashed, never stored raw | Terminal rows (VERIFIED/CONSUMED/FAILED/EXPIRED) purged after `accountshield.challenge.retention.terminal-ttl` (default 1 day) past expiry | `ChallengePlanRetentionCleanup` (`challenge/internal`), mirrors the recovery-flow job below |
 | `recovery.recovery_flow` | Sensitive (account reference, risk data) | Terminal rows purged after `accountshield.recovery.retention.terminal-ttl` (default 30 days) | `RecoveryFlowRetentionCleanup` (`recovery/internal`), added in issue #18 |
-| `recovery.recovery_authorization` | Sensitive (account reference) | No automated purge yet | Deletion policy tracked with future recovery-module retention work |
-| `outbox.outbox_event` | Sensitive prior to pseudonymization, Internal after | Retained as the append-only integration log | Not purged here — a distinct concern from the future outbox-relay/archival design |
+| `recovery.recovery_authorization` | Sensitive (account reference) | Purged after `accountshield.recovery.authorization-retention.expired-ttl` (default 30 days) past `expires_at`, consumed or not | `RecoveryAuthorizationRetentionCleanup` (`recovery/internal`), ADR 0024 |
+| `outbox.outbox_event` | Sensitive prior to pseudonymization, Internal after | `PUBLISHED` rows purged after `accountshield.outbox.retention.published-ttl` (default 7 days); `DEAD_LETTERED` rows purged after `.dead-lettered-ttl` (default 30 days, longer for investigation) | `OutboxEventRetentionCleanup` (`outbox/internal`), ADR 0023 |
+
+### Database roles
+
+Migrations run under a single owner-equivalent role today (see ADR 0024's explicit scoping note on why the running application's own connection has not been switched in this repository's local-dev `compose.yaml`). Two additional roles exist at the database level, created and granted by migration `V20`, ready for a deployment to use directly:
+
+| Role | Purpose | Grants |
+| --- | --- | --- |
+| `accountshield_runtime` | The application's day-to-day DML | `SELECT`/`INSERT`/`UPDATE`/`DELETE` on regular tables; `SELECT`/`INSERT` only on `audit.decision_trace`/`audit.decision_reason` (no `UPDATE`/`DELETE` — enforced at the grant level in addition to the existing `reject_audit_mutation()` trigger) |
+| `accountshield_readonly` | Future reporting/observability connections | `SELECT` only, everywhere |
+
+Neither role owns, nor has any grant on, the three immutability trigger functions (`audit.reject_audit_mutation`, `policy.protect_activated_policy_version`, `recovery.protect_recovery_authorization`) or the triggers that call them — Postgres's default-deny model means a non-owner role with no explicit grant cannot alter or drop them.
 
 ### Pseudonymization
 

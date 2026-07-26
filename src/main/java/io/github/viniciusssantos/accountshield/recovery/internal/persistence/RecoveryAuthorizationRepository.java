@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshield.recovery.internal.persistence;
 
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,4 +15,6 @@ public interface RecoveryAuthorizationRepository
     @Override
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RecoveryAuthorizationEntity> findById(UUID authorizationId);
+
+    int deleteByExpiresAtBefore(Instant cutoff);
 }

@@ -2,7 +2,7 @@ package io.github.viniciusssantos.accountshield;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.viniciusssantos.accountshield.recovery.internal.RecoveryFlowRetentionCleanup;
+import io.github.viniciusssantos.accountshield.recovery.internal.RecoveryAuthorizationRetentionCleanup;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -14,35 +14,33 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest
 @Import(PostgreSqlTestConfiguration.class)
-class RecoveryFlowRetentionCleanupTest {
+class RecoveryAuthorizationRetentionCleanupTest {
 
-    @Autowired private RecoveryFlowRetentionCleanup retentionCleanup;
+    @Autowired private RecoveryAuthorizationRetentionCleanup retentionCleanup;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @Test
-    void purgesOnlyExpiredTerminalFlows() {
-        UUID expiredCompleted = insertFlow("COMPLETED", "IMMEDIATE", OffsetDateTime.now(ZoneOffset.UTC).minusDays(31));
-        UUID recentCompleted = insertFlow("COMPLETED", "IMMEDIATE", OffsetDateTime.now(ZoneOffset.UTC).minusDays(1));
-        UUID expiredButActive = insertFlow("MANUAL_REVIEW", "MANUAL_REVIEW", OffsetDateTime.now(ZoneOffset.UTC).minusDays(31));
+    void purgesOnlyExpiredAuthorizations() {
+        UUID expired = insertAuthorization(OffsetDateTime.now(ZoneOffset.UTC).minusDays(31));
+        UUID recent = insertAuthorization(OffsetDateTime.now(ZoneOffset.UTC).minusDays(1));
 
-        retentionCleanup.purgeExpiredTerminalFlows();
+        retentionCleanup.purgeExpiredAuthorizations();
 
-        assertThat(flowExists(expiredCompleted)).isFalse();
-        assertThat(flowExists(recentCompleted)).isTrue();
-        assertThat(flowExists(expiredButActive)).isTrue();
+        assertThat(authorizationExists(expired)).isFalse();
+        assertThat(authorizationExists(recent)).isTrue();
     }
 
-    private boolean flowExists(UUID id) {
+    private boolean authorizationExists(UUID id) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM recovery.recovery_flow WHERE id = ?", Integer.class, id);
+                "SELECT COUNT(*) FROM recovery.recovery_authorization WHERE id = ?", Integer.class, id);
         return count != null && count > 0;
     }
 
-    private UUID insertFlow(String status, String classification, OffsetDateTime updatedAt) {
+    private UUID insertAuthorization(OffsetDateTime expiresAt) {
         UUID id = UUID.randomUUID();
         UUID protectionRequestId = UUID.randomUUID();
         UUID decisionId = UUID.randomUUID();
-        UUID authorizationId = UUID.randomUUID();
+        OffsetDateTime issuedAt = expiresAt.minusMinutes(10);
 
         jdbcTemplate.update(
                 """
@@ -53,7 +51,7 @@ class RecoveryFlowRetentionCleanupTest {
                 protectionRequestId,
                 "acct-retention-" + id,
                 "fingerprint-" + id,
-                updatedAt);
+                issuedAt);
 
         jdbcTemplate.update(
                 """
@@ -68,7 +66,7 @@ class RecoveryFlowRetentionCleanupTest {
                 protectionRequestId,
                 "acct-retention-" + id,
                 "fingerprint-decision-" + id,
-                updatedAt);
+                issuedAt);
 
         jdbcTemplate.update(
                 """
@@ -77,30 +75,12 @@ class RecoveryFlowRetentionCleanupTest {
                     risk_score, issued_at, expires_at, consumed_at
                 ) VALUES (?, ?, ?, ?, 'LOGIN', 10, ?, ?, NULL)
                 """,
-                authorizationId,
-                protectionRequestId,
-                decisionId,
-                "acct-retention-" + id,
-                updatedAt,
-                updatedAt.plusSeconds(600));
-
-        jdbcTemplate.update(
-                """
-                INSERT INTO recovery.recovery_flow (
-                    id, account_reference, event_type, status, classification,
-                    risk_score, initiated_at, updated_at, protection_request_id,
-                    originating_decision_id, authorization_id
-                ) VALUES (?, ?, 'LOGIN', ?, ?, 10, ?, ?, ?, ?, ?)
-                """,
                 id,
-                "acct-retention-" + id,
-                status,
-                classification,
-                updatedAt,
-                updatedAt,
                 protectionRequestId,
                 decisionId,
-                authorizationId);
+                "acct-retention-" + id,
+                issuedAt,
+                expiresAt);
 
         return id;
     }

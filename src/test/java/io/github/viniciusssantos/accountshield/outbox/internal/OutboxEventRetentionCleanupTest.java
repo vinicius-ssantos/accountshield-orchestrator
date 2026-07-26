@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.outbox.internal;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -21,10 +23,11 @@ class OutboxEventRetentionCleanupTest {
 
     private final OutboxEventRepository repository = mock(OutboxEventRepository.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private OutboxEventRetentionCleanup newCleanup(int batchSize) {
         return new OutboxEventRetentionCleanup(
-                repository, clock, Duration.ofDays(7), Duration.ofDays(30), batchSize);
+                repository, clock, Duration.ofDays(7), Duration.ofDays(30), batchSize, meterRegistry);
     }
 
     @Test
@@ -37,6 +40,14 @@ class OutboxEventRetentionCleanupTest {
 
         verify(repository, times(3)).deletePublishedBatch(any(), anyInt());
         verify(repository, times(1)).deleteDeadLetteredBatch(any(), anyInt());
+        assertThat(meterRegistry.get("accountshield.retention.purged")
+                        .tag("job", "outbox_event").tag("status", "published")
+                        .counter().count())
+                .isEqualTo(1020.0);
+        assertThat(meterRegistry.get("accountshield.retention.purged")
+                        .tag("job", "outbox_event").tag("status", "dead_lettered")
+                        .counter().count())
+                .isEqualTo(3.0);
     }
 
     @Test
