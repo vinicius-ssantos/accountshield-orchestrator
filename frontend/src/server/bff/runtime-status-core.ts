@@ -113,6 +113,10 @@ export class AccountShieldReadClient {
         );
       }
 
+      if (!response.ok) {
+        throw mapUpstreamFailure(response.status);
+      }
+
       let payload: unknown;
       try {
         payload = rawBody ? JSON.parse(rawBody) : null;
@@ -122,10 +126,6 @@ export class AccountShieldReadClient {
           502,
           "The AccountShield service returned an invalid response.",
         );
-      }
-
-      if (!response.ok) {
-        throw mapUpstreamFailure(response.status);
       }
 
       if (
