@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
+import io.github.viniciusssantos.accountshield.crypto.FieldEncryptionService;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.PolicyRolloutService;
 import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
@@ -78,6 +79,9 @@ class ProtectionDecisionIntegrationTest {
 
     @Autowired
     private MeterRegistry meterRegistry;
+
+    @Autowired
+    private FieldEncryptionService fieldEncryptionService;
 
     @Test
     void persistsAllInitialOutcomesWithVersionedExplainability() {
@@ -314,10 +318,7 @@ class ProtectionDecisionIntegrationTest {
                 "SELECT COUNT(*) FROM protection.idempotency_record WHERE idempotency_key = ?",
                 Long.class, sharedIdempotencyKey))
                 .isEqualTo(2L);
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM protection.protection_request WHERE account_reference = ?",
-                Long.class, sharedAccountReference))
-                .isEqualTo(2L);
+        assertThat(requestCount(sharedAccountReference)).isEqualTo(2L);
     }
 
     private ProtectionDecisionResult decide(String accountReference, RiskSignals signals) {
@@ -328,12 +329,14 @@ class ProtectionDecisionIntegrationTest {
                 "idem-" + UUID.randomUUID()));
     }
 
+    // account_reference is encrypted at rest (issue #49): a plaintext WHERE clause can no longer
+    // match, so rows are decrypted in Java and compared against the plaintext value under test.
     private long requestCount(String accountReference) {
-        Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM protection.protection_request WHERE account_reference = ?",
-                Long.class,
-                accountReference);
-        return count == null ? 0 : count;
+        List<String> storedValues = jdbcTemplate.queryForList(
+                "SELECT account_reference FROM protection.protection_request", String.class);
+        return storedValues.stream()
+                .filter(stored -> accountReference.equals(fieldEncryptionService.decrypt(stored)))
+                .count();
     }
 
     private static RiskSignalEnvelope envelope(RiskSignals signals) {

@@ -72,6 +72,15 @@ accountshield:
       fixed-delay: 1h
   privacy:
     pseudonym-secret: ${ACCOUNT_PSEUDONYM_SECRET:accountshield-local-only-pseudonym-secret}
+  crypto:
+    active-kek-version: ${ACCOUNTSHIELD_CRYPTO_ACTIVE_KEK_VERSION:1}
+    active-kek-secret: ${ACCOUNTSHIELD_CRYPTO_ACTIVE_KEK_SECRET:accountshield-local-only-kek-v1}
+    previous-kek-version: ${ACCOUNTSHIELD_CRYPTO_PREVIOUS_KEK_VERSION:0}
+    previous-kek-secret: ${ACCOUNTSHIELD_CRYPTO_PREVIOUS_KEK_SECRET:}
+    subject-id-secret: ${ACCOUNTSHIELD_CRYPTO_SUBJECT_ID_SECRET:accountshield-local-only-subject-id-secret}
+    rewrap:
+      batch-size: 200
+      fixed-delay: 1h
   risk:
     max-signal-age: 5m
   policy:

@@ -170,7 +170,7 @@ Logs must not contain forbidden data. Sensitive values require explicit structur
 
 | Schema.table | Classification | Retention | Mechanism |
 | --- | --- | --- | --- |
-| `protection.protection_request` | Sensitive (account reference) | Retained indefinitely | Transitively pinned by `audit.decision_trace`'s FK to it (ADR 0024) — since decision traces are never deleted, purging their referenced protection requests would violate that FK; this is a deliberate consequence, not a missing purge job |
+| `protection.protection_request` | Sensitive (account reference) | Retained indefinitely | Transitively pinned by `audit.decision_trace`'s FK to it (ADR 0024) — since decision traces are never deleted, purging their referenced protection requests would violate that FK; this is a deliberate consequence, not a missing purge job. `account_reference` is envelope-encrypted at rest (ADR 0025); the other four tables below still carry it in plaintext, deferred there |
 | `protection.idempotency_record` | Internal (request fingerprints) | Bounded by `expires_at`; expired rows purged in bounded batches | `IdempotencyRecordRetentionCleanup` (`protection/internal`), ADR 0018 |
 | `policy.policy_version` | Internal (no account data) | Retained indefinitely | Immutable policy history is intentionally kept for audit and rollback |
 | `policy.client_policy_route` | Internal (client id + policy key, no account data) | Retained indefinitely | Simple client/event-to-policy-key mapping, not a governed lifecycle artifact |
@@ -191,11 +191,17 @@ Migrations run under a single owner-equivalent role today (see ADR 0024's explic
 
 Neither role owns, nor has any grant on, the three immutability trigger functions (`audit.reject_audit_mutation`, `policy.protect_activated_policy_version`, `recovery.protect_recovery_authorization`) or the triggers that call them — Postgres's default-deny model means a non-owner role with no explicit grant cannot alter or drop them.
 
+`V21` (ADR 0025) extends these same grants to the new `crypto` schema (`crypto.subject_key`): `accountshield_runtime` gets `SELECT`/`INSERT`/`UPDATE` (rows are never physically deleted, so no `DELETE` grant is needed), `accountshield_readonly` gets `SELECT`.
+
 ### Pseudonymization
 
 Domain events stay in-process only and are never logged with raw account identifiers (verified: `SecurityEventLogger` logs no `accountReference` field). The one place a full event payload leaves the in-process boundary is the outbox (`outbox.outbox_event.payload`), which is the actual "integration event" surface per the outbox-relay design.
 
 `AccountPseudonymizer` (`outbox/internal`) computes a deterministic, keyed HMAC-SHA256 pseudonym (`accountshield.privacy.pseudonym-secret`) from a raw account reference. `OutboxEventRecorder` substitutes this `subjectToken` for the raw `accountReference` before persisting the payload for `ProtectionDecisionMade`, `ChallengeCompleted`, and `RecoveryCompleted` (the three outbox-recorded event types that carry an account reference). The same account always maps to the same token, so downstream consumers can still correlate events for one subject without the outbox ever storing the raw identifier.
+
+### Envelope encryption and crypto-shredding
+
+`protection.protection_request.account_reference` is encrypted at rest via the `crypto` module's `FieldEncryptionService` (ADR 0025): a random per-subject data-encryption key (DEK), wrapped by a versioned key-encryption key (KEK) held only in application config (`accountshield.crypto.*`), never in the database. `crypto.subject_key` holds one row per subject (a deterministic HMAC of the account reference, independent of `AccountPseudonymizer`'s pseudonym); destroying that row's key material (crypto-shredding) makes every value ever encrypted for that subject permanently irrecoverable without deleting the rows that reference it. `SubjectKeyRewrapJob` re-wraps subject keys onto a newly rotated active KEK version in bounded batches, exposing `accountshield.crypto.rewrap.pending` (gauge) and `accountshield.crypto.rewrap.count` (counter). This is deliberately scoped to `protection_request` only for now — `audit.decision_trace`, `challenge.challenge_plan`, `recovery.recovery_flow`, and `recovery.recovery_authorization` still carry `account_reference` in plaintext (see ADR 0025's Context/Scope for why).
 
 ## Persistence direction
 

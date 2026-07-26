@@ -94,7 +94,7 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | API authentication and RBAC | **Planned** | Sensitive endpoints are not yet protected by Spring Security roles | [#19](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/19) |
 | Fresh step-up for privileged actions | **Planned** | Purpose-bound administrative authorization is not implemented | [#48](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/48) |
 | Data classification and pseudonymization | **Partial** | Opaque references and redaction guidance exist; systematic subject tokens and retention enforcement do not | [#32](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/32) |
-| Encryption rotation and crypto-shredding | **Planned** | Envelope encryption and key lifecycle are not implemented | [#49](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/49) |
+| Encryption rotation and crypto-shredding | **Partial** | Envelope encryption, KEK rotation, and crypto-shredding are implemented for `protection_request.account_reference`; `decision_trace` and the challenge/recovery tables still carry it in plaintext | ADR 0025, [#49](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/49) |
 
 ## Persistence and concurrency
 
