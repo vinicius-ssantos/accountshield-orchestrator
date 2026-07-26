@@ -27,6 +27,16 @@ public class JdbcDecisionTraceQuery implements DecisionTraceQuery {
              WHERE protection_request_id = ?
             """;
 
+    private static final String SELECT_RECENT_BY_POLICY_KEY = """
+            SELECT id, protection_request_id, account_reference, request_fingerprint,
+                   algorithm_version, policy_key, policy_version, outcome, risk_score,
+                   normalized_context::text, decided_at
+              FROM audit.decision_trace
+             WHERE policy_key = ?
+             ORDER BY decided_at DESC
+             LIMIT ?
+            """;
+
     private static final String SELECT_REASONS = """
             SELECT code, contribution
               FROM audit.decision_reason
@@ -43,33 +53,41 @@ public class JdbcDecisionTraceQuery implements DecisionTraceQuery {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Optional<DecisionTraceView> findByProtectionRequestId(UUID protectionRequestId) {
         Objects.requireNonNull(protectionRequestId, "protectionRequestId must not be null");
 
-        List<DecisionTraceView> results = jdbcTemplate.query(
-                SELECT_TRACE,
-                (rs, rowNum) -> {
-                    UUID decisionId = rs.getObject("id", UUID.class);
-                    Map<String, Object> context = parseContext(rs.getString("normalized_context"));
-                    List<DecisionReasonContribution> reasons = loadReasons(decisionId);
-                    return new DecisionTraceView(
-                            decisionId,
-                            rs.getObject("protection_request_id", UUID.class),
-                            rs.getString("account_reference"),
-                            rs.getString("request_fingerprint"),
-                            rs.getString("algorithm_version"),
-                            rs.getString("policy_key"),
-                            rs.getString("policy_version"),
-                            rs.getString("outcome"),
-                            rs.getShort("risk_score"),
-                            context,
-                            toInstant(rs.getTimestamp("decided_at")),
-                            reasons);
-                },
-                protectionRequestId);
+        List<DecisionTraceView> results = jdbcTemplate.query(SELECT_TRACE, this::mapRow, protectionRequestId);
 
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public List<DecisionTraceView> findRecentByPolicyKey(String policyKey, int maxSamples) {
+        Objects.requireNonNull(policyKey, "policyKey must not be null");
+        if (maxSamples <= 0) {
+            throw new IllegalArgumentException("maxSamples must be positive");
+        }
+
+        return jdbcTemplate.query(SELECT_RECENT_BY_POLICY_KEY, this::mapRow, policyKey, maxSamples);
+    }
+
+    private DecisionTraceView mapRow(ResultSet rs, int rowNum) throws SQLException {
+        UUID decisionId = rs.getObject("id", UUID.class);
+        Map<String, Object> context = parseContext(rs.getString("normalized_context"));
+        List<DecisionReasonContribution> reasons = loadReasons(decisionId);
+        return new DecisionTraceView(
+                decisionId,
+                rs.getObject("protection_request_id", UUID.class),
+                rs.getString("account_reference"),
+                rs.getString("request_fingerprint"),
+                rs.getString("algorithm_version"),
+                rs.getString("policy_key"),
+                rs.getString("policy_version"),
+                rs.getString("outcome"),
+                rs.getShort("risk_score"),
+                context,
+                toInstant(rs.getTimestamp("decided_at")),
+                reasons);
     }
 
     private Map<String, Object> parseContext(String json) {
