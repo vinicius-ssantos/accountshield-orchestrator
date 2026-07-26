@@ -68,7 +68,7 @@ export function createRuntimeStatusService(
 
 export async function handleRuntimeStatusRequest(
   request: Request,
-  service: RuntimeStatusService = createRuntimeStatusService(),
+  service?: RuntimeStatusService,
 ): Promise<Response> {
   const correlationId = resolveCorrelationId(
     request.headers.get("x-correlation-id"),
@@ -80,7 +80,8 @@ export async function handleRuntimeStatusRequest(
       maxBodyBytes: 0,
     });
 
-    const view = await service.getStatus(correlationId, request.signal);
+    const runtimeService = service ?? createRuntimeStatusService();
+    const view = await runtimeService.getStatus(correlationId, request.signal);
     return Response.json(view, {
       status: 200,
       headers: {
