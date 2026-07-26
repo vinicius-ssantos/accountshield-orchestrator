@@ -2,8 +2,8 @@ package io.github.viniciusssantos.accountshield.crypto.internal;
 
 import io.github.viniciusssantos.accountshield.crypto.FieldEncryptionService;
 import io.github.viniciusssantos.accountshield.crypto.SubjectKeyDestroyedException;
-import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyEntity;
-import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRepository;
+import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRecord;
+import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyStore;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Objects;
+import java.util.Optional;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -23,18 +24,18 @@ public class AesGcmFieldEncryptionService implements FieldEncryptionService {
     private static final int SUBJECT_ID_LENGTH_BYTES = 32;
     private static final int DEK_LENGTH_BYTES = 32;
 
-    private final SubjectKeyRepository subjectKeyRepository;
+    private final SubjectKeyStore subjectKeyStore;
     private final SubjectIdDerivation subjectIdDerivation;
     private final KeyEncryptionKeyResolver kekResolver;
     private final Clock clock;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AesGcmFieldEncryptionService(
-            SubjectKeyRepository subjectKeyRepository,
+            SubjectKeyStore subjectKeyStore,
             SubjectIdDerivation subjectIdDerivation,
             KeyEncryptionKeyResolver kekResolver,
             @Qualifier("decisionClock") Clock clock) {
-        this.subjectKeyRepository = subjectKeyRepository;
+        this.subjectKeyStore = subjectKeyStore;
         this.subjectIdDerivation = subjectIdDerivation;
         this.kekResolver = kekResolver;
         this.clock = clock;
@@ -72,14 +73,14 @@ public class AesGcmFieldEncryptionService implements FieldEncryptionService {
                 payload, SUBJECT_ID_LENGTH_BYTES + AesGcmCipher.NONCE_LENGTH_BYTES, payload.length);
         String subjectId = HexFormat.of().formatHex(subjectIdBytes);
 
-        SubjectKeyEntity entity = subjectKeyRepository.findById(subjectId)
+        SubjectKeyRecord record = subjectKeyStore.findById(subjectId)
                 .orElseThrow(() -> new IllegalStateException(
                         "missing subject key for encrypted field: " + subjectId));
-        if (entity.destroyedAt() != null) {
+        if (record.destroyed()) {
             return SHREDDED_MARKER;
         }
         byte[] dek = AesGcmCipher.decrypt(
-                kekResolver.keyForVersion(entity.kekVersion()), entity.dekNonce(), entity.wrappedDek());
+                kekResolver.keyForVersion(record.kekVersion()), record.dekNonce(), record.wrappedDek());
         byte[] plaintext = AesGcmCipher.decrypt(new SecretKeySpec(dek, "AES"), nonce, ciphertext);
         return new String(plaintext, StandardCharsets.UTF_8);
     }
@@ -89,31 +90,26 @@ public class AesGcmFieldEncryptionService implements FieldEncryptionService {
     public void shred(String plaintext) {
         Objects.requireNonNull(plaintext, "plaintext must not be null");
         String subjectId = subjectIdDerivation.deriveHex(plaintext);
-        subjectKeyRepository.findById(subjectId).ifPresent(entity -> {
-            if (entity.destroyedAt() == null) {
-                entity.destroy(clock.instant());
-                subjectKeyRepository.save(entity);
-            }
-        });
+        subjectKeyStore.destroy(subjectId, clock.instant());
     }
 
     private byte[] resolveDekForEncryption(String subjectId) {
-        SubjectKeyEntity entity = subjectKeyRepository.findById(subjectId).orElse(null);
-        if (entity == null) {
+        Optional<SubjectKeyRecord> existing = subjectKeyStore.findById(subjectId);
+        if (existing.isEmpty()) {
             byte[] dek = new byte[DEK_LENGTH_BYTES];
             secureRandom.nextBytes(dek);
             byte[] wrapNonce = AesGcmCipher.randomNonce(secureRandom);
             byte[] wrappedDek = AesGcmCipher.encrypt(
                     kekResolver.keyForVersion(kekResolver.activeVersion()), wrapNonce, dek);
-            subjectKeyRepository.save(new SubjectKeyEntity(
-                    subjectId, wrappedDek, wrapNonce, kekResolver.activeVersion(), clock.instant()));
+            subjectKeyStore.insert(subjectId, wrappedDek, wrapNonce, kekResolver.activeVersion(), clock.instant());
             return dek;
         }
-        if (entity.destroyedAt() != null) {
+        SubjectKeyRecord record = existing.get();
+        if (record.destroyed()) {
             throw new SubjectKeyDestroyedException(subjectId);
         }
         return AesGcmCipher.decrypt(
-                kekResolver.keyForVersion(entity.kekVersion()), entity.dekNonce(), entity.wrappedDek());
+                kekResolver.keyForVersion(record.kekVersion()), record.dekNonce(), record.wrappedDek());
     }
 
     private static byte[] concat(byte[]... arrays) {

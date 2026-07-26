@@ -2,15 +2,11 @@ package io.github.viniciusssantos.accountshield.crypto.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import io.github.viniciusssantos.accountshield.crypto.FieldEncryptionService;
 import io.github.viniciusssantos.accountshield.crypto.SubjectKeyDestroyedException;
-import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyEntity;
-import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRepository;
+import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRecord;
+import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyStore;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -22,24 +18,18 @@ import org.junit.jupiter.api.Test;
 
 class AesGcmFieldEncryptionServiceTest {
 
-    private final Map<String, SubjectKeyEntity> store = new HashMap<>();
+    private final Map<String, SubjectKeyRecord> store = new HashMap<>();
+    private FakeSubjectKeyStore subjectKeyStore;
     private AesGcmFieldEncryptionService service;
 
     @BeforeEach
     void setUp() {
         store.clear();
-        SubjectKeyRepository repository = mock(SubjectKeyRepository.class);
-        when(repository.findById(anyString()))
-                .thenAnswer(invocation -> Optional.ofNullable(store.get(invocation.getArgument(0))));
-        when(repository.save(any())).thenAnswer(invocation -> {
-            SubjectKeyEntity entity = invocation.getArgument(0);
-            store.put(entity.subjectId(), entity);
-            return entity;
-        });
+        subjectKeyStore = new FakeSubjectKeyStore();
         KeyEncryptionKeyResolver kekResolver = new KeyEncryptionKeyResolver(1, "test-active-kek", 0, "");
         SubjectIdDerivation subjectIdDerivation = new SubjectIdDerivation("test-subject-id-secret");
         Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
-        service = new AesGcmFieldEncryptionService(repository, subjectIdDerivation, kekResolver, clock);
+        service = new AesGcmFieldEncryptionService(subjectKeyStore, subjectIdDerivation, kekResolver, clock);
     }
 
     @Test
@@ -83,7 +73,7 @@ class AesGcmFieldEncryptionServiceTest {
         service.shred("acct-42");
 
         assertThat(store.values()).singleElement()
-                .satisfies(entity -> assertThat(entity.destroyedAt()).isNotNull());
+                .satisfies(record -> assertThat(record.destroyed()).isTrue());
     }
 
     @Test
@@ -110,5 +100,40 @@ class AesGcmFieldEncryptionServiceTest {
         assertThatThrownBy(() -> service.decrypt(stored))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("missing subject key");
+    }
+
+    /** In-memory fake standing in for the real JdbcTemplate-backed store. */
+    private final class FakeSubjectKeyStore extends SubjectKeyStore {
+
+        FakeSubjectKeyStore() {
+            super(null);
+        }
+
+        @Override
+        public Optional<SubjectKeyRecord> findById(String subjectId) {
+            return Optional.ofNullable(store.get(subjectId));
+        }
+
+        @Override
+        public void insert(String subjectId, byte[] wrappedDek, byte[] dekNonce, int kekVersion, Instant createdAt) {
+            store.put(subjectId, new SubjectKeyRecord(subjectId, wrappedDek, dekNonce, kekVersion, createdAt, null, null));
+        }
+
+        @Override
+        public void rewrap(String subjectId, byte[] newWrappedDek, byte[] newNonce, int newKekVersion, Instant now) {
+            SubjectKeyRecord existing = store.get(subjectId);
+            store.put(subjectId, new SubjectKeyRecord(
+                    subjectId, newWrappedDek, newNonce, newKekVersion, existing.createdAt(), now, null));
+        }
+
+        @Override
+        public void destroy(String subjectId, Instant now) {
+            SubjectKeyRecord existing = store.get(subjectId);
+            if (existing == null || existing.destroyed()) {
+                return;
+            }
+            store.put(subjectId, new SubjectKeyRecord(
+                    subjectId, null, null, null, existing.createdAt(), existing.rewrappedAt(), now));
+        }
     }
 }

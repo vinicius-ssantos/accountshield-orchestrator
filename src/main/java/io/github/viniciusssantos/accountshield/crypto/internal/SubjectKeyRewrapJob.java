@@ -1,7 +1,7 @@
 package io.github.viniciusssantos.accountshield.crypto.internal;
 
-import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyEntity;
-import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRepository;
+import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRecord;
+import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyStore;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -29,7 +29,7 @@ public class SubjectKeyRewrapJob {
 
     private static final Logger log = LoggerFactory.getLogger(SubjectKeyRewrapJob.class);
 
-    private final SubjectKeyRepository repository;
+    private final SubjectKeyStore subjectKeyStore;
     private final KeyEncryptionKeyResolver kekResolver;
     private final Clock clock;
     private final int batchSize;
@@ -37,18 +37,18 @@ public class SubjectKeyRewrapJob {
     private final SecureRandom secureRandom = new SecureRandom();
 
     public SubjectKeyRewrapJob(
-            SubjectKeyRepository repository,
+            SubjectKeyStore subjectKeyStore,
             KeyEncryptionKeyResolver kekResolver,
             @Qualifier("decisionClock") Clock clock,
             @Value("${accountshield.crypto.rewrap.batch-size:200}") int batchSize,
             MeterRegistry meterRegistry) {
-        this.repository = repository;
+        this.subjectKeyStore = subjectKeyStore;
         this.kekResolver = kekResolver;
         this.clock = clock;
         this.batchSize = batchSize;
         this.meterRegistry = meterRegistry;
-        Gauge.builder("accountshield.crypto.rewrap.pending", repository,
-                        r -> r.countNeedingRewrap(kekResolver.activeVersion()))
+        Gauge.builder("accountshield.crypto.rewrap.pending", subjectKeyStore,
+                        store -> store.countNeedingRewrap(kekResolver.activeVersion()))
                 .description("Subject keys still wrapped by a non-active key-encryption key version")
                 .register(meterRegistry);
     }
@@ -57,16 +57,15 @@ public class SubjectKeyRewrapJob {
     @Transactional
     public void rewrapPendingSubjectKeys() {
         int activeVersion = kekResolver.activeVersion();
-        List<SubjectKeyEntity> batch = repository.findBatchNeedingRewrap(activeVersion, batchSize);
-        for (SubjectKeyEntity entity : batch) {
+        List<SubjectKeyRecord> batch = subjectKeyStore.findBatchNeedingRewrap(activeVersion, batchSize);
+        for (SubjectKeyRecord record : batch) {
             byte[] dek = AesGcmCipher.decrypt(
-                    kekResolver.keyForVersion(entity.kekVersion()), entity.dekNonce(), entity.wrappedDek());
+                    kekResolver.keyForVersion(record.kekVersion()), record.dekNonce(), record.wrappedDek());
             byte[] newNonce = AesGcmCipher.randomNonce(secureRandom);
             byte[] newWrappedDek = AesGcmCipher.encrypt(kekResolver.keyForVersion(activeVersion), newNonce, dek);
-            entity.rewrap(newWrappedDek, newNonce, activeVersion, clock.instant());
+            subjectKeyStore.rewrap(record.subjectId(), newWrappedDek, newNonce, activeVersion, clock.instant());
         }
         if (!batch.isEmpty()) {
-            repository.saveAll(batch);
             log.info("crypto_subject_key_rewrap count={} activeKekVersion={}", batch.size(), activeVersion);
         }
         Counter.builder("accountshield.crypto.rewrap.count")

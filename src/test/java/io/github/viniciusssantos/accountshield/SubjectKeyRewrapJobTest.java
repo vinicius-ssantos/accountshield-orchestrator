@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.viniciusssantos.accountshield.crypto.internal.KeyEncryptionKeyResolver;
 import io.github.viniciusssantos.accountshield.crypto.internal.SubjectKeyRewrapJob;
-import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyEntity;
-import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRepository;
+import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRecord;
+import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyStore;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -25,12 +25,13 @@ class SubjectKeyRewrapJobTest {
 
     private static final String STALE_KEK_SECRET = "accountshield-local-only-kek-v99-test";
     private static final int STALE_KEK_VERSION = 99;
+    private static final String ACTIVE_KEK_SECRET = "accountshield-local-only-kek-v1";
 
     @Autowired
     private SubjectKeyRewrapJob rewrapJob;
 
     @Autowired
-    private SubjectKeyRepository repository;
+    private SubjectKeyStore subjectKeyStore;
 
     @Autowired
     private KeyEncryptionKeyResolver kekResolver;
@@ -38,26 +39,22 @@ class SubjectKeyRewrapJobTest {
     @Test
     void rewrapsOnlySubjectKeysOnANonActiveKekVersion() throws Exception {
         int activeVersion = kekResolver.activeVersion();
-        String upToDateSubjectId = insertSubjectKey(activeVersion, activeKekSecretForTest());
+        String upToDateSubjectId = insertSubjectKey(activeVersion, ACTIVE_KEK_SECRET);
         String staleSubjectId = insertSubjectKey(STALE_KEK_VERSION, STALE_KEK_SECRET);
 
         rewrapJob.rewrapPendingSubjectKeys();
 
-        SubjectKeyEntity upToDate = repository.findById(upToDateSubjectId).orElseThrow();
+        SubjectKeyRecord upToDate = subjectKeyStore.findById(upToDateSubjectId).orElseThrow();
         assertThat(upToDate.rewrappedAt()).isNull();
         assertThat(upToDate.kekVersion()).isEqualTo(activeVersion);
 
-        SubjectKeyEntity stale = repository.findById(staleSubjectId).orElseThrow();
+        SubjectKeyRecord stale = subjectKeyStore.findById(staleSubjectId).orElseThrow();
         assertThat(stale.kekVersion()).isEqualTo(activeVersion);
         assertThat(stale.rewrappedAt()).isNotNull();
 
-        byte[] dek = aesGcm(Cipher.DECRYPT_MODE, kekResolver.keyForVersion(activeVersion), stale.dekNonce(), stale.wrappedDek());
+        byte[] dek = aesGcm(
+                Cipher.DECRYPT_MODE, kekResolver.keyForVersion(activeVersion), stale.dekNonce(), stale.wrappedDek());
         assertThat(dek).hasSize(32);
-    }
-
-    private String activeKekSecretForTest() {
-        // matches accountshield.crypto.active-kek-secret's application.yml default
-        return "accountshield-local-only-kek-v1";
     }
 
     private String insertSubjectKey(int kekVersion, String kekSecret) throws Exception {
@@ -70,7 +67,7 @@ class SubjectKeyRewrapJobTest {
                 MessageDigest.getInstance("SHA-256").digest(kekSecret.getBytes(StandardCharsets.UTF_8)), "AES");
         byte[] wrappedDek = aesGcm(Cipher.ENCRYPT_MODE, kek, nonce, dek);
 
-        repository.save(new SubjectKeyEntity(subjectId, wrappedDek, nonce, kekVersion, Instant.now()));
+        subjectKeyStore.insert(subjectId, wrappedDek, nonce, kekVersion, Instant.now());
         return subjectId;
     }
 
