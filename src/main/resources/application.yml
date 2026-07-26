@@ -72,6 +72,13 @@ accountshield:
       fixed-delay: 1h
   privacy:
     pseudonym-secret: ${ACCOUNT_PSEUDONYM_SECRET:accountshield-local-only-pseudonym-secret}
+  webhook:
+    secret-encryption-key: ${ACCOUNTSHIELD_WEBHOOK_SECRET_ENCRYPTION_KEY:accountshield-local-only-webhook-secret-key}
+    delivery:
+      timeout: 5s
+    demo-receiver:
+      secret: ${ACCOUNTSHIELD_WEBHOOK_DEMO_RECEIVER_SECRET:accountshield-local-only-demo-receiver-secret}
+      max-timestamp-skew: 5m
   crypto:
     active-kek-version: ${ACCOUNTSHIELD_CRYPTO_ACTIVE_KEK_VERSION:1}
     active-kek-secret: ${ACCOUNTSHIELD_CRYPTO_ACTIVE_KEK_SECRET:accountshield-local-only-kek-v1}

@@ -24,6 +24,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryAuthorization;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryDirective;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryManualReviewRequired;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
@@ -178,6 +179,29 @@ class RecoveryApplicationServiceTest {
         assertThat(consumeCaptor.getValue().accountReference()).isEqualTo("user-ref");
         assertThat(consumeCaptor.getValue().purpose()).isEqualTo(ChallengePurpose.RECOVERY_IDENTITY);
         assertThat(consumeCaptor.getValue().contextId()).isEqualTo(recoveryId);
+    }
+
+    @Test
+    void confirmIdentityPublishesManualReviewRequiredForManualReviewClassification() {
+        UUID recoveryId = UUID.randomUUID();
+        UUID challengeId = UUID.randomUUID();
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(
+                entity(recoveryId, challengeId, RecoveryStatus.VERIFYING_IDENTITY,
+                        RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID())));
+        when(challengeService.consume(any(ConsumeChallengeCommand.class)))
+                .thenReturn(challengePlan(challengeId, ChallengeStatus.CONSUMED, recoveryId));
+        when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RecoveryFlow flow = service.confirmIdentity(new ConfirmIdentityCommand(recoveryId, challengeId));
+
+        assertThat(flow.status()).isEqualTo(RecoveryStatus.MANUAL_REVIEW);
+        ArgumentCaptor<RecoveryManualReviewRequired> eventCaptor =
+                ArgumentCaptor.forClass(RecoveryManualReviewRequired.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().recoveryId()).isEqualTo(recoveryId);
+        assertThat(eventCaptor.getValue().accountReference()).isEqualTo("user-ref");
+        assertThat(eventCaptor.getValue().classification())
+                .isEqualTo(RecoveryRiskClassification.MANUAL_REVIEW.name());
     }
 
     @Test

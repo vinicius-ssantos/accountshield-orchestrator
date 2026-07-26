@@ -25,6 +25,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**").permitAll()
                         // DevTokenController only registers under the "local" profile; harmless elsewhere
                         .requestMatchers("/dev/**").permitAll()
+                        // simulates an external, unauthenticated receiver verifying its own HMAC signature
+                        .requestMatchers("/demo/webhook-receiver").permitAll()
                         .requestMatchers("/actuator/**").hasRole("OBSERVABILITY_READER")
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").authenticated()
                         .requestMatchers("/api/v1/protection-decisions").hasRole("PROTECTION_CLIENT")
@@ -38,6 +40,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/policies/**").hasRole("POLICY_ADMIN")
                         .requestMatchers("/api/v1/simulation/**").hasRole("SIMULATION_ANALYST")
                         .requestMatchers("/api/v1/outbox/**").hasRole("SECURITY_OPERATOR")
+                        .requestMatchers("/api/v1/webhooks/**").hasRole("SECURITY_OPERATOR")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverter())))

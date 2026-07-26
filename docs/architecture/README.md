@@ -46,7 +46,7 @@ Owns versioned rules that convert a risk assessment and account context into a p
 
 Owns the append-only decision trace. Audit records preserve the request fingerprint, normalized inputs allowed for retention, algorithm version, policy version, contributions, final outcome, timestamps, and correlation identifiers.
 
-Future modules such as `abuse` may be introduced only with a vertical slice that exercises them. The `outbox` module is already part of the system and owns the transactional outbox pattern with a relay (see ADR 0009).
+Future modules such as `abuse` may be introduced only with a vertical slice that exercises them. The `outbox` module is already part of the system and owns the transactional outbox pattern with a relay (see ADR 0009). The `webhook` module owns signed external delivery: it provides the outbox's real `OutboxEventPublisher` implementation, subscription/secret management, and an in-process demo receiver (ADR 0026).
 
 ### `challenge`
 
@@ -179,6 +179,7 @@ Logs must not contain forbidden data. Sensitive values require explicit structur
 | `recovery.recovery_flow` | Sensitive (account reference, risk data) | Terminal rows purged after `accountshield.recovery.retention.terminal-ttl` (default 30 days) | `RecoveryFlowRetentionCleanup` (`recovery/internal`), added in issue #18 |
 | `recovery.recovery_authorization` | Sensitive (account reference) | Purged after `accountshield.recovery.authorization-retention.expired-ttl` (default 30 days) past `expires_at`, consumed or not | `RecoveryAuthorizationRetentionCleanup` (`recovery/internal`), ADR 0024 |
 | `outbox.outbox_event` | Sensitive prior to pseudonymization, Internal after | `PUBLISHED` rows purged after `accountshield.outbox.retention.published-ttl` (default 7 days); `DEAD_LETTERED` rows purged after `.dead-lettered-ttl` (default 30 days, longer for investigation) | `OutboxEventRetentionCleanup` (`outbox/internal`), ADR 0023 |
+| `webhook.webhook_subscription` | Sensitive (subscription secret; encrypted at rest under a static app key, returned in plaintext only once at creation/rotation, never again) | Retained until an operator disables it; no automated purge | ADR 0026 |
 
 ### Database roles
 
@@ -197,11 +198,15 @@ Neither role owns, nor has any grant on, the three immutability trigger function
 
 Domain events stay in-process only and are never logged with raw account identifiers (verified: `SecurityEventLogger` logs no `accountReference` field). The one place a full event payload leaves the in-process boundary is the outbox (`outbox.outbox_event.payload`), which is the actual "integration event" surface per the outbox-relay design.
 
-`AccountPseudonymizer` (`outbox/internal`) computes a deterministic, keyed HMAC-SHA256 pseudonym (`accountshield.privacy.pseudonym-secret`) from a raw account reference. `OutboxEventRecorder` substitutes this `subjectToken` for the raw `accountReference` before persisting the payload for `ProtectionDecisionMade`, `ChallengeCompleted`, and `RecoveryCompleted` (the three outbox-recorded event types that carry an account reference). The same account always maps to the same token, so downstream consumers can still correlate events for one subject without the outbox ever storing the raw identifier.
+`AccountPseudonymizer` (`outbox/internal`) computes a deterministic, keyed HMAC-SHA256 pseudonym (`accountshield.privacy.pseudonym-secret`) from a raw account reference. `OutboxEventRecorder` substitutes this `subjectToken` for the raw `accountReference` before persisting the payload for `ProtectionDecisionMade`, `ChallengeCompleted`, `RecoveryCompleted`, and `RecoveryManualReviewRequired` (the four outbox-recorded event types that carry an account reference; `PolicyActivated` does not). The same account always maps to the same token, so downstream consumers can still correlate events for one subject without the outbox ever storing the raw identifier.
 
 ### Envelope encryption and crypto-shredding
 
 `protection.protection_request.account_reference` is encrypted at rest via the `crypto` module's `FieldEncryptionService` (ADR 0025): a random per-subject data-encryption key (DEK), wrapped by a versioned key-encryption key (KEK) held only in application config (`accountshield.crypto.*`), never in the database. `crypto.subject_key` holds one row per subject (a deterministic HMAC of the account reference, independent of `AccountPseudonymizer`'s pseudonym); destroying that row's key material (crypto-shredding) makes every value ever encrypted for that subject permanently irrecoverable without deleting the rows that reference it. `SubjectKeyRewrapJob` re-wraps subject keys onto a newly rotated active KEK version in bounded batches, exposing `accountshield.crypto.rewrap.pending` (gauge) and `accountshield.crypto.rewrap.count` (counter). This is deliberately scoped to `protection_request` only for now — `audit.decision_trace`, `challenge.challenge_plan`, `recovery.recovery_flow`, and `recovery.recovery_authorization` still carry `account_reference` in plaintext (see ADR 0025's Context/Scope for why).
+
+### Webhook delivery
+
+`webhook.WebhookEventPublisher` is the outbox's real `OutboxEventPublisher` (ADR 0026), auto-registered in place of the log-only default. For each outbox message it delivers to every `ACTIVE` `webhook.webhook_subscription` whose `eventTypeFilter` is null or matches the event type, signing `timestamp.deliveryId.rawBody` with HMAC-SHA256 under that subscription's own secret and sending `X-Webhook-Signature`/`X-Webhook-Timestamp`/`X-Webhook-Delivery-Id`/`X-Webhook-Schema-Version` headers. A failed delivery makes `publish()` throw, so the existing outbox retry/backoff/dead-letter loop (ADR 0023) drives retries unmodified; `outbox_event.id` is already the stable delivery ID across retries. Subscription secrets are encrypted at rest under a single static app key (`WebhookSecretCipher`, `accountshield.webhook.secret-encryption-key`) and returned in plaintext exactly once, at creation and at each rotation (`POST /api/v1/webhooks`, `POST /api/v1/webhooks/{id}/rotate-secret`) — no read path ever returns it again. `/demo/webhook-receiver` is an in-process reference receiver verifying the same signature and rejecting stale timestamps and duplicate delivery IDs, proving the contract end to end without a second deployable.
 
 ## Persistence direction
 
