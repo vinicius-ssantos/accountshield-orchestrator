@@ -20,6 +20,12 @@ import org.springframework.context.annotation.Import;
  * Exercises the real {@link WebhookEventPublisher} against the real demo receiver over an actual
  * HTTP connection on this app's own random test port -- proving the signing/delivery contract
  * end to end, not just at the unit level.
+ *
+ * <p>Subscription rows persist for the lifetime of this (non-{@code @Transactional}) test class,
+ * so every test uses its own unique event type, with subscriptions filtered to match only that
+ * type -- otherwise an earlier test's subscription (especially a null/match-everything filter,
+ * or one deliberately configured with a wrong secret) would leak into a later test's delivery
+ * attempt and fail it for the wrong reason.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(PostgreSqlTestConfiguration.class)
@@ -42,17 +48,19 @@ class WebhookDeliveryIntegrationTest {
 
     @Test
     void publishIsANoOpWhenNoSubscriptionsMatch() {
+        String eventType = uniqueEventType();
         OutboxMessage message = new OutboxMessage(
-                UUID.randomUUID(), "Test", "agg-1", "TEST_EVENT", "{\"a\":1}", Instant.now());
+                UUID.randomUUID(), "Test", "agg-1", eventType, "{\"a\":1}", Instant.now());
 
         assertThatCode(() -> publisher.publish(message)).doesNotThrowAnyException();
     }
 
     @Test
     void deliversToAMatchingActiveSubscriptionAndTheReceiverAccepts() {
-        insertSubscription(demoReceiverSecret, null, true);
+        String eventType = uniqueEventType();
+        insertSubscription(demoReceiverSecret, eventType, true);
         OutboxMessage message = new OutboxMessage(
-                UUID.randomUUID(), "Test", "agg-2", "TEST_EVENT",
+                UUID.randomUUID(), "Test", "agg-2", eventType,
                 "{\"schemaVersion\":\"integration-event-1.0\"}", Instant.now());
 
         assertThatCode(() -> publisher.publish(message)).doesNotThrowAnyException();
@@ -60,9 +68,10 @@ class WebhookDeliveryIntegrationTest {
 
     @Test
     void redeliveringTheSameEventIsRejectedByTheReceiverAsADuplicate() {
-        insertSubscription(demoReceiverSecret, null, true);
+        String eventType = uniqueEventType();
+        insertSubscription(demoReceiverSecret, eventType, true);
         OutboxMessage message = new OutboxMessage(
-                UUID.randomUUID(), "Test", "agg-3", "TEST_EVENT",
+                UUID.randomUUID(), "Test", "agg-3", eventType,
                 "{\"schemaVersion\":\"integration-event-1.0\"}", Instant.now());
 
         publisher.publish(message);
@@ -72,29 +81,36 @@ class WebhookDeliveryIntegrationTest {
 
     @Test
     void disabledSubscriptionsAreSkipped() {
-        insertSubscription(demoReceiverSecret, null, false);
+        String eventType = uniqueEventType();
+        insertSubscription(demoReceiverSecret, eventType, false);
         OutboxMessage message = new OutboxMessage(
-                UUID.randomUUID(), "Test", "agg-4", "TEST_EVENT", "{}", Instant.now());
+                UUID.randomUUID(), "Test", "agg-4", eventType, "{}", Instant.now());
 
         assertThatCode(() -> publisher.publish(message)).doesNotThrowAnyException();
     }
 
     @Test
     void mismatchedEventTypeFilterIsSkipped() {
-        insertSubscription(demoReceiverSecret, "SOME_OTHER_EVENT", true);
+        String eventType = uniqueEventType();
+        insertSubscription(demoReceiverSecret, eventType + "_OTHER", true);
         OutboxMessage message = new OutboxMessage(
-                UUID.randomUUID(), "Test", "agg-5", "TEST_EVENT", "{}", Instant.now());
+                UUID.randomUUID(), "Test", "agg-5", eventType, "{}", Instant.now());
 
         assertThatCode(() -> publisher.publish(message)).doesNotThrowAnyException();
     }
 
     @Test
     void wrongSubscriptionSecretFailsSignatureVerificationAtTheReceiver() {
-        insertSubscription("a-completely-wrong-secret", null, true);
+        String eventType = uniqueEventType();
+        insertSubscription("a-completely-wrong-secret", eventType, true);
         OutboxMessage message = new OutboxMessage(
-                UUID.randomUUID(), "Test", "agg-6", "TEST_EVENT", "{}", Instant.now());
+                UUID.randomUUID(), "Test", "agg-6", eventType, "{}", Instant.now());
 
         assertThatThrownBy(() -> publisher.publish(message)).isInstanceOf(WebhookDeliveryException.class);
+    }
+
+    private static String uniqueEventType() {
+        return "TEST_EVENT_" + UUID.randomUUID();
     }
 
     private void insertSubscription(String plaintextSecret, String eventTypeFilter, boolean enabled) {
