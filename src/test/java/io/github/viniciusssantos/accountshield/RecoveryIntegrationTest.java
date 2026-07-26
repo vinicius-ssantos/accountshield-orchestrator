@@ -272,6 +272,11 @@ class RecoveryIntegrationTest {
                 "fingerprint-" + protectionRequestId,
                 Timestamp.from(issuedAt));
 
+        // decision_id is deliberately not backed by a real decision_trace row here: ADR 0010
+        // requires a previously issued authorization to remain usable even when the audit
+        // projection is absent, and this fixture (and the append-only test below) exercises
+        // exactly that
+
         jdbcTemplate.update(
                 "INSERT INTO recovery.recovery_authorization "
                         + "(id, protection_request_id, decision_id, account_reference, directive, "

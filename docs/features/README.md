@@ -72,7 +72,7 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | Concurrent initiation under multiple threads | **Partial** | Database uniqueness and authorization lock exist; a dedicated multi-thread Testcontainers proof and stable race mapping remain | [#18](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/18) |
 | Recovery optimistic locking | **Planned** | `RecoveryFlowEntity` does not yet expose controlled stale-update conflicts | [#18](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/18), [#37](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/37) |
 | Versioned recovery classification provenance | **Planned** | Authorization stores directive and risk, but classification-rule version is not yet frozen explicitly | [#31](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/31) |
-| Recovery retention policy | **Planned** | Terminal-flow cleanup and retention are not implemented | [#18](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/18), [#25](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/25) |
+| Recovery retention policy | **Implemented** | Terminal recovery flows and expired recovery authorizations are both purged in bounded batches | `RecoveryFlowRetentionCleanup`, `RecoveryAuthorizationRetentionCleanup` (`recovery/internal`); ADR 0024 |
 
 ## Transactional events and outbox
 
@@ -105,8 +105,8 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | Audit and authorization immutability | **Implemented** | PostgreSQL triggers prevent unsupported updates to evidence and authorization fields | Persistence integration tests |
 | Broad domain check constraints | **Partial** | Several important ranges and uniqueness rules exist; remaining state/timestamp constraints are tracked | [#37](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/37) |
 | Optimistic locking across mutable aggregates | **Planned** | Recovery and challenge require `@Version` and stable stale-write mapping | [#37](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/37) |
-| Database least privilege | **Planned** | Migration and runtime currently need separate restricted roles and permission tests | [#25](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/25) |
-| Automated retention | **Planned** | Bounded cleanup jobs and retention metrics are not implemented | [#25](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/25), [#32](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/32) |
+| Database least privilege | **Partial** | Restricted `accountshield_runtime`/`accountshield_readonly` roles exist with correct grants (proven via a dedicated permission test); the application's own deployed connection has not been switched to the restricted role within this repository's tooling, since doing so for the shared Testcontainers test suite is a separate, larger effort (ADR 0024) | ADR 0024; [#25](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/25) |
+| Automated retention | **Implemented** | All temporal tables (idempotency, challenges, recovery flows, recovery authorizations, outbox published/dead-lettered rows) have bounded cleanup jobs with retention metrics | ADR 0023, ADR 0024 |
 
 ## Observability and operations
 

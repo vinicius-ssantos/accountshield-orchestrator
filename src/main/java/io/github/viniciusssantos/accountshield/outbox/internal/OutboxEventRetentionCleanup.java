@@ -1,6 +1,8 @@
 package io.github.viniciusssantos.accountshield.outbox.internal;
 
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -17,19 +19,22 @@ public class OutboxEventRetentionCleanup {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxEventRetentionCleanup.class);
     private static final int MAX_BATCHES_PER_TICK = 100;
+    private static final String JOB_NAME = "outbox_event";
 
     private final OutboxEventRepository repository;
     private final Clock clock;
     private final Duration publishedTtl;
     private final Duration deadLetteredTtl;
     private final int batchSize;
+    private final MeterRegistry meterRegistry;
 
     public OutboxEventRetentionCleanup(
             OutboxEventRepository repository,
             @Qualifier("decisionClock") Clock clock,
             @Value("${accountshield.outbox.retention.published-ttl:7d}") Duration publishedTtl,
             @Value("${accountshield.outbox.retention.dead-lettered-ttl:30d}") Duration deadLetteredTtl,
-            @Value("${accountshield.outbox.retention.batch-size:500}") int batchSize) {
+            @Value("${accountshield.outbox.retention.batch-size:500}") int batchSize,
+            MeterRegistry meterRegistry) {
         if (batchSize < 1) {
             throw new IllegalArgumentException("batchSize must be at least 1");
         }
@@ -38,6 +43,7 @@ public class OutboxEventRetentionCleanup {
         this.publishedTtl = publishedTtl;
         this.deadLetteredTtl = deadLetteredTtl;
         this.batchSize = batchSize;
+        this.meterRegistry = meterRegistry;
     }
 
     @Scheduled(fixedDelayString = "${accountshield.outbox.retention.fixed-delay:1h}")
@@ -51,6 +57,17 @@ public class OutboxEventRetentionCleanup {
                     "outbox_event_retention_purged published_count={} dead_lettered_count={} now={}",
                     publishedDeleted, deadLetteredDeleted, now);
         }
+        increment("published", publishedDeleted);
+        increment("dead_lettered", deadLetteredDeleted);
+    }
+
+    private void increment(String status, int count) {
+        Counter.builder("accountshield.retention.purged")
+                .description("Total rows purged by a retention cleanup job")
+                .tag("job", JOB_NAME)
+                .tag("status", status)
+                .register(meterRegistry)
+                .increment(count);
     }
 
     private int purgeBatches(BatchDeleter deleter, Instant cutoff) {

@@ -123,6 +123,9 @@ class IdempotencyConcurrencyTest {
         assertThat(outboxRows).as("only one outbox record should exist").isEqualTo(1);
 
         jdbcTemplate.update("DELETE FROM protection.idempotency_record WHERE idempotency_key = ?", idempotencyKey);
-        jdbcTemplate.update("DELETE FROM protection.protection_request WHERE account_reference = ?", accountRef);
+        // protection_request is no longer deletable here: audit.decision_trace now carries a
+        // foreign key to it (ADR 0024) and decision_trace itself is append-only (never deletable
+        // by any role), so protection_request is retained indefinitely by design once a decision
+        // trace references it
     }
 }

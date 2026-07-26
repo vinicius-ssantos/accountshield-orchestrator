@@ -165,7 +165,11 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             throw exception;
         }
 
-        protectionRequestRepository.save(new ProtectionRequestEntity(
+        // flushed immediately: decisionTraceRecorder below issues a raw JDBC insert (not through
+        // this JPA session) referencing protection_request_id via a foreign key, so the row must
+        // be physically visible to the connection before that insert runs, not just queued in the
+        // Hibernate session's write-behind cache
+        protectionRequestRepository.saveAndFlush(new ProtectionRequestEntity(
                 protectionRequestId,
                 command.clientId().value(),
                 command.accountReference(),
