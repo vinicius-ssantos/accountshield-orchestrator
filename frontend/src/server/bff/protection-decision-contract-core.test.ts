@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type {
   AccountShieldGeneratedTransport,
@@ -49,8 +49,10 @@ const response: ProtectionDecisionResponse = {
 describe("generated operation adapter", () => {
   it("uses the generated exact method, path, status, body and abort signal", async () => {
     const signal = new AbortController().signal;
-    const requestSpy = vi.fn(
-      async <TResponse>(transportRequest: GeneratedTransportRequest) => {
+    const calls: GeneratedTransportRequest[] = [];
+    const transport: AccountShieldGeneratedTransport = {
+      async request<TResponse>(transportRequest: GeneratedTransportRequest) {
+        calls.push(transportRequest);
         expect(transportRequest).toEqual({
           method: "POST",
           path: "/api/v1/protection-decisions",
@@ -60,8 +62,7 @@ describe("generated operation adapter", () => {
         });
         return response as TResponse;
       },
-    );
-    const transport: AccountShieldGeneratedTransport = { request: requestSpy };
+    };
     const client = new ProtectionDecisionContractClient(transport);
 
     await expect(client.create(request, signal)).resolves.toMatchObject({
@@ -69,7 +70,7 @@ describe("generated operation adapter", () => {
       outcome: "step-up",
       riskBand: "high",
     });
-    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
   });
 
   it("minimizes generated responses before exposing them to feature code", () => {
