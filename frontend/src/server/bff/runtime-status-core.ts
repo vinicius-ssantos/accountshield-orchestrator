@@ -117,6 +117,22 @@ export class AccountShieldReadClient {
         throw mapUpstreamFailure(response.status);
       }
 
+      const contentType = response.headers
+        .get("content-type")
+        ?.split(";", 1)[0]
+        ?.trim()
+        .toLowerCase();
+      if (
+        contentType !== "application/json" &&
+        !contentType?.endsWith("+json")
+      ) {
+        throw new BffError(
+          "UPSTREAM_MALFORMED_RESPONSE",
+          502,
+          "The AccountShield service returned an invalid response.",
+        );
+      }
+
       let payload: unknown;
       try {
         payload = rawBody ? JSON.parse(rawBody) : null;
