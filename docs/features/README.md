@@ -78,10 +78,10 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 
 | Capability | Status | Current behavior | Evidence and follow-up |
 | --- | --- | --- | --- |
-| Transactional outbox write | **Implemented** | Domain events are stored in PostgreSQL in the originating transaction | ADR 0009 |
-| Simulated relay | **Implemented** | A relay publishes pending records through a simulated publisher with attempts and metrics | ADR 0009 |
-| Multi-instance claiming and backoff | **Planned** | Atomic claim states, `SKIP LOCKED`, jittered backoff, and dead letters are not complete | [#23](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/23) |
-| Versioned minimized integration events | **Planned** | Internal events still need explicit external schemas and data-minimization rules | [#23](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/23), [#32](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/32) |
+| Transactional outbox write | **Implemented** | Domain events are stored in PostgreSQL in the originating transaction | ADR 0023 |
+| Simulated relay | **Implemented** | A relay atomically claims pending records (`FOR UPDATE SKIP LOCKED`) and publishes them through a simulated publisher with bounded exponential backoff and jitter | ADR 0023 |
+| Multi-instance claiming and backoff | **Implemented** | Explicit `PENDING`/`IN_PROGRESS`/`PUBLISHED`/`DEAD_LETTERED` states, atomic `SKIP LOCKED` claiming, jittered backoff, visible dead letters excluded from polling, and an operator-restricted requeue endpoint | ADR 0023; [#23](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/23) |
+| Versioned minimized integration events | **Implemented** | Every outbox payload is wrapped in a versioned envelope (`eventId`/`schemaVersion`/`correlationId`/`occurredAt`); account references are pseudonymized before serialization | ADR 0023; [#23](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/23), [#32](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/32) |
 | Signed webhook delivery | **Planned** | Subscription, signing, replay protection, delivery history, and secret rotation do not exist | [#47](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/47) |
 
 ## API, security, and data protection

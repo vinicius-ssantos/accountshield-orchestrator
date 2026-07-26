@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.outbox.internal.persistence;
 
+import io.github.viniciusssantos.accountshield.outbox.OutboxEventNotDeadLetteredException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -43,6 +44,21 @@ public class OutboxEventEntity {
     @Column(name = "last_error", length = 1000)
     private String lastError;
 
+    @Column(nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "next_attempt_at", nullable = false)
+    private Instant nextAttemptAt;
+
+    @Column(name = "claimed_at")
+    private Instant claimedAt;
+
+    @Column(name = "claimed_by", length = 100)
+    private String claimedBy;
+
+    @Column(name = "dead_lettered_at")
+    private Instant deadLetteredAt;
+
     @Version
     @Column(nullable = false)
     private long version;
@@ -64,6 +80,8 @@ public class OutboxEventEntity {
         this.payload = payload;
         this.occurredAt = occurredAt;
         this.attemptCount = 0;
+        this.status = "PENDING";
+        this.nextAttemptAt = occurredAt;
         this.version = 0;
     }
 
@@ -103,12 +121,52 @@ public class OutboxEventEntity {
         return lastError;
     }
 
+    public String getStatus() {
+        return status;
+    }
+
+    public Instant getNextAttemptAt() {
+        return nextAttemptAt;
+    }
+
+    public Instant getClaimedAt() {
+        return claimedAt;
+    }
+
+    public String getClaimedBy() {
+        return claimedBy;
+    }
+
+    public Instant getDeadLetteredAt() {
+        return deadLetteredAt;
+    }
+
     public void markPublished(Instant publishedAt) {
         this.publishedAt = Objects.requireNonNull(publishedAt, "publishedAt must not be null");
+        this.status = "PUBLISHED";
     }
 
     public void recordFailure(String error, Instant now) {
         this.attemptCount++;
         this.lastError = Objects.requireNonNull(error, "error must not be null");
+    }
+
+    public void markDeadLettered(String error, Instant now) {
+        this.status = "DEAD_LETTERED";
+        this.lastError = Objects.requireNonNull(error, "error must not be null");
+        this.deadLetteredAt = Objects.requireNonNull(now, "now must not be null");
+    }
+
+    public void requeue(Instant now) {
+        if (!"DEAD_LETTERED".equals(status)) {
+            throw new OutboxEventNotDeadLetteredException(id, status);
+        }
+        this.status = "PENDING";
+        this.nextAttemptAt = Objects.requireNonNull(now, "now must not be null");
+        this.attemptCount = 0;
+        this.lastError = null;
+        this.claimedAt = null;
+        this.claimedBy = null;
+        this.deadLetteredAt = null;
     }
 }

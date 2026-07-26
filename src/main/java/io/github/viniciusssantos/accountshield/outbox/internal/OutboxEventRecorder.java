@@ -2,6 +2,8 @@ package io.github.viniciusssantos.accountshield.outbox.internal;
 
 import io.github.viniciusssantos.accountshield.challenge.ChallengeCompleted;
 import io.github.viniciusssantos.accountshield.outbox.AccountPseudonymizer;
+import io.github.viniciusssantos.accountshield.outbox.IntegrationEventEnvelope;
+import io.github.viniciusssantos.accountshield.outbox.IntegrationEventSchema;
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventEntity;
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventRepository;
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
@@ -60,12 +62,15 @@ public class OutboxEventRecorder {
 
     private void record(Instant occurredAt, String aggregateType, String aggregateId,
             String eventType, Object payload) {
+        UUID eventId = UUID.randomUUID();
+        IntegrationEventEnvelope envelope = new IntegrationEventEnvelope(
+                eventId, IntegrationEventSchema.CURRENT_VERSION, aggregateId, occurredAt, payload);
         repository.save(new OutboxEventEntity(
-                UUID.randomUUID(),
+                eventId,
                 aggregateType,
                 aggregateId,
                 eventType,
-                serialize(payload),
+                serialize(envelope),
                 occurredAt));
     }
 

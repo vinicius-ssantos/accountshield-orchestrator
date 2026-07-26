@@ -37,6 +37,7 @@ public class SecurityConfig {
                                 .hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/policies/**").hasRole("POLICY_ADMIN")
                         .requestMatchers("/api/v1/simulation/**").hasRole("SIMULATION_ANALYST")
+                        .requestMatchers("/api/v1/outbox/**").hasRole("SECURITY_OPERATOR")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverter())))

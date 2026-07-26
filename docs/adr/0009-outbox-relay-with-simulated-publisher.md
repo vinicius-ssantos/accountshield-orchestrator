@@ -1,6 +1,6 @@
 # ADR 0009: Outbox relay with simulated publisher and bounded retry
 
-- Status: Accepted
+- Status: Superseded by [ADR 0023](0023-outbox-claiming-backoff-and-dead-letters.md)
 - Date: 2026-07-23
 
 ## Context
