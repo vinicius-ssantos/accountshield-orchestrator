@@ -14,7 +14,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0006](0006-deterministic-replay-and-shadow-evaluation.md) | Accepted | Keep replay and shadow evaluation deterministic and side-effect-free | Replay section in the [feature catalog](../features/README.md) |
 | [0007](0007-policy-lifecycle-state-machine.md) | Accepted | Use immutable activated policy versions and controlled lifecycle transitions | Policy section in the [feature catalog](../features/README.md) |
 | [0008](0008-in-memory-rate-limiting.md) | Accepted | Use in-memory rate limiting for the current single-instance baseline | [Architecture baseline](../architecture/README.md) |
-| [0009](0009-outbox-relay-with-simulated-publisher.md) | Accepted | Persist publication intent transactionally and use a simulated relay | Outbox section in the [feature catalog](../features/README.md) |
+| [0009](0009-outbox-relay-with-simulated-publisher.md) | Superseded by 0023 | Persist publication intent transactionally and use a simulated relay | Outbox section in the [feature catalog](../features/README.md) |
 | [0010](0010-recovery-trust-boundaries.md) | Accepted | Use explicit `START_RECOVERY` and an immutable consumable recovery authorization; audit remains evidence | [Recovery](../architecture/recovery.md), [invariants](../architecture/invariants.md) |
 | [0011](0011-jwt-resource-server-with-local-issuer.md) | Accepted | Authorize sensitive APIs with a JWT resource server backed by a local, per-boot key pair | Issue #19 |
 | [0012](0012-pseudonymous-subject-tokens-for-integration-events.md) | Accepted | Pseudonymize account identifiers at the outbox integration boundary and add challenge-plan retention | Issue #32 |
@@ -28,6 +28,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0020](0020-replay-provenance-canonical-hash-and-catalog-versions.md) | Accepted | Replay compares a recomputed canonical input hash and validates reason-catalog/decision-engine versions | Issue #43 |
 | [0021](0021-historical-policy-impact-analysis.md) | Accepted | Evaluate a candidate policy version against recent historical traces, reporting a transition matrix, segment breakdowns, and a configurable divergence threshold | Issue #35 |
 | [0022](0022-deterministic-canary-rollout.md) | Accepted | Split traffic between a stable and candidate policy version using a deterministic cohort hash, recording selection provenance and supporting immediate rollback | Issue #34 |
+| [0023](0023-outbox-claiming-backoff-and-dead-letters.md) | Accepted | Explicit outbox status machine, atomic `FOR UPDATE SKIP LOCKED` claiming, bounded backoff with jitter, visible dead letters, operator requeue, and a versioned integration-event envelope | Issue #23 |
 
 ## ADR lifecycle
 

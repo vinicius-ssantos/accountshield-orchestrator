@@ -90,6 +90,25 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void requeueOutboxEventRejectsWrongRole() throws Exception {
+        mockMvc.perform(post("/api/v1/outbox/" + UUID.randomUUID() + "/requeue")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("client-1", "PROTECTION_CLIENT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void requeueOutboxEventPassesAuthorizationForSecurityOperator() throws Exception {
+        mockMvc.perform(post("/api/v1/outbox/" + UUID.randomUUID() + "/requeue")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("operator-1", "SECURITY_OPERATOR")))
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    if (status == 401 || status == 403) {
+                        throw new AssertionError("expected authorization to pass, got status " + status);
+                    }
+                });
+    }
+
+    @Test
     void prometheusRequiresObservabilityReaderRole() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isUnauthorized());

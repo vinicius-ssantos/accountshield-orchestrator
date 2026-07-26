@@ -15,6 +15,8 @@ accountshield:
   outbox:
     relay:
       fixed-delay: 9999s
+    retention:
+      fixed-delay: 9999s
   challenge:
     retention:
       fixed-delay: 9999s

@@ -1,0 +1,86 @@
+package io.github.viniciusssantos.accountshield.outbox.internal;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+
+/**
+ * Atomic claim-and-transition operations over {@code outbox.outbox_event}, deliberately bypassing
+ * JPA/optimistic-locking for this table: {@code FOR UPDATE SKIP LOCKED} at the row level is what
+ * makes concurrent claiming safe across relay instances, not the entity's {@code @Version} column.
+ */
+@Component
+class OutboxClaimStore {
+
+    private static final String CLAIM_BATCH = """
+            WITH claimed AS (
+                UPDATE outbox.outbox_event
+                   SET status = 'IN_PROGRESS', claimed_at = ?, claimed_by = ?
+                 WHERE id IN (
+                     SELECT id FROM outbox.outbox_event
+                      WHERE (status = 'PENDING' AND next_attempt_at <= ?)
+                         OR (status = 'IN_PROGRESS' AND claimed_at < ?)
+                      ORDER BY occurred_at ASC
+                      LIMIT ?
+                        FOR UPDATE SKIP LOCKED
+                 )
+                RETURNING id, aggregate_type, aggregate_id, event_type, payload::text AS payload_text,
+                          occurred_at, attempt_count
+            )
+            SELECT * FROM claimed ORDER BY occurred_at ASC
+            """;
+
+    private static final String MARK_PUBLISHED = """
+            UPDATE outbox.outbox_event
+               SET status = 'PUBLISHED', published_at = ?
+             WHERE id = ?
+            """;
+
+    private static final String MARK_FAILED_WITH_BACKOFF = """
+            UPDATE outbox.outbox_event
+               SET status = 'PENDING', attempt_count = ?, last_error = ?, next_attempt_at = ?,
+                   claimed_at = NULL, claimed_by = NULL
+             WHERE id = ?
+            """;
+
+    private static final String MARK_DEAD_LETTERED = """
+            UPDATE outbox.outbox_event
+               SET status = 'DEAD_LETTERED', attempt_count = ?, last_error = ?, dead_lettered_at = ?
+             WHERE id = ?
+            """;
+
+    private final JdbcTemplate jdbcTemplate;
+
+    OutboxClaimStore(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    List<ClaimedOutboxEvent> claimBatch(Instant now, Instant staleClaimCutoff, String instanceId, int batchSize) {
+        return jdbcTemplate.query(
+                CLAIM_BATCH,
+                (rs, rowNum) -> new ClaimedOutboxEvent(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("aggregate_type"),
+                        rs.getString("aggregate_id"),
+                        rs.getString("event_type"),
+                        rs.getString("payload_text"),
+                        rs.getTimestamp("occurred_at").toInstant(),
+                        rs.getInt("attempt_count")),
+                Timestamp.from(now), instanceId, Timestamp.from(now), Timestamp.from(staleClaimCutoff), batchSize);
+    }
+
+    void markPublished(UUID id, Instant now) {
+        jdbcTemplate.update(MARK_PUBLISHED, Timestamp.from(now), id);
+    }
+
+    void markFailedWithBackoff(UUID id, int newAttemptCount, String error, Instant nextAttemptAt) {
+        jdbcTemplate.update(MARK_FAILED_WITH_BACKOFF, newAttemptCount, error, Timestamp.from(nextAttemptAt), id);
+    }
+
+    void markDeadLettered(UUID id, int newAttemptCount, String error, Instant now) {
+        jdbcTemplate.update(MARK_DEAD_LETTERED, newAttemptCount, error, Timestamp.from(now), id);
+    }
+}

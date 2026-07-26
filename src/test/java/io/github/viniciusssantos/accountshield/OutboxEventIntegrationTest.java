@@ -50,8 +50,13 @@ class OutboxEventIntegrationTest {
         assertThat(row.get("occurred_at")).isNotNull();
         assertThat(row.get("published_at")).isNull();
         assertThat(row.get("attempt_count")).isEqualTo(0);
+        assertThat(row.get("status")).isEqualTo("PENDING");
+        assertThat(row.get("next_attempt_at")).isNotNull();
         assertThat(row.get("payload").toString()).doesNotContain(accountReference);
         assertThat(row.get("payload").toString()).contains("subjectToken");
+        assertThat(row.get("payload").toString()).contains("\"schemaVersion\":\"integration-event-1.0\"");
+        assertThat(row.get("payload").toString()).contains("\"correlationId\":\"" + result.decisionId() + "\"");
+        assertThat(row.get("payload").toString()).contains("\"eventId\":\"" + row.get("id") + "\"");
     }
 
     @Test

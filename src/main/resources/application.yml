@@ -61,6 +61,15 @@ accountshield:
       fixed-delay: 5s
       batch-size: 50
       max-attempts: 5
+      claim-timeout: 2m
+      backoff:
+        base-delay: 1s
+        max-delay: 5m
+    retention:
+      published-ttl: 7d
+      dead-lettered-ttl: 30d
+      batch-size: 500
+      fixed-delay: 1h
   privacy:
     pseudonym-secret: ${ACCOUNT_PSEUDONYM_SECRET:accountshield-local-only-pseudonym-secret}
   risk:
