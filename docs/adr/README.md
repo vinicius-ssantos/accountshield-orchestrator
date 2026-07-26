@@ -27,6 +27,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0019](0019-deterministic-replay-algorithm-registry.md) | Accepted | Replay re-runs the historical risk algorithm via a self-registering `RiskAlgorithmRegistry` and reports field-level mismatches | Issue #21 |
 | [0020](0020-replay-provenance-canonical-hash-and-catalog-versions.md) | Accepted | Replay compares a recomputed canonical input hash and validates reason-catalog/decision-engine versions | Issue #43 |
 | [0021](0021-historical-policy-impact-analysis.md) | Accepted | Evaluate a candidate policy version against recent historical traces, reporting a transition matrix, segment breakdowns, and a configurable divergence threshold | Issue #35 |
+| [0022](0022-deterministic-canary-rollout.md) | Accepted | Split traffic between a stable and candidate policy version using a deterministic cohort hash, recording selection provenance and supporting immediate rollback | Issue #34 |
 
 ## ADR lifecycle
 

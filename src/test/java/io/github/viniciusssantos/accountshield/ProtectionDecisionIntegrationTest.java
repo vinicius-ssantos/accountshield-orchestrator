@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRolloutService;
 import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
@@ -56,6 +57,9 @@ class ProtectionDecisionIntegrationTest {
 
     @Autowired
     private PolicyRoutingService policyRoutingService;
+
+    @Autowired
+    private PolicyRolloutService policyRolloutService;
 
     @Autowired
     private ProtectionRequestRepository protectionRequestRepository;
@@ -173,6 +177,7 @@ class ProtectionDecisionIntegrationTest {
                 riskAssessmentService,
                 policyEvaluationService,
                 policyRoutingService,
+                policyRolloutService,
                 protectionRequestRepository,
                 failingRecorder,
                 noOpGuard,
@@ -241,6 +246,7 @@ class ProtectionDecisionIntegrationTest {
                 riskAssessmentService,
                 policyEvaluationService,
                 policyRoutingService,
+                policyRolloutService,
                 protectionRequestRepository,
                 applicationContext.getBean(DecisionTraceRecorder.class),
                 applicationContext.getBean(IdempotencyGuard.class),

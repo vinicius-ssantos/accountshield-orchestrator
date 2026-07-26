@@ -7,7 +7,10 @@ import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionExce
 import io.github.viniciusssantos.accountshield.policy.IllegalPolicyTransitionException;
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
 import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisFailedException;
+import io.github.viniciusssantos.accountshield.policy.PolicyRolloutNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
+import io.github.viniciusssantos.accountshield.policy.RolloutAlreadyActiveException;
+import io.github.viniciusssantos.accountshield.policy.RolloutCandidateNotApprovedException;
 import io.github.viniciusssantos.accountshield.policy.SelfApprovalNotAllowedException;
 import java.net.URI;
 import java.util.List;
@@ -17,7 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = PolicyLifecycleController.class)
+@RestControllerAdvice(assignableTypes = {PolicyLifecycleController.class, PolicyRolloutController.class})
 class PolicyLifecycleProblemHandler {
 
     private static final URI ILLEGAL_TRANSITION_TYPE =
@@ -34,6 +37,12 @@ class PolicyLifecycleProblemHandler {
             URI.create("urn:accountshield:problem:policy-analysis-failed");
     private static final URI SELF_APPROVAL_TYPE =
             URI.create("urn:accountshield:problem:self-approval-not-allowed");
+    private static final URI ROLLOUT_ALREADY_ACTIVE_TYPE =
+            URI.create("urn:accountshield:problem:rollout-already-active");
+    private static final URI ROLLOUT_CANDIDATE_NOT_APPROVED_TYPE =
+            URI.create("urn:accountshield:problem:rollout-candidate-not-approved");
+    private static final URI ROLLOUT_NOT_FOUND_TYPE =
+            URI.create("urn:accountshield:problem:policy-rollout-not-found");
 
     @ExceptionHandler(IllegalPolicyTransitionException.class)
     public ResponseEntity<ProblemDetail> illegalTransition(IllegalPolicyTransitionException ex) {
@@ -104,6 +113,39 @@ class PolicyLifecycleProblemHandler {
         problem.setTitle("Self-approval not allowed");
         problem.setProperty("code", "SELF_APPROVAL_NOT_ALLOWED");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(RolloutAlreadyActiveException.class)
+    public ResponseEntity<ProblemDetail> rolloutAlreadyActive(RolloutAlreadyActiveException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "Policy key " + ex.policyKey() + " already has an active rollout.");
+        problem.setType(ROLLOUT_ALREADY_ACTIVE_TYPE);
+        problem.setTitle("Rollout already active");
+        problem.setProperty("code", "ROLLOUT_ALREADY_ACTIVE");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(RolloutCandidateNotApprovedException.class)
+    public ResponseEntity<ProblemDetail> rolloutCandidateNotApproved(RolloutCandidateNotApprovedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "Policy " + ex.policyKey() + ":" + ex.version() + " must be APPROVED before it can enter rollout.");
+        problem.setType(ROLLOUT_CANDIDATE_NOT_APPROVED_TYPE);
+        problem.setTitle("Rollout candidate not approved");
+        problem.setProperty("code", "ROLLOUT_CANDIDATE_NOT_APPROVED");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(PolicyRolloutNotFoundException.class)
+    public ResponseEntity<ProblemDetail> rolloutNotFound(PolicyRolloutNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "No active rollout exists for policy key " + ex.policyKey() + ".");
+        problem.setType(ROLLOUT_NOT_FOUND_TYPE);
+        problem.setTitle("Policy rollout not found");
+        problem.setProperty("code", "POLICY_ROLLOUT_NOT_FOUND");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
     @ExceptionHandler(InvalidChallengeStateException.class)
