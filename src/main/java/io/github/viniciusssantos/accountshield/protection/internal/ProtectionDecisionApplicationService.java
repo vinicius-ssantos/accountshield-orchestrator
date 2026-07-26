@@ -9,9 +9,12 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.policy.ActivePolicyUnavailableException;
+import io.github.viniciusssantos.accountshield.policy.CohortAssignment;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRollout;
+import io.github.viniciusssantos.accountshield.policy.PolicyRolloutService;
 import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.protection.DecisionEngineVersion;
@@ -42,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
@@ -60,6 +64,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     private final RiskAssessmentService riskAssessmentService;
     private final PolicyEvaluationService policyEvaluationService;
     private final PolicyRoutingService policyRoutingService;
+    private final PolicyRolloutService policyRolloutService;
     private final ProtectionRequestRepository protectionRequestRepository;
     private final DecisionTraceRecorder decisionTraceRecorder;
     private final IdempotencyGuard idempotencyGuard;
@@ -75,6 +80,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
             RiskAssessmentService riskAssessmentService,
             PolicyEvaluationService policyEvaluationService,
             PolicyRoutingService policyRoutingService,
+            PolicyRolloutService policyRolloutService,
             ProtectionRequestRepository protectionRequestRepository,
             DecisionTraceRecorder decisionTraceRecorder,
             IdempotencyGuard idempotencyGuard,
@@ -88,6 +94,7 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         this.riskAssessmentService = riskAssessmentService;
         this.policyEvaluationService = policyEvaluationService;
         this.policyRoutingService = policyRoutingService;
+        this.policyRolloutService = policyRolloutService;
         this.protectionRequestRepository = protectionRequestRepository;
         this.decisionTraceRecorder = decisionTraceRecorder;
         this.idempotencyGuard = idempotencyGuard;
@@ -125,15 +132,34 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
 
         RiskAssessment assessment = riskAssessmentService.assess(command.signalEnvelope());
         PolicyEvaluation evaluation;
+        RolloutSelection rolloutSelection = null;
         try {
             String policyKey = policyRoutingService.resolvePolicyKey(
                     command.clientId().value(), command.eventType().name());
-            evaluation = command.eventType().recoveryRequest()
-                    ? policyEvaluationService.evaluate(
-                            policyKey,
-                            assessment.score(),
-                            PolicyEvaluationContext.recoveryRequestContext())
-                    : policyEvaluationService.evaluate(policyKey, assessment.score());
+            boolean recoveryRequest = command.eventType().recoveryRequest();
+            Optional<PolicyRollout> rollout = policyRolloutService.findActiveRollout(policyKey);
+            String candidateVersion = null;
+            if (rollout.isPresent()) {
+                PolicyRollout activeRollout = rollout.get();
+                int bucket = CohortAssignment.bucket(
+                        command.clientId().value(), command.accountReference(), policyKey);
+                boolean candidateSelected = bucket < activeRollout.rolloutPercentage();
+                rolloutSelection = new RolloutSelection(
+                        bucket, activeRollout.candidateVersion(), activeRollout.rolloutPercentage(), candidateSelected);
+                candidateVersion = candidateSelected ? activeRollout.candidateVersion() : null;
+            }
+            if (candidateVersion != null) {
+                evaluation = recoveryRequest
+                        ? policyEvaluationService.evaluateVersion(
+                                policyKey, candidateVersion, assessment.score(),
+                                PolicyEvaluationContext.recoveryRequestContext())
+                        : policyEvaluationService.evaluateVersion(policyKey, candidateVersion, assessment.score());
+            } else {
+                evaluation = recoveryRequest
+                        ? policyEvaluationService.evaluate(
+                                policyKey, assessment.score(), PolicyEvaluationContext.recoveryRequestContext())
+                        : policyEvaluationService.evaluate(policyKey, assessment.score());
+            }
         } catch (ActivePolicyUnavailableException exception) {
             degradedCounter(DegradationReason.ACTIVE_POLICY_UNAVAILABLE).increment();
             throw exception;
@@ -178,9 +204,13 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 evaluation.policyVersion(),
                 effectiveOutcome.name(),
                 assessment.score(),
-                normalizedContext(command, degraded, degradationReason),
+                normalizedContext(command, degraded, degradationReason, rolloutSelection),
                 now,
                 auditReasons(assessment.reasons())));
+
+        if (rolloutSelection != null) {
+            rolloutDecisionCounter(evaluation.policyKey(), rolloutSelection.candidateSelected()).increment();
+        }
 
         UUID recoveryAuthorizationId = null;
         if (effectiveOutcome == ProtectionOutcome.START_RECOVERY) {
@@ -256,7 +286,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     }
 
     private Map<String, Object> normalizedContext(
-            ProtectionDecisionCommand command, boolean degraded, String degradationReason) {
+            ProtectionDecisionCommand command, boolean degraded, String degradationReason,
+            RolloutSelection rolloutSelection) {
         RiskSignalEnvelope envelope = command.signalEnvelope();
         RiskSignals signals = envelope.signals();
         Map<String, Object> context = new LinkedHashMap<>();
@@ -279,6 +310,12 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         if (degradationReason != null) {
             context.put("degradationReason", degradationReason);
         }
+        if (rolloutSelection != null) {
+            context.put("rolloutCohortBucket", rolloutSelection.cohortBucket());
+            context.put("rolloutCandidateVersion", rolloutSelection.candidateVersion());
+            context.put("rolloutPercentageAtDecision", rolloutSelection.rolloutPercentage());
+            context.put("rolloutCandidateSelected", rolloutSelection.candidateSelected());
+        }
         return context;
     }
 
@@ -287,6 +324,18 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 .description("Total decisions produced under a dependency-failure degradation strategy")
                 .tag("reason", reason.name())
                 .register(meterRegistry);
+    }
+
+    private Counter rolloutDecisionCounter(String policyKey, boolean candidateSelected) {
+        return Counter.builder("accountshield.policy.rollout.decisions")
+                .description("Total decisions made while a policy rollout was active, by cohort selection")
+                .tag("policyKey", policyKey)
+                .tag("selection", candidateSelected ? "candidate" : "stable")
+                .register(meterRegistry);
+    }
+
+    private record RolloutSelection(
+            int cohortBucket, String candidateVersion, int rolloutPercentage, boolean candidateSelected) {
     }
 
     private String recoveryDirective(ProtectionEventType eventType) {

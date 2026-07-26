@@ -14,8 +14,12 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
 import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
+import io.github.viniciusssantos.accountshield.policy.CohortAssignment;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRollout;
+import io.github.viniciusssantos.accountshield.policy.PolicyRolloutService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRolloutStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.protection.ClientId;
@@ -39,6 +43,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -50,6 +56,7 @@ class ProtectionDecisionApplicationServiceTest {
     private final PolicyEvaluationService policyEvaluationService = mock(PolicyEvaluationService.class);
     private final PolicyRoutingService policyRoutingService =
             (clientId, eventType) -> "account-protection-default";
+    private final PolicyRolloutService policyRolloutService = mock(PolicyRolloutService.class);
     private final ProtectionRequestRepository protectionRequestRepository = mock(ProtectionRequestRepository.class);
     private final DecisionTraceRecorder decisionTraceRecorder = mock(DecisionTraceRecorder.class);
     private final IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
@@ -63,6 +70,7 @@ class ProtectionDecisionApplicationServiceTest {
             riskAssessmentService,
             policyEvaluationService,
             policyRoutingService,
+            policyRolloutService,
             protectionRequestRepository,
             decisionTraceRecorder,
             idempotencyGuard,
@@ -141,6 +149,7 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(trace.normalizedContext()).containsEntry("signalSimulated", true);
         assertThat(trace.normalizedContext()).containsEntry("reasonCatalogVersion", "risk-reason-catalog-1.0");
         assertThat(trace.normalizedContext()).containsEntry("decisionEngineVersion", "decision-engine-1.0");
+        assertThat(trace.normalizedContext()).doesNotContainKey("rolloutCohortBucket");
         assertThat(trace.reasons())
                 .extracting(reason -> reason.code() + ":" + reason.contribution())
                 .containsExactly("FAILED_ATTEMPTS:15", "NEW_DEVICE:15");
@@ -270,6 +279,7 @@ class ProtectionDecisionApplicationServiceTest {
                 riskAssessmentService,
                 policyEvaluationService,
                 acmeAwareRouting,
+                policyRolloutService,
                 protectionRequestRepository,
                 decisionTraceRecorder,
                 idempotencyGuard,
@@ -299,5 +309,72 @@ class ProtectionDecisionApplicationServiceTest {
                 ArgumentCaptor.forClass(io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         assertThat(eventCaptor.getValue().clientId()).isEqualTo("acme-corp");
+    }
+
+    @Test
+    void rolloutSelectsCandidateVersionWhenCohortBucketIsWithinPercentageAndRecordsProvenance() {
+        RiskSignals signals = new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope envelope = new RiskSignalEnvelope(
+                signals, "CLIENT_SUPPLIED", Instant.parse("2026-07-20T03:00:00Z"), SignalConfidence.HIGH, null, true);
+        RiskAssessment assessment = new RiskAssessment(0, RiskBand.LOW, "risk-rules-1.0", List.of());
+        when(riskAssessmentService.assess(envelope)).thenReturn(assessment);
+
+        String accountReference = "rollout-candidate-user";
+        int bucket = CohortAssignment.bucket(
+                ClientId.DEFAULT.value(), accountReference, "account-protection-default");
+        int percentage = Math.min(bucket + 1, 100);
+        when(policyRolloutService.findActiveRollout("account-protection-default"))
+                .thenReturn(Optional.of(new PolicyRollout(
+                        UUID.randomUUID(), "account-protection-default", "2.0.0", percentage,
+                        PolicyRolloutStatus.ACTIVE, Instant.parse("2026-07-25T00:00:00Z"), "operator",
+                        Instant.parse("2026-07-25T00:00:00Z"), null, null)));
+        when(policyEvaluationService.evaluateVersion("account-protection-default", "2.0.0", 0))
+                .thenReturn(new PolicyEvaluation("account-protection-default", "2.0.0", ProtectionOutcome.ALLOW));
+        when(idempotencyGuard.claim(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(IdempotencyResult.absent());
+
+        var result = service.decide(new ProtectionDecisionCommand(
+                accountReference, ProtectionEventType.LOGIN_ATTEMPT, envelope, null));
+
+        assertThat(result.policyVersion()).isEqualTo("2.0.0");
+        ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);
+        verify(decisionTraceRecorder).record(traceCaptor.capture());
+        var context = traceCaptor.getValue().normalizedContext();
+        assertThat(context).containsEntry("rolloutCohortBucket", bucket);
+        assertThat(context).containsEntry("rolloutCandidateVersion", "2.0.0");
+        assertThat(context).containsEntry("rolloutPercentageAtDecision", percentage);
+        assertThat(context).containsEntry("rolloutCandidateSelected", true);
+    }
+
+    @Test
+    void rolloutSelectsStableVersionWhenCohortBucketIsOutsidePercentage() {
+        RiskSignals signals = new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope envelope = new RiskSignalEnvelope(
+                signals, "CLIENT_SUPPLIED", Instant.parse("2026-07-20T03:00:00Z"), SignalConfidence.HIGH, null, true);
+        RiskAssessment assessment = new RiskAssessment(0, RiskBand.LOW, "risk-rules-1.0", List.of());
+        when(riskAssessmentService.assess(envelope)).thenReturn(assessment);
+
+        String accountReference = "rollout-stable-user";
+        int bucket = CohortAssignment.bucket(
+                ClientId.DEFAULT.value(), accountReference, "account-protection-default");
+        when(policyRolloutService.findActiveRollout("account-protection-default"))
+                .thenReturn(Optional.of(new PolicyRollout(
+                        UUID.randomUUID(), "account-protection-default", "2.0.0", bucket,
+                        PolicyRolloutStatus.ACTIVE, Instant.parse("2026-07-25T00:00:00Z"), "operator",
+                        Instant.parse("2026-07-25T00:00:00Z"), null, null)));
+        when(policyEvaluationService.evaluate("account-protection-default", 0))
+                .thenReturn(new PolicyEvaluation("account-protection-default", "1.0.0", ProtectionOutcome.ALLOW));
+        when(idempotencyGuard.claim(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(IdempotencyResult.absent());
+
+        var result = service.decide(new ProtectionDecisionCommand(
+                accountReference, ProtectionEventType.LOGIN_ATTEMPT, envelope, null));
+
+        assertThat(result.policyVersion()).isEqualTo("1.0.0");
+        ArgumentCaptor<DecisionTraceCommand> traceCaptor = ArgumentCaptor.forClass(DecisionTraceCommand.class);
+        verify(decisionTraceRecorder).record(traceCaptor.capture());
+        var context = traceCaptor.getValue().normalizedContext();
+        assertThat(context).containsEntry("rolloutCandidateSelected", false);
+        assertThat(context).containsEntry("rolloutCandidateVersion", "2.0.0");
     }
 }
