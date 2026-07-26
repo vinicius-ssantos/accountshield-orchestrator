@@ -41,8 +41,11 @@ class OutboxClaimStoreConcurrencyTest {
         for (int i = 0; i < EVENT_COUNT; i++) {
             UUID id = UUID.randomUUID();
             seeded.add(id);
+            // occurred_at is set far in the past so these rows always sort first (claim query
+            // orders by occurred_at ASC), ahead of any PENDING rows other tests may have left
+            // behind in this shared Postgres instance
             repository.save(new OutboxEventEntity(
-                    id, "Test", "agg-" + id, "TEST_EVENT", "{}", now.minusSeconds(60)));
+                    id, "Test", "agg-" + id, "TEST_EVENT", "{}", now.minusSeconds(999_999)));
         }
 
         List<Callable<List<UUID>>> contenders = new ArrayList<>();
@@ -55,10 +58,15 @@ class OutboxClaimStoreConcurrencyTest {
 
         List<List<UUID>> results = race(contenders);
 
-        List<UUID> allClaimed = results.stream().flatMap(List::stream).toList();
-        assertThat(allClaimed).hasSize(EVENT_COUNT);
-        assertThat(allClaimed).doesNotHaveDuplicates();
-        assertThat(new HashSet<>(allClaimed)).isEqualTo(new HashSet<>(seeded));
+        // other tests sharing this Postgres instance may also leave PENDING rows behind;
+        // this test only asserts safety over the batch it seeded itself
+        List<UUID> seededIdsClaimed = results.stream()
+                .flatMap(List::stream)
+                .filter(seeded::contains)
+                .toList();
+        assertThat(seededIdsClaimed).hasSize(EVENT_COUNT);
+        assertThat(seededIdsClaimed).doesNotHaveDuplicates();
+        assertThat(new HashSet<>(seededIdsClaimed)).isEqualTo(new HashSet<>(seeded));
     }
 
     private <T> List<T> race(List<Callable<T>> actions) throws Exception {
