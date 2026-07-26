@@ -9,6 +9,7 @@ import {
   RiskBandKnownValues,
   type ChallengeType,
   type ProblemCode,
+  type ProblemCodeKnown,
   type ProblemDetails,
   type ProtectionDecisionRequest,
   type ProtectionDecisionResponse,
@@ -125,7 +126,9 @@ export function adaptProtectionDecision(
   };
 }
 
-function knownProblemCode(value: ProblemCode | undefined): value is ProblemCode {
+function knownProblemCode(
+  value: ProblemCode | undefined,
+): value is ProblemCodeKnown {
   return Boolean(
     value && includesKnown(ProblemCodeKnownValues, value),
   );
