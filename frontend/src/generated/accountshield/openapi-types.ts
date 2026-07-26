@@ -4,11 +4,13 @@
 // Source SHA-256: 1be3ed3a8279d02cc0f05b5cf61c3c37c4a2a937a3de4a8c3a97b3a88d3a272e
 // DO NOT EDIT. Run: npm run openapi:generate
 
-export interface ChallengeResponse {
+export interface ChallengeResponseValue {
   readonly challengeId: string;
   readonly challengeType: ChallengeType;
   readonly expiresAt: string;
 }
+
+export type ChallengeResponse = ChallengeResponseValue | null;
 
 export const ChallengeTypeKnownValues = [
   "TOTP_SIMULATED",
