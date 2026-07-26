@@ -50,9 +50,10 @@ class SimulationApplicationServiceTest {
                 List.of(new DecisionReasonContribution("FAILED_ATTEMPTS", 15, Map.of()));
         when(decisionTraceQuery.findByProtectionRequestId(requestId)).thenReturn(Optional.of(
                 trace(requestId, "ALLOW", 15, "1.0.0", "risk-rules-1.0", fullSignalContext(), originalReasons)));
-        when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(stubAlgorithm(
+        RiskAssessmentService algorithm = stubAlgorithm(
                 new RiskAssessment(15, RiskBand.LOW, "risk-rules-1.0",
-                        List.of(new RiskReason("FAILED_ATTEMPTS", 15)))));
+                        List.of(new RiskReason("FAILED_ATTEMPTS", 15))));
+        when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(algorithm);
         when(policyEvaluationService.evaluateVersion("account-protection-default", "1.0.0", 15))
                 .thenReturn(new PolicyEvaluation("account-protection-default", "1.0.0", ProtectionOutcome.ALLOW));
 
@@ -74,9 +75,10 @@ class SimulationApplicationServiceTest {
                 List.of(new DecisionReasonContribution("FAILED_ATTEMPTS", 15, Map.of()));
         when(decisionTraceQuery.findByProtectionRequestId(requestId)).thenReturn(Optional.of(
                 trace(requestId, "ALLOW", 15, "1.0.0", "risk-rules-1.0", fullSignalContext(), originalReasons)));
-        when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(stubAlgorithm(
+        RiskAssessmentService algorithm = stubAlgorithm(
                 new RiskAssessment(15, RiskBand.LOW, "risk-rules-1.0",
-                        List.of(new RiskReason("NEW_DEVICE", 15)))));
+                        List.of(new RiskReason("NEW_DEVICE", 15))));
+        when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(algorithm);
         when(policyEvaluationService.evaluateVersion("account-protection-default", "1.0.0", 15))
                 .thenReturn(new PolicyEvaluation("account-protection-default", "1.0.0", ProtectionOutcome.ALLOW));
 
@@ -92,10 +94,11 @@ class SimulationApplicationServiceTest {
         UUID requestId = UUID.randomUUID();
         when(decisionTraceQuery.findByProtectionRequestId(requestId)).thenReturn(Optional.of(
                 trace(requestId, "ALLOW", 15, "1.0.0", "risk-rules-1.0", fullSignalContext(), List.of())));
-        when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(stubAlgorithm(
+        RiskAssessmentService algorithm = stubAlgorithm(
                 new RiskAssessment(80, RiskBand.HIGH, "risk-rules-1.0",
                         List.of(new RiskReason("COMPROMISED_CREDENTIAL", 40), new RiskReason("IMPOSSIBLE_TRAVEL", 35),
-                                new RiskReason("FAILED_ATTEMPTS", 5)))));
+                                new RiskReason("FAILED_ATTEMPTS", 5))));
+        when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(algorithm);
         when(policyEvaluationService.evaluateVersion("account-protection-default", "1.0.0", 80))
                 .thenReturn(new PolicyEvaluation(
                         "account-protection-default", "1.0.0", ProtectionOutcome.TEMPORARILY_BLOCK));
@@ -133,8 +136,9 @@ class SimulationApplicationServiceTest {
                 "networkRiskLevel", "LOW");
         when(decisionTraceQuery.findByProtectionRequestId(requestId)).thenReturn(Optional.of(
                 trace(requestId, "ALLOW", 0, "1.0.0", "risk-rules-1.0", legacyContext, List.of())));
-        when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(stubAlgorithm(
-                new RiskAssessment(0, RiskBand.LOW, "risk-rules-1.0", List.of())));
+        RiskAssessmentService algorithm = stubAlgorithm(
+                new RiskAssessment(0, RiskBand.LOW, "risk-rules-1.0", List.of()));
+        when(riskAlgorithmRegistry.resolve("risk-rules-1.0")).thenReturn(algorithm);
         when(policyEvaluationService.evaluateVersion("account-protection-default", "1.0.0", 0))
                 .thenReturn(new PolicyEvaluation("account-protection-default", "1.0.0", ProtectionOutcome.ALLOW));
 
