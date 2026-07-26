@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshield.protection.internal.persistence;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -17,7 +18,8 @@ public class ProtectionRequestEntity {
     @Column(name = "client_id", nullable = false, length = 100)
     private String clientId;
 
-    @Column(name = "account_reference", nullable = false, length = 128)
+    @Convert(converter = AccountReferenceEncryptionConverter.class)
+    @Column(name = "account_reference", nullable = false, length = 512)
     private String accountReference;
 
     @Column(name = "event_type", nullable = false, length = 64)

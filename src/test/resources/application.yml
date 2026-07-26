@@ -29,3 +29,8 @@ accountshield:
     idempotency:
       retention:
         fixed-delay: 9999s
+  crypto:
+    previous-kek-version: 99
+    previous-kek-secret: accountshield-local-only-kek-v99-test
+    rewrap:
+      fixed-delay: 9999s
