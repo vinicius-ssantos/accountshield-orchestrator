@@ -55,6 +55,9 @@ class SimulationController {
             String policyKey,
             String policyVersion,
             String algorithmVersion,
+            String normalizedInputSchemaVersion,
+            String reasonCatalogVersion,
+            String decisionEngineVersion,
             List<String> mismatches) {
 
         static ReplayResponse from(ReplayResult r) {
@@ -72,6 +75,9 @@ class SimulationController {
                     r.policyKey(),
                     r.policyVersion(),
                     r.algorithmVersion(),
+                    r.normalizedInputSchemaVersion(),
+                    r.reasonCatalogVersion(),
+                    r.decisionEngineVersion(),
                     r.mismatches());
         }
     }

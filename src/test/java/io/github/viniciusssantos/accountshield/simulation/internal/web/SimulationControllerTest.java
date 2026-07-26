@@ -41,14 +41,19 @@ class SimulationControllerTest {
                 .thenReturn(Optional.of(new ReplayResult(
                         requestId, true, "ALLOW", "ALLOW", 10, 10,
                         RiskBand.LOW, RiskBand.LOW, List.of(), List.of(),
-                        "account-protection-default", "1.0.0", "risk-rules-1.0", List.of())));
+                        "account-protection-default", "1.0.0", "risk-rules-1.0",
+                        "risk-signal-envelope-1.0", "risk-reason-catalog-1.0", "decision-engine-1.0",
+                        List.of())));
 
         mockMvc.perform(get("/api/v1/simulation/replay/550e8400-e29b-41d4-a716-446655440000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.matches").value(true))
                 .andExpect(jsonPath("$.originalOutcome").value("ALLOW"))
                 .andExpect(jsonPath("$.replayedOutcome").value("ALLOW"))
-                .andExpect(jsonPath("$.algorithmVersion").value("risk-rules-1.0"));
+                .andExpect(jsonPath("$.algorithmVersion").value("risk-rules-1.0"))
+                .andExpect(jsonPath("$.normalizedInputSchemaVersion").value("risk-signal-envelope-1.0"))
+                .andExpect(jsonPath("$.reasonCatalogVersion").value("risk-reason-catalog-1.0"))
+                .andExpect(jsonPath("$.decisionEngineVersion").value("decision-engine-1.0"));
     }
 
     @Test

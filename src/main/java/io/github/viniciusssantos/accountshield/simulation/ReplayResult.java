@@ -19,6 +19,9 @@ public record ReplayResult(
         String policyKey,
         String policyVersion,
         String algorithmVersion,
+        String normalizedInputSchemaVersion,
+        String reasonCatalogVersion,
+        String decisionEngineVersion,
         List<String> mismatches) {
 
     public ReplayResult {

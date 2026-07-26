@@ -14,6 +14,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.protection.DecisionEngineVersion;
 import io.github.viniciusssantos.accountshield.protection.DegradationReason;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
@@ -24,23 +25,19 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionServ
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.protection.ProtectionRateLimiter;
 import io.github.viniciusssantos.accountshield.protection.RecoveryAuthorizationIssued;
+import io.github.viniciusssantos.accountshield.protection.RequestFingerprint;
 import io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestEntity;
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
 import io.github.viniciusssantos.accountshield.risk.RiskReason;
+import io.github.viniciusssantos.accountshield.risk.RiskReasonCatalog;
 import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -276,6 +273,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         context.put("signalSchemaVersion", envelope.schemaVersion());
         context.put("signalSimulated", envelope.simulated());
         context.put("clientId", command.clientId().value());
+        context.put("reasonCatalogVersion", RiskReasonCatalog.CURRENT_VERSION);
+        context.put("decisionEngineVersion", DecisionEngineVersion.CURRENT);
         context.put("degraded", degraded);
         if (degradationReason != null) {
             context.put("degradationReason", degradationReason);
@@ -308,22 +307,15 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     }
 
     private String fingerprint(ProtectionDecisionCommand command) {
-        try {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            try (DataOutputStream output = new DataOutputStream(bytes)) {
-                output.writeUTF(command.clientId().value());
-                output.writeUTF(command.accountReference());
-                output.writeUTF(command.eventType().name());
-                output.writeInt(command.signalEnvelope().signals().failedAttempts());
-                output.writeBoolean(command.signalEnvelope().signals().newDevice());
-                output.writeBoolean(command.signalEnvelope().signals().impossibleTravel());
-                output.writeBoolean(command.signalEnvelope().signals().compromisedCredential());
-                output.writeUTF(command.signalEnvelope().signals().networkRiskLevel().name());
-            }
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(bytes.toByteArray()));
-        } catch (IOException | NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("failed to compute request fingerprint", exception);
-        }
+        RiskSignals signals = command.signalEnvelope().signals();
+        return RequestFingerprint.compute(
+                command.clientId().value(),
+                command.accountReference(),
+                command.eventType().name(),
+                signals.failedAttempts(),
+                signals.newDevice(),
+                signals.impossibleTravel(),
+                signals.compromisedCredential(),
+                signals.networkRiskLevel().name());
     }
 }

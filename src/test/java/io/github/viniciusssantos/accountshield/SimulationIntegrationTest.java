@@ -60,6 +60,9 @@ class SimulationIntegrationTest {
         assertThat(replayOpt.get().originalRiskBand()).isEqualTo(replayOpt.get().replayedRiskBand());
         assertThat(replayOpt.get().originalReasons()).isEqualTo(replayOpt.get().replayedReasons());
         assertThat(replayOpt.get().algorithmVersion()).isEqualTo("risk-rules-1.0");
+        assertThat(replayOpt.get().normalizedInputSchemaVersion()).isEqualTo("risk-signal-envelope-1.0");
+        assertThat(replayOpt.get().reasonCatalogVersion()).isEqualTo("risk-reason-catalog-1.0");
+        assertThat(replayOpt.get().decisionEngineVersion()).isEqualTo("decision-engine-1.0");
     }
 
     @Test

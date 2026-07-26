@@ -5,12 +5,16 @@ import io.github.viniciusssantos.accountshield.audit.DecisionTraceView;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.protection.ClientId;
+import io.github.viniciusssantos.accountshield.protection.DecisionEngineVersion;
+import io.github.viniciusssantos.accountshield.protection.RequestFingerprint;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskAlgorithmRegistry;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
 import io.github.viniciusssantos.accountshield.risk.RiskBand;
 import io.github.viniciusssantos.accountshield.risk.RiskReason;
+import io.github.viniciusssantos.accountshield.risk.RiskReasonCatalog;
 import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
@@ -74,6 +78,24 @@ class SimulationApplicationService implements SimulationService {
                 .map(reason -> new RiskReason(reason.code(), reason.contribution()))
                 .toList();
 
+        Map<String, Object> context = trace.normalizedContext();
+        String schemaVersion = reconstructed.schemaVersion();
+        String reasonCatalogVersion = context.containsKey("reasonCatalogVersion")
+                ? (String) context.get("reasonCatalogVersion") : RiskReasonCatalog.CURRENT_VERSION;
+        String decisionEngineVersion = context.containsKey("decisionEngineVersion")
+                ? (String) context.get("decisionEngineVersion") : DecisionEngineVersion.CURRENT;
+        String clientId = context.containsKey("clientId")
+                ? (String) context.get("clientId") : ClientId.DEFAULT.value();
+        String recomputedFingerprint = RequestFingerprint.compute(
+                clientId,
+                trace.accountReference(),
+                (String) context.get("protectionEventType"),
+                reconstructed.signals().failedAttempts(),
+                reconstructed.signals().newDevice(),
+                reconstructed.signals().impossibleTravel(),
+                reconstructed.signals().compromisedCredential(),
+                reconstructed.signals().networkRiskLevel().name());
+
         List<String> mismatches = new ArrayList<>();
         if (recomputed.score() != trace.riskScore()) {
             mismatches.add("riskScore: expected " + trace.riskScore() + " but replay produced "
@@ -88,6 +110,18 @@ class SimulationApplicationService implements SimulationService {
         if (!replayedPolicy.outcome().name().equals(trace.outcome())) {
             mismatches.add("outcome: expected " + trace.outcome() + " but replay produced "
                     + replayedPolicy.outcome().name());
+        }
+        if (!recomputedFingerprint.equals(trace.requestFingerprint())) {
+            mismatches.add("canonicalInputHash: reconstructed input does not hash to the recorded "
+                    + "request fingerprint");
+        }
+        List<String> unknownReasonCodes = originalReasons.stream()
+                .map(RiskReason::code)
+                .filter(code -> !RiskReasonCatalog.KNOWN_CODES.contains(code))
+                .toList();
+        if (!unknownReasonCodes.isEmpty()) {
+            mismatches.add("reasonCatalogVersion: unrecognized reason code(s) " + unknownReasonCodes
+                    + " not present in catalog " + RiskReasonCatalog.CURRENT_VERSION);
         }
 
         return Optional.of(new ReplayResult(
@@ -104,6 +138,9 @@ class SimulationApplicationService implements SimulationService {
                 trace.policyKey(),
                 trace.policyVersion(),
                 trace.algorithmVersion(),
+                schemaVersion,
+                reasonCatalogVersion,
+                decisionEngineVersion,
                 mismatches));
     }
 
