@@ -34,3 +34,7 @@ accountshield:
     previous-kek-secret: accountshield-local-only-kek-v99-test
     rewrap:
       fixed-delay: 9999s
+  audit:
+    chain:
+      verification:
+        fixed-delay: 9999s

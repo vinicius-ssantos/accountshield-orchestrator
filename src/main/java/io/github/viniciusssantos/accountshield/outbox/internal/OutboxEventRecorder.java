@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.outbox.internal;
 
+import io.github.viniciusssantos.accountshield.audit.AuditChainIntegrityFailed;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeCompleted;
 import io.github.viniciusssantos.accountshield.outbox.AccountPseudonymizer;
 import io.github.viniciusssantos.accountshield.outbox.IntegrationEventEnvelope;
@@ -66,6 +67,13 @@ public class OutboxEventRecorder {
     public void onRecoveryManualReviewRequired(RecoveryManualReviewRequired event) {
         record(event.requiredAt(), "Recovery", event.recoveryId().toString(),
                 "RECOVERY_MANUAL_REVIEW_REQUIRED", pseudonymizedPayload(event, event.accountReference()));
+    }
+
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onAuditChainIntegrityFailed(AuditChainIntegrityFailed event) {
+        record(event.detectedAt(), "AuditChain", event.fromSequence() + "-" + event.toSequence(),
+                "AUDIT_INTEGRITY_FAILED", event);
     }
 
     private void record(Instant occurredAt, String aggregateType, String aggregateId,

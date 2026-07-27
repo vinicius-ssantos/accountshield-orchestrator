@@ -97,3 +97,8 @@ accountshield:
     retention:
       terminal-ttl: 30d
       fixed-delay: 1h
+  audit:
+    chain:
+      verification:
+        batch-size: 500
+        fixed-delay: 1h
