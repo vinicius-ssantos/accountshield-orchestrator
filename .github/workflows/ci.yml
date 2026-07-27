@@ -33,6 +33,21 @@ jobs:
       - name: Verify
         run: mvn --batch-mode --no-transfer-progress verify
 
+      - name: Assemble generated contracts
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p target/contracts
+          cp docs/contracts/asyncapi.yaml target/contracts/asyncapi.yaml
+
+      - name: Upload generated contracts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts
+          path: target/contracts/**
+          retention-days: 90
+
       - name: Summarize test failure causes
         if: failure()
         shell: bash
