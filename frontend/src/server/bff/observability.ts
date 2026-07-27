@@ -37,7 +37,8 @@ export interface BffTelemetrySink {
 
 export class ConsoleBffTelemetrySink implements BffTelemetrySink {
   record(event: BffTelemetryEvent): void {
-    console.info(JSON.stringify(createSafeLogRecord(event.event, event.correlationId, event)));
+    const context: Record<string, unknown> = { ...event };
+    console.info(JSON.stringify(createSafeLogRecord(event.event, event.correlationId, context)));
   }
 }
 
