@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.viniciusssantos.accountshield.audit.AuditChainHasher;
 import io.github.viniciusssantos.accountshield.audit.AuditChainVerificationResult;
 import io.github.viniciusssantos.accountshield.audit.AuditChainVerificationService;
+import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -53,7 +55,7 @@ class AuditChainVerificationServiceTest {
     @Test
     void brokenPreviousHashLinkIsDetected() {
         Tip tip = currentTip();
-        insertTraceRow(tip.sequence() + 1, "0".repeat(64), false);
+        insertTraceRow(tip.sequence() + 1, randomHexHash(), false);
 
         AuditChainVerificationResult result = verificationService.verifyRange(tip.sequence() + 1, tip.sequence() + 1);
 
@@ -110,6 +112,14 @@ class AuditChainVerificationServiceTest {
         assertThat(result.valid()).isFalse();
     }
 
+    // A fresh random value each call -- never a fixed literal -- so one test's deliberately wrong
+    // hash can never accidentally equal another test's, given they share one global chain tip.
+    private static String randomHexHash() {
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+    }
+
     private Tip currentTip() {
         return verificationService.currentRootHash()
                 .map(root -> new Tip(root.chainSequence(), root.recordHash()))
@@ -129,7 +139,7 @@ class AuditChainVerificationServiceTest {
                 AuditChainHasher.CANONICAL_SCHEMA_VERSION, sequence, previousHash, decisionId, protectionRequestId,
                 accountReference, requestFingerprint, "risk-rules-1.0", "account-protection-default", "1.0.0",
                 "ALLOW", 10, decidedAt, List.of());
-        String storedHash = tamperRecordHash ? "0".repeat(64) : correctHash;
+        String storedHash = tamperRecordHash ? randomHexHash() : correctHash;
 
         jdbcTemplate.update(
                 """

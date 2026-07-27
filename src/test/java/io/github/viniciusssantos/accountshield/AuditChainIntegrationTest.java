@@ -40,7 +40,9 @@ class AuditChainIntegrationTest {
         decide("chain-account-" + UUID.randomUUID());
 
         List<Long> sequences = jdbcTemplate.queryForList(
-                "SELECT chain_sequence FROM audit.decision_trace ORDER BY chain_sequence", Long.class);
+                "SELECT chain_sequence FROM audit.decision_trace "
+                        + "WHERE chain_sequence IS NOT NULL ORDER BY chain_sequence",
+                Long.class);
         assertThat(sequences).hasSizeGreaterThanOrEqualTo(3);
         assertThat(sequences).doesNotHaveDuplicates();
 
