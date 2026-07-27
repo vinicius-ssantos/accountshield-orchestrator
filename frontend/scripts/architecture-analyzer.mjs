@@ -142,7 +142,7 @@ export async function analyzeProject({ projectRoot, config, today = new Date().t
         /searchParams\.get\(\s*["'](?:url|path|target|destination|upstream|backend)["']/i,
         /\b(?:destination|target|upstream|backend)(?:Url|Path)\b/i,
         /\bfetch\s*\(\s*(?:url|path|target|destination|upstream|backendPath)\b/i,
-        /new\s+URL\s*\(\s*(?:request|body|payload|params|searchParams)\b/i]) {
+        /\bfetch\s*\(\s*new\s+URL\s*\(\s*(?:request|body|payload|params|searchParams)\b/i]) {
         const match = pattern.exec(file.content); if (match) { violations.push(violation("ARCH006", file.path, lineAt(file.content, match.index), "request-derived destination or path detected")); break; }
       }
     }
