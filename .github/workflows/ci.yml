@@ -104,6 +104,12 @@ jobs:
       - name: Verify generated OpenAPI client
         run: npm run openapi:check
 
+      - name: Test architecture rule engine
+        run: npm run architecture:test
+
+      - name: Enforce frontend architecture boundaries
+        run: npm run architecture:check
+
       - name: Lint
         run: npm run lint
 
