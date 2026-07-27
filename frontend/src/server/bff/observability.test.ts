@@ -40,9 +40,8 @@ describe("BFF observability", () => {
     [new BffError("METHOD_NOT_ALLOWED", 405, "ignored"), "invalid_request", "route", "4xx", false],
     [new BffError("FORBIDDEN", 403, "ignored"), "denied", "spring_api", "4xx", false],
     [new BffError("UPSTREAM_TIMEOUT", 504, "ignored", true), "timeout", "transport", "5xx", true],
-    [new BffError("REQUEST_CANCELLED", 499, "ignored"), "cancelled", "transport", "4xx", false],
     [new BffError("UPSTREAM_UNAVAILABLE", 503, "ignored", true), "upstream_unavailable", "transport", "5xx", true],
-    [new BffError("INVALID_UPSTREAM_RESPONSE", 502, "ignored"), "malformed_response", "adapter", "5xx", false],
+    [new BffError("UPSTREAM_MALFORMED_RESPONSE", 502, "ignored"), "malformed_response", "adapter", "5xx", false],
   ] as const)("classifies %s without raw error detail", (error, outcome, origin, statusClass, retryable) => {
     const sink = new InMemoryBffTelemetrySink();
     const operation = startBffTelemetry({
@@ -56,6 +55,27 @@ describe("BFF observability", () => {
 
     expect(sink.events[0]).toMatchObject({ outcome, origin, statusClass, retryable });
     expect(JSON.stringify(sink.events[0])).not.toContain("ignored");
+  });
+
+  it("records caller cancellation without changing the public error catalog", () => {
+    const sink = new InMemoryBffTelemetrySink();
+    const operation = startBffTelemetry({
+      useCase: "runtime_status",
+      correlationId: "corr_12345678",
+      sink,
+      now: clock(10, 15),
+    });
+
+    operation.cancel();
+
+    expect(sink.events[0]).toMatchObject({
+      outcome: "cancelled",
+      origin: "transport",
+      statusClass: "4xx",
+      retryable: false,
+      diagnosticCode: "REQUEST_CANCELLED",
+      durationMs: 5,
+    });
   });
 
   it("does not leak arbitrary exception messages", () => {
