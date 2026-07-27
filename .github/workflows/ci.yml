@@ -36,9 +36,11 @@ jobs:
       # for. "benchmark"-tagged tests (issue #50, ADR 0035: measurement-grade capacity numbers,
       # tens of seconds each) are excluded the same way; a small untagged
       # CapacitySmokeBenchmarkTest still runs here, proving the harness itself works on every PR
-      # without gating on noisy shared-runner timing.
+      # without gating on noisy shared-runner timing. "disaster-recovery"-tagged tests (issue #51,
+      # ADR 0036: a real pg_dump/psql backup-and-restore drill against a second Testcontainers
+      # Postgres instance, tens of seconds) are excluded the same way, run nightly only.
       - name: Verify
-        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience,benchmark
+        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience,benchmark,disaster-recovery
 
       - name: Assemble generated contracts
         if: always()
