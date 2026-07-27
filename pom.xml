@@ -71,6 +71,14 @@
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-otlp</artifactId>
         </dependency>
+        <!-- one of the OTLP exporter's transitive dependencies has Kotlin metadata; springdoc's
+             schema introspection reflects on it via kotlin-reflect, which is otherwise absent from
+             the classpath, crashing /v3/api-docs with NoClassDefFoundError: kotlin/reflect/full
+             /KClasses (surfaced by issue #52's OpenApiCompatibilityTest, ADR 0030) -->
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-reflect</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

@@ -116,6 +116,17 @@ Test `application.yml` disables OTLP export (`management.otlp.tracing.export.ena
 `mvn verify` never attempts a real network call to a nonexistent collector during CI, while still
 exercising the tracing bridge's MDC population.
 
+**A second CI-only failure surfaced after adding the OTLP exporter**: issue #52's
+`OpenApiCompatibilityTest` (the only test in this codebase that actually invokes `/v3/api-docs`)
+started failing with `NoClassDefFoundError: kotlin/reflect/full/KClasses`. One of
+`opentelemetry-exporter-otlp`'s transitive dependencies carries Kotlin metadata; springdoc's schema
+introspection reflects on it via `kotlin-reflect`, which was otherwise absent from the classpath.
+This would have been a real production bug, not just a test artifact -- anyone hitting
+`/v3/api-docs` on the deployed app would have gotten a 500. Fixed by adding
+`org.jetbrains.kotlin:kotlin-reflect` (unversioned, managed by `spring-boot-starter-parent`, which
+manages Kotlin versions for its own optional Kotlin support even though this project has no Kotlin
+source) as a runtime dependency.
+
 ## Threat model and limitations
 
 **What this catches:** a decision, challenge completion, policy activation, or recovery completion
