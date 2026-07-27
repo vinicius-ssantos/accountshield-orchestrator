@@ -126,9 +126,9 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | --- | --- | --- | --- |
 | Unit and PostgreSQL integration tests | **Implemented** | Maven verification covers domain boundaries, migrations, Spring context, and integration behavior | Current CI baseline: 181 tests at commit above |
 | Spring Modulith and architecture verification | **Implemented** | Module boundaries and architecture rules are verified in CI | `ArchitectureTest` and application verification |
-| Docker image build | **Implemented** | CI builds the backend image after Maven verification | `.github/workflows/ci.yml` |
+| Docker image build and smoke test | **Implemented** | CI builds the backend image after Maven verification, then actually starts it against a real Postgres container and polls `/actuator/health` before passing | `.github/workflows/ci.yml`, ADR 0031 |
 | Failure diagnostic artifacts | **Implemented** | CI prints Surefire root causes and uploads reports on failure | `.github/workflows/ci.yml` |
-| Supply-chain security gates | **Planned** | Coverage thresholds, CodeQL, SBOM, Trivy, dependency review, and pinned actions remain | [#27](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/27) |
+| Supply-chain security gates | **Partial** | CodeQL, a hard-gating dependency review (new critical/high vulnerabilities fail the PR), advisory Trivy filesystem/image scans, advisory Gitleaks, Dependabot, and a CycloneDX SBOM (build artifact, not yet attached to a release) are implemented; coverage thresholds, SpotBugs, and Checkstyle remain -- no real baseline exists yet to set them against | ADR 0031, [#27](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/27) |
 | Property-based tests and API fuzzing | **Planned** | jqwik and OpenAPI-aware fuzzing are not implemented | [#53](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/53) |
 | Fault-injection laboratory | **Planned** | Full Toxiproxy/crash/race suite is not implemented | [#39](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/39) |
 | Adversarial scenario laboratory | **Planned** | Deterministic attack scenarios and reports are not implemented | [#54](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/54) |

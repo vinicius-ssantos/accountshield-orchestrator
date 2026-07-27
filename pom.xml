@@ -145,6 +145,47 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <!-- Coverage reporting only for now (ADR 0031): no hard-failing threshold, since no
+                 real baseline coverage number has ever been observed for this codebase. Report is
+                 uploaded as a CI artifact; the "suggested initial thresholds" from issue #27
+                 (line 80%/branch 70%, stricter for recovery/challenge/policy/idempotency/outbox)
+                 are deferred to a follow-up PR once a real number exists to phase them in against. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.13</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- CycloneDX SBOM (ADR 0031): generated as a build artifact every run; real per-tag
+                 GitHub Release attachment deferred since no tags/releases exist yet in this repo. -->
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>2.9.1</version>
+                <executions>
+                    <execution>
+                        <id>build-sbom</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>makeAggregateBom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>
