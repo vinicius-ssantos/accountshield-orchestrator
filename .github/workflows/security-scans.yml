@@ -1,0 +1,66 @@
+name: Security scans
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-filesystem:
+    name: Trivy dependency scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Advisory only for now (ADR 0031): no known current-vulnerability baseline for this
+      # dependency tree, so this does not fail the build yet -- results still appear in the
+      # repository's code scanning tab. Revisit once a baseline is established.
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs-results.sarif
+          exit-code: "0"
+
+      - name: Upload filesystem scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs-results.sarif
+          category: trivy-fs
+
+  gitleaks:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Advisory only for now (ADR 0031): this codebase's application.yml deliberately uses many
+      # long, descriptively-named "local-only" placeholder secrets (e.g.
+      # accountshield-local-only-webhook-secret-key) as documented-safe defaults, not real
+      # credentials -- whether gitleaks' default entropy/pattern rules false-positive on those
+      # could not be verified without actually running it (no local Docker daemon this session).
+      # continue-on-error keeps this visible without blocking merges until a clean baseline run
+      # confirms it's tuned correctly; then remove this and let it gate for real.
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

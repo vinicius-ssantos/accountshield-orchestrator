@@ -36,6 +36,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0028](0028-signed-redacted-decision-evidence-bundles.md) | Accepted | Compose the audit trace, replay, and audit-chain proof into one canonical-JSON evidence bundle, redact the raw account reference via the existing pseudonymization scheme, sign it with a new per-boot RSA signer, and audit every export (who, why) | Issue #42 |
 | [0029](0029-api-and-event-compatibility-gates.md) | Accepted | Detect breaking OpenAPI/event changes via hand-rolled structural comparators (no new dependency), a versioning policy, a self-bootstrapping baseline (no tagged release exists yet), consumer contract tests, and a build-artifact contract upload | Issue #52 |
 | [0030](0030-transaction-aware-observability-and-tracing.md) | Accepted | Defer success metrics/logs to `@TransactionalEventListener(AFTER_COMMIT)` (except two deliberately-synchronous denied-attempt security logs), add a real duration `Timer` with explicit SLO buckets, and wire Micrometer Tracing + OTLP + `@Observed` spans with Jaeger in Compose | Issue #24 |
+| [0031](0031-ci-and-software-supply-chain-security.md) | Accepted | Add JaCoCo/CycloneDX (report-only, no baseline yet), a hard-gating dependency review, advisory Trivy/Gitleaks scans, CodeQL, Dependabot, a real container smoke test, and pinned Compose image versions; defer SpotBugs/Checkstyle/coverage thresholds until a real baseline exists | Issue #27 |
 
 ## ADR lifecycle
 

@@ -48,6 +48,29 @@ jobs:
           path: target/contracts/**
           retention-days: 90
 
+      # Coverage reporting only for now (ADR 0031): no hard-failing threshold, since no real
+      # baseline coverage number has ever been observed for this codebase. Report is uploaded
+      # here so a real number can be established, then thresholds phased in as a follow-up.
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: target/site/jacoco/**
+          retention-days: 90
+
+      # Real per-tag GitHub Release attachment deferred: no tags/releases exist yet in this repo
+      # (ADR 0031, mirrors ADR 0029's identical bootstrap reasoning for contract baselines).
+      - name: Upload CycloneDX SBOM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            target/bom.xml
+            target/bom.json
+          retention-days: 90
+
       - name: Summarize test failure causes
         if: failure()
         shell: bash
@@ -70,6 +93,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: verify
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - name: Check out repository
@@ -83,5 +109,70 @@ jobs:
         with:
           context: .
           push: false
+          load: true
+          tags: accountshield-orchestrator:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Advisory only for now (ADR 0031): no known current-vulnerability baseline for the base
+      # images this Dockerfile uses, so this does not fail the build yet -- results still appear
+      # in the repository's code scanning tab. Revisit once a baseline is established.
+      - name: Scan image for known vulnerabilities (advisory)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: accountshield-orchestrator:ci
+          format: sarif
+          output: trivy-image-results.sarif
+          exit-code: "0"
+
+      - name: Upload image scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image
+
+      # Container smoke test: the image must actually start and serve traffic, not just build.
+      # Plain docker network + docker run (not docker compose) so the health check can curl from
+      # the runner itself -- the app image's minimal JRE base is not guaranteed to have curl/wget
+      # installed, but every GitHub-hosted ubuntu-latest runner does.
+      - name: Start smoke test database and app
+        run: |
+          docker network create accountshield-smoke-net
+          docker run -d --name accountshield-smoke-postgres --network accountshield-smoke-net \
+            -e POSTGRES_DB=accountshield -e POSTGRES_USER=accountshield \
+            -e POSTGRES_PASSWORD=accountshield-local-only \
+            postgres:17-alpine
+          for i in $(seq 1 30); do
+            docker exec accountshield-smoke-postgres pg_isready -U accountshield -d accountshield && break
+            sleep 2
+          done
+          docker run -d --name accountshield-smoke-app --network accountshield-smoke-net -p 8080:8080 \
+            -e DATABASE_URL=jdbc:postgresql://accountshield-smoke-postgres:5432/accountshield \
+            -e DATABASE_USERNAME=accountshield -e DATABASE_PASSWORD=accountshield-local-only \
+            accountshield-orchestrator:ci
+
+      - name: Wait for the app to report healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fs http://localhost:8080/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
+              echo "Smoke test passed: /actuator/health reports UP"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Smoke test failed: /actuator/health never reported UP within 60s"
+          exit 1
+
+      - name: Smoke test logs on failure
+        if: failure()
+        run: |
+          docker logs accountshield-smoke-app || true
+          docker logs accountshield-smoke-postgres || true
+
+      - name: Tear down smoke test containers
+        if: always()
+        run: |
+          docker rm -f accountshield-smoke-app accountshield-smoke-postgres || true
+          docker network rm accountshield-smoke-net || true
