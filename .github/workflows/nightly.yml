@@ -1,0 +1,49 @@
+name: Nightly full test suite
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  full-verify:
+    name: Maven verify (full suite, including resilience)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      # No -DexcludedGroups here, unlike ci.yml's default gate (ADR 0032): this is the "nightly
+      # workflows run the full suite" half of issue #39's acceptance criterion, exercising the
+      # slower fault-injection (Toxiproxy) scenarios ci.yml's default gate skips.
+      - name: Verify (full suite)
+        run: mvn --batch-mode --no-transfer-progress verify
+
+      - name: Summarize test failure causes
+        if: failure()
+        shell: bash
+        run: |
+          if compgen -G "target/surefire-reports/*.txt" > /dev/null; then
+            grep -h -E "^(Caused by:|[[:space:]]*Caused by:|\[ERROR\]|org\.flywaydb|jakarta\.persistence|org\.springframework\.beans)" \
+              target/surefire-reports/*.txt | head -n 250 || true
+          fi
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-surefire-reports
+          path: target/surefire-reports/**
+          retention-days: 14

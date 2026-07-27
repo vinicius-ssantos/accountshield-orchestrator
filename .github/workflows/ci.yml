@@ -30,8 +30,12 @@ jobs:
           java-version: "25"
           cache: maven
 
+      # "resilience"-tagged tests (fault-injection: real container startup, connection-timeout
+      # waits) are excluded from this default gate and run in full every night instead
+      # (nightly.yml, ADR 0032) -- the stable/default subset vs. full-suite split issue #39 asks
+      # for.
       - name: Verify
-        run: mvn --batch-mode --no-transfer-progress verify
+        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience
 
       - name: Assemble generated contracts
         if: always()
