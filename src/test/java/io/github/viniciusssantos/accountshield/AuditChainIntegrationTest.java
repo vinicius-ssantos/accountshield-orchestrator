@@ -12,7 +12,6 @@ import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,24 +34,30 @@ class AuditChainIntegrationTest {
 
     @Test
     void consecutiveDecisionsFormAVerifiableChain() {
+        // Scoped to only the range this test itself creates: other test classes sharing this
+        // Testcontainers instance (AuditChainVerificationServiceTest) deliberately insert broken
+        // chain links as part of their own coverage, so asserting the *entire* global chain is
+        // clean would be flaky depending on test execution order.
+        long before = currentMaxSequence();
+
         decide("chain-account-" + UUID.randomUUID());
         decide("chain-account-" + UUID.randomUUID());
         decide("chain-account-" + UUID.randomUUID());
 
-        List<Long> sequences = jdbcTemplate.queryForList(
-                "SELECT chain_sequence FROM audit.decision_trace "
-                        + "WHERE chain_sequence IS NOT NULL ORDER BY chain_sequence",
-                Long.class);
-        assertThat(sequences).hasSizeGreaterThanOrEqualTo(3);
-        assertThat(sequences).doesNotHaveDuplicates();
+        long after = currentMaxSequence();
+        assertThat(after).isGreaterThanOrEqualTo(before + 3);
 
-        long min = sequences.getFirst();
-        long max = sequences.getLast();
-        AuditChainVerificationResult result = auditChainVerificationService.verifyRange(min, max);
+        AuditChainVerificationResult result = auditChainVerificationService.verifyRange(before + 1, after);
 
         assertThat(result.valid()).isTrue();
         assertThat(result.breaks()).isEmpty();
-        assertThat(result.recordsChecked()).isEqualTo(sequences.size());
+        assertThat(result.recordsChecked()).isEqualTo(after - before);
+    }
+
+    private long currentMaxSequence() {
+        Long max = jdbcTemplate.queryForObject(
+                "SELECT MAX(chain_sequence) FROM audit.decision_trace WHERE chain_sequence IS NOT NULL", Long.class);
+        return max == null ? 0L : max;
     }
 
     @Test
