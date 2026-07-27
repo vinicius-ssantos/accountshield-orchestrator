@@ -3,12 +3,12 @@ import "server-only";
 import { readFrontendEnvironment } from "@/config/environment";
 
 import {
-  BffError,
   assertRequestPolicy,
-  createSafeLogRecord,
   resolveCorrelationId,
   toProblemDetails,
 } from "./foundation";
+import type { BffTelemetrySink } from "./observability";
+import { startBffTelemetry } from "./observability";
 import {
   AccountShieldReadClient,
   RuntimeStatusService,
@@ -69,10 +69,16 @@ export function createRuntimeStatusService(
 export async function handleRuntimeStatusRequest(
   request: Request,
   service?: RuntimeStatusService,
+  telemetrySink?: BffTelemetrySink,
 ): Promise<Response> {
   const correlationId = resolveCorrelationId(
     request.headers.get("x-correlation-id"),
   );
+  const telemetry = startBffTelemetry({
+    useCase: "runtime_status",
+    correlationId,
+    sink: telemetrySink,
+  });
 
   try {
     assertRequestPolicy(request, {
@@ -82,6 +88,8 @@ export async function handleRuntimeStatusRequest(
 
     const runtimeService = service ?? createRuntimeStatusService();
     const view = await runtimeService.getStatus(correlationId, request.signal);
+    telemetry.succeed(200);
+
     return Response.json(view, {
       status: 200,
       headers: {
@@ -90,22 +98,13 @@ export async function handleRuntimeStatusRequest(
       },
     });
   } catch (error) {
-    const safeContext = {
-      method: request.method,
-      pathname: new URL(request.url).pathname,
-      errorCode: error instanceof BffError ? error.code : "INTERNAL_ERROR",
-    };
-    console.error(
-      JSON.stringify(
-        createSafeLogRecord(
-          "accountshield.bff.runtime_status_failed",
-          correlationId,
-          safeContext,
-        ),
-      ),
-    );
-
     const problem = toProblemDetails(error, correlationId);
+    if (request.signal.aborted) {
+      telemetry.cancel();
+    } else {
+      telemetry.fail(error, problem.status);
+    }
+
     const headers = new Headers({
       "cache-control": CACHE_CONTROL,
       "content-type": "application/problem+json",
