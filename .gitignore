@@ -26,5 +26,8 @@ replay_pid*
 # Build
 target/
 
+# jqwik's local failed-example replay cache (issue #53) -- machine-local run state, not source
+.jqwik-database
+
 # IDE
 .idea/
