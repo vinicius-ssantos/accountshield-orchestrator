@@ -8,6 +8,7 @@ import io.github.viniciusssantos.accountshield.risk.RiskReason;
 import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
 import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
+import io.micrometer.observation.annotation.Observed;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -20,6 +21,7 @@ final class DeterministicRiskAssessmentService implements RiskAssessmentService 
     private static final int MAX_SCORE = 100;
 
     @Override
+    @Observed(name = "accountshield.risk.assess")
     public RiskAssessment assess(RiskSignalEnvelope envelope) {
         Objects.requireNonNull(envelope, "envelope must not be null");
         RiskSignals signals = envelope.signals();

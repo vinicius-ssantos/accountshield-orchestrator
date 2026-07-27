@@ -4,6 +4,7 @@ import io.github.viniciusssantos.accountshield.outbox.OutboxEventPublisher;
 import io.github.viniciusssantos.accountshield.outbox.OutboxMessage;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.annotation.Observed;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Clock;
@@ -64,6 +65,7 @@ public class OutboxRelay {
     }
 
     @Scheduled(fixedDelayString = "${accountshield.outbox.relay.fixed-delay:5s}")
+    @Observed(name = "accountshield.outbox.dispatch")
     public void dispatchPending() {
         Instant now = clock.instant();
         Instant staleClaimCutoff = now.minus(claimTimeout);

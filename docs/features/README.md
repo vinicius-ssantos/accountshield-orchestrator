@@ -115,8 +115,8 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | Capability | Status | Current behavior | Evidence and follow-up |
 | --- | --- | --- | --- |
 | Structured security logs and metrics | **Implemented** | Decision, challenge, recovery, policy, and outbox activity has structured baseline instrumentation | Existing Micrometer/logging tests |
-| Transaction-aware success instrumentation | **Planned** | Some listeners still need `AFTER_COMMIT` semantics and rollback metrics | [#24](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/24) |
-| Distributed tracing | **Planned** | Micrometer Tracing, OTLP export, and trace visualization are not implemented | [#24](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/24) |
+| Transaction-aware success instrumentation | **Implemented** | Success metrics/logs use `@TransactionalEventListener(AFTER_COMMIT)` (two denied-privileged-attempt security logs deliberately remain synchronous); a real duration `Timer` (explicit SLO histogram buckets) backs the SLO doc and dashboard; a generic failed-decision counter covers rollback/failure paths | ADR 0030, [#24](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/24) |
+| Distributed tracing | **Implemented** | Micrometer Tracing + OTLP export wired in; `@Observed` spans on risk/policy/audit/challenge/recovery/outbox; Jaeger (OTLP-native) added to Compose. Not yet validated end-to-end by actually running the stack in this environment | ADR 0030, [#24](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/24) |
 | Backup and restore drill | **Planned** | Executable RPO/RTO restore procedures do not exist | [#51](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/51) |
 | Reproducible capacity benchmark | **Planned** | No published p50/p95/p99 capacity model exists | [#50](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/50) |
 

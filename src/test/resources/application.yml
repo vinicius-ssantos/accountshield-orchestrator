@@ -11,6 +11,12 @@ spring:
     enabled: true
     validate-migration-naming: true
 
+management:
+  otlp:
+    tracing:
+      export:
+        enabled: false
+
 accountshield:
   outbox:
     relay:

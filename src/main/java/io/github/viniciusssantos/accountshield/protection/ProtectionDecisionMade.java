@@ -14,5 +14,7 @@ public record ProtectionDecisionMade(
         Instant decidedAt,
         boolean degraded,
         String degradationReason,
-        String clientId) {
+        String clientId,
+        String rolloutCandidateVersion,
+        Boolean rolloutCandidateSelected) {
 }

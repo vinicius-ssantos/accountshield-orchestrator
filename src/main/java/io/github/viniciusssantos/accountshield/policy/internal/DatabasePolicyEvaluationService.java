@@ -7,6 +7,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
+import io.micrometer.observation.annotation.Observed;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class DatabasePolicyEvaluationService implements PolicyEvaluationService 
 
     @Override
     @Transactional(readOnly = true)
+    @Observed(name = "accountshield.policy.evaluate")
     public PolicyEvaluation evaluate(
             String policyKey,
             int riskScore,
