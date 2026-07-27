@@ -344,6 +344,12 @@ class ProtectionDecisionApplicationServiceTest {
         assertThat(context).containsEntry("rolloutCandidateVersion", "2.0.0");
         assertThat(context).containsEntry("rolloutPercentageAtDecision", percentage);
         assertThat(context).containsEntry("rolloutCandidateSelected", true);
+
+        ArgumentCaptor<io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade> eventCaptor =
+                ArgumentCaptor.forClass(io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().rolloutCandidateVersion()).isEqualTo("2.0.0");
+        assertThat(eventCaptor.getValue().rolloutCandidateSelected()).isTrue();
     }
 
     @Test
@@ -376,5 +382,65 @@ class ProtectionDecisionApplicationServiceTest {
         var context = traceCaptor.getValue().normalizedContext();
         assertThat(context).containsEntry("rolloutCandidateSelected", false);
         assertThat(context).containsEntry("rolloutCandidateVersion", "2.0.0");
+
+        ArgumentCaptor<io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade> eventCaptor =
+                ArgumentCaptor.forClass(io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().rolloutCandidateVersion()).isEqualTo("2.0.0");
+        assertThat(eventCaptor.getValue().rolloutCandidateSelected()).isFalse();
+    }
+
+    @Test
+    void recordsADecisionDurationTimerTaggedOnlyByOutcome() {
+        RiskSignals signals = new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW);
+        RiskSignalEnvelope envelope = new RiskSignalEnvelope(
+                signals, "CLIENT_SUPPLIED", Instant.parse("2026-07-20T03:00:00Z"), SignalConfidence.HIGH, null, true);
+        RiskAssessment assessment = new RiskAssessment(0, RiskBand.LOW, "risk-rules-1.0", List.of());
+        when(riskAssessmentService.assess(envelope)).thenReturn(assessment);
+        when(policyEvaluationService.evaluate("account-protection-default", 0))
+                .thenReturn(new PolicyEvaluation("account-protection-default", "1.0.0", ProtectionOutcome.ALLOW));
+        when(idempotencyGuard.claim(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(IdempotencyResult.absent());
+
+        service.decide(new ProtectionDecisionCommand(
+                "account-opaque-timer", ProtectionEventType.LOGIN_ATTEMPT, envelope, null));
+
+        var timer = meterRegistry.find("accountshield.protection.decision.duration")
+                .tag("outcome", "ALLOW")
+                .timer();
+        assertThat(timer).isNotNull();
+        assertThat(timer.count()).isEqualTo(1);
+        assertThat(timer.getId().getTags()).extracting("key").containsExactly("outcome");
+    }
+
+    @Test
+    void anUnexpectedFailureIncrementsTheGenericFailedDecisionsCounterTaggedByExceptionType() {
+        RiskSignalEnvelope staleEnvelope = new RiskSignalEnvelope(
+                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                "CLIENT_SUPPLIED",
+                Instant.parse("2026-07-20T02:00:00Z"),
+                SignalConfidence.HIGH,
+                null,
+                true);
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException.class,
+                () -> service.decide(new ProtectionDecisionCommand(
+                        "account-opaque-failed-metric",
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        staleEnvelope,
+                        null)));
+
+        var failedCounter = meterRegistry.find("accountshield.protection.decisions.failed")
+                .tag("exception", "StaleRiskSignalException")
+                .counter();
+        assertThat(failedCounter).isNotNull();
+        assertThat(failedCounter.count()).isEqualTo(1.0);
+
+        var errorTimer = meterRegistry.find("accountshield.protection.decision.duration")
+                .tag("outcome", "ERROR")
+                .timer();
+        assertThat(errorTimer).isNotNull();
+        assertThat(errorTimer.count()).isEqualTo(1);
     }
 }

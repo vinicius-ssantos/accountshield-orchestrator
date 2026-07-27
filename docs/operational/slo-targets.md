@@ -20,8 +20,12 @@ AccountShield Orchestrator protection-decision API (`POST /api/v1/protection-dec
 | --- | --- | --- |
 | Request rate | `rate(accountshield_protection_decisions_total[5m])` | traffic |
 | Error budget burn | `1 - (1 - error_rate) / (1 - 0.999)` | availability |
-| Latency percentile | histogram quantile on `accountshield_protection_risk_score` | latency |
+| Latency p50 | `histogram_quantile(0.50, sum(rate(accountshield_protection_decision_duration_seconds_bucket[5m])) by (le))` | latency |
+| Latency p95 | `histogram_quantile(0.95, sum(rate(accountshield_protection_decision_duration_seconds_bucket[5m])) by (le))` | latency |
+| Latency p99 | `histogram_quantile(0.99, sum(rate(accountshield_protection_decision_duration_seconds_bucket[5m])) by (le))` | latency |
 | Block rate | `outcome="TEMPORARILY_BLOCK"` fraction | security posture |
+
+`accountshield_protection_decision_duration_seconds` is a real duration `Timer` around `ProtectionDecisionApplicationService.decide()` (tagged only by the bounded `outcome` value, including `ERROR`), with explicit SLO histogram buckets at 50/100/250/500/1000/2000 ms so the quantile queries above resolve to real bucket boundaries rather than Micrometer's generic defaults (ADR 0030). Previously this row incorrectly pointed at `accountshield_protection_risk_score` -- a `DistributionSummary` over risk scores (0-100), not a duration metric at all -- which could never have produced a meaningful latency percentile.
 
 ## Alerting thresholds
 

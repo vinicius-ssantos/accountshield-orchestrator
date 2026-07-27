@@ -43,7 +43,7 @@ public final class IntegrationEventFixtures {
     public static IntegrationEventEnvelope protectionDecisionMade() {
         ProtectionDecisionMade event = new ProtectionDecisionMade(
                 fixedUuid(2), fixedUuid(3), FIXED_ACCOUNT_REFERENCE, "ALLOW", 10,
-                "account-protection-default", "1.0.0", FIXED_INSTANT, false, null, "default");
+                "account-protection-default", "1.0.0", FIXED_INSTANT, false, null, "default", null, null);
         return envelope(event.decisionId().toString(), pseudonymizedPayload(event));
     }
 

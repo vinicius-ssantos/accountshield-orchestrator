@@ -50,6 +50,7 @@ import java.util.UUID;
 import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -60,6 +61,8 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
 
     private static final String DECIDED_STATUS = "DECIDED";
     private static final Duration RECOVERY_AUTHORIZATION_TTL = Duration.ofMinutes(15);
+    private static final String DECISION_DURATION_METRIC = "accountshield.protection.decision.duration";
+    private static final String DECISIONS_FAILED_METRIC = "accountshield.protection.decisions.failed";
 
     private final RiskAssessmentService riskAssessmentService;
     private final PolicyEvaluationService policyEvaluationService;
@@ -112,6 +115,37 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
     public ProtectionDecisionResult decide(ProtectionDecisionCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 
+        Timer.Sample sample = Timer.start(meterRegistry);
+        try {
+            ProtectionDecisionResult result = decideInternal(command);
+            sample.stop(decisionTimer(result.outcome().name()));
+            return result;
+        } catch (RuntimeException exception) {
+            sample.stop(decisionTimer("ERROR"));
+            Counter.builder(DECISIONS_FAILED_METRIC)
+                    .description("Total protection decisions that failed before completing")
+                    .tag("exception", exception.getClass().getSimpleName())
+                    .register(meterRegistry)
+                    .increment();
+            throw exception;
+        }
+    }
+
+    // Explicit SLO boundaries (not just the default histogram) so p50/p95/p99 PromQL queries
+    // against this metric's Prometheus histogram buckets are meaningful at the latencies this
+    // system actually operates at, rather than Micrometer's generic default bucket set.
+    private Timer decisionTimer(String outcomeTag) {
+        return Timer.builder(DECISION_DURATION_METRIC)
+                .description("Protection decision latency")
+                .tag("outcome", outcomeTag)
+                .publishPercentileHistogram()
+                .serviceLevelObjectives(
+                        Duration.ofMillis(50), Duration.ofMillis(100), Duration.ofMillis(250),
+                        Duration.ofMillis(500), Duration.ofSeconds(1), Duration.ofSeconds(2))
+                .register(meterRegistry);
+    }
+
+    private ProtectionDecisionResult decideInternal(ProtectionDecisionCommand command) {
         Instant now = clock.instant();
         if (command.signalEnvelope().isStale(now, maxSignalAge)) {
             degradedCounter(DegradationReason.RISK_SIGNAL_STALE).increment();
@@ -212,10 +246,6 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 now,
                 auditReasons(assessment.reasons())));
 
-        if (rolloutSelection != null) {
-            rolloutDecisionCounter(evaluation.policyKey(), rolloutSelection.candidateSelected()).increment();
-        }
-
         UUID recoveryAuthorizationId = null;
         if (effectiveOutcome == ProtectionOutcome.START_RECOVERY) {
             recoveryAuthorizationId = UUID.randomUUID();
@@ -259,7 +289,9 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
                 now,
                 degraded,
                 degradationReason,
-                command.clientId().value()));
+                command.clientId().value(),
+                rolloutSelection == null ? null : rolloutSelection.candidateVersion(),
+                rolloutSelection == null ? null : rolloutSelection.candidateSelected()));
 
         return result;
     }
@@ -327,14 +359,6 @@ public class ProtectionDecisionApplicationService implements ProtectionDecisionS
         return Counter.builder("accountshield.protection.degraded_decisions")
                 .description("Total decisions produced under a dependency-failure degradation strategy")
                 .tag("reason", reason.name())
-                .register(meterRegistry);
-    }
-
-    private Counter rolloutDecisionCounter(String policyKey, boolean candidateSelected) {
-        return Counter.builder("accountshield.policy.rollout.decisions")
-                .description("Total decisions made while a policy rollout was active, by cohort selection")
-                .tag("policyKey", policyKey)
-                .tag("selection", candidateSelected ? "candidate" : "stable")
                 .register(meterRegistry);
     }
 

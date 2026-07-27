@@ -27,8 +27,21 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-accountshield}
       DATABASE_USERNAME: ${POSTGRES_USER:-accountshield}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-accountshield-local-only}
+      ACCOUNTSHIELD_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
     ports:
       - "${APP_PORT:-8080}:8080"
+
+  # Jaeger's all-in-one image accepts OTLP directly on 4317 (gRPC)/4318 (HTTP) in modern versions
+  # -- no separate OpenTelemetry Collector hop is needed for this scope (ADR 0030).
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: accountshield-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+      - "4317:4317"
+      - "4318:4318"
 
   prometheus:
     image: prom/prometheus:latest
