@@ -52,6 +52,7 @@ export class InMemoryBffTelemetrySink implements BffTelemetrySink {
 export interface BffTelemetryOperation {
   succeed(status?: number): void;
   fail(error: unknown, status?: number): void;
+  cancel(status?: number): void;
 }
 
 function statusClass(status: number | undefined): BffTelemetryEvent["statusClass"] {
@@ -79,13 +80,10 @@ function classify(error: unknown): {
     if (code === "UPSTREAM_TIMEOUT") {
       return { outcome: "timeout", origin: "transport", code, retryable: true };
     }
-    if (code === "REQUEST_CANCELLED") {
-      return { outcome: "cancelled", origin: "transport", code, retryable: false };
-    }
     if (code === "UPSTREAM_UNAVAILABLE") {
       return { outcome: "upstream_unavailable", origin: "transport", code, retryable: true };
     }
-    if (code === "INVALID_UPSTREAM_RESPONSE") {
+    if (code === "UPSTREAM_MALFORMED_RESPONSE") {
       return { outcome: "malformed_response", origin: "adapter", code, retryable: false };
     }
     return { outcome: "internal_error", origin: "unknown", code, retryable: error.retryable };
@@ -135,6 +133,15 @@ export function startBffTelemetry(input: {
         statusClass: statusClass(status ?? (error instanceof BffError ? error.status : undefined)),
         retryable: classified.retryable,
         diagnosticCode: classified.code,
+      });
+    },
+    cancel(status = 499): void {
+      emit({
+        outcome: "cancelled",
+        origin: "transport",
+        statusClass: statusClass(status),
+        retryable: false,
+        diagnosticCode: "REQUEST_CANCELLED",
       });
     },
   };
