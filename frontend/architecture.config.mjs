@@ -1,4 +1,4 @@
-export default {
+const architectureConfig = {
   publicEnvAllowlist: ["NEXT_PUBLIC_APP_ENV"],
   generatedImportAllowedPrefixes: ["src/server/bff/"],
   readOnlyScopes: [
@@ -8,3 +8,5 @@ export default {
   ],
   exceptions: [],
 };
+
+export default architectureConfig;
