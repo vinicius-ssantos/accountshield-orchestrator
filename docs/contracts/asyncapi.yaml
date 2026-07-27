@@ -1,0 +1,257 @@
+asyncapi: 3.0.0
+info:
+  title: AccountShield Integration Events
+  version: integration-event-1.0
+  description: >
+    Versioned integration events delivered as signed HTTP webhook POST requests (ADR 0026), not
+    through a message broker -- this platform is a modular monolith (ADR 0001) with no Kafka or
+    similar infrastructure. Every event is wrapped in one shared envelope whose `schemaVersion`
+    equals this document's `info.version`. There is exactly one shared envelope version across all
+    event types (see `outbox.IntegrationEventSchema.CURRENT_VERSION`), so a breaking change to any
+    single event's data payload requires bumping this one shared version -- consumers key off it as
+    a single dial, not a per-event-type version. See ADR 0029 for the full versioning policy and
+    how this document relates to the automated compatibility gate (`IntegrationEventContractTest`).
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  subscriberEndpoint:
+    host: '{subscriberUrl}'
+    protocol: https
+    description: >
+      Each active `webhook.webhook_subscription` row's own configured URL is the delivery target --
+      there is no single fixed server; a subscriber registers their own endpoint via
+      `POST /api/v1/webhooks`.
+    variables:
+      subscriberUrl:
+        description: The subscription's registered callback URL.
+
+channels:
+  protectionDecisionMade:
+    address: /
+    messages:
+      protectionDecisionMade:
+        $ref: '#/components/messages/ProtectionDecisionMade'
+  challengeCompleted:
+    address: /
+    messages:
+      challengeCompleted:
+        $ref: '#/components/messages/ChallengeCompleted'
+  policyActivated:
+    address: /
+    messages:
+      policyActivated:
+        $ref: '#/components/messages/PolicyActivated'
+  recoveryCompleted:
+    address: /
+    messages:
+      recoveryCompleted:
+        $ref: '#/components/messages/RecoveryCompleted'
+  recoveryManualReviewRequired:
+    address: /
+    messages:
+      recoveryManualReviewRequired:
+        $ref: '#/components/messages/RecoveryManualReviewRequired'
+  auditChainIntegrityFailed:
+    address: /
+    messages:
+      auditChainIntegrityFailed:
+        $ref: '#/components/messages/AuditChainIntegrityFailed'
+
+operations:
+  sendProtectionDecisionMade:
+    action: send
+    channel:
+      $ref: '#/channels/protectionDecisionMade'
+  sendChallengeCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/challengeCompleted'
+  sendPolicyActivated:
+    action: send
+    channel:
+      $ref: '#/channels/policyActivated'
+  sendRecoveryCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/recoveryCompleted'
+  sendRecoveryManualReviewRequired:
+    action: send
+    channel:
+      $ref: '#/channels/recoveryManualReviewRequired'
+  sendAuditChainIntegrityFailed:
+    action: send
+    channel:
+      $ref: '#/channels/auditChainIntegrityFailed'
+
+components:
+  messages:
+    ProtectionDecisionMade:
+      headers:
+        $ref: '#/components/schemas/WebhookHeaders'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              data:
+                $ref: '#/components/schemas/ProtectionDecisionMadeData'
+    ChallengeCompleted:
+      headers:
+        $ref: '#/components/schemas/WebhookHeaders'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              data:
+                $ref: '#/components/schemas/ChallengeCompletedData'
+    PolicyActivated:
+      headers:
+        $ref: '#/components/schemas/WebhookHeaders'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              data:
+                $ref: '#/components/schemas/PolicyActivatedData'
+    RecoveryCompleted:
+      headers:
+        $ref: '#/components/schemas/WebhookHeaders'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              data:
+                $ref: '#/components/schemas/RecoveryCompletedData'
+    RecoveryManualReviewRequired:
+      headers:
+        $ref: '#/components/schemas/WebhookHeaders'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              data:
+                $ref: '#/components/schemas/RecoveryManualReviewRequiredData'
+    AuditChainIntegrityFailed:
+      headers:
+        $ref: '#/components/schemas/WebhookHeaders'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              data:
+                $ref: '#/components/schemas/AuditChainIntegrityFailedData'
+
+  schemas:
+    WebhookHeaders:
+      type: object
+      required: [X-Webhook-Signature, X-Webhook-Timestamp, X-Webhook-Delivery-Id, X-Webhook-Schema-Version]
+      properties:
+        X-Webhook-Signature:
+          type: string
+          description: Hex-encoded HMAC-SHA256 over `timestamp.deliveryId.rawBody`, keyed by this subscription's own secret.
+        X-Webhook-Timestamp:
+          type: string
+          description: Unix epoch seconds; receivers must reject deliveries outside a configured skew.
+        X-Webhook-Delivery-Id:
+          type: string
+          description: Stable across retries; receivers must reject a previously seen ID.
+        X-Webhook-Schema-Version:
+          type: string
+
+    Envelope:
+      type: object
+      required: [eventId, schemaVersion, correlationId, occurredAt, data]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        schemaVersion:
+          type: string
+          const: integration-event-1.0
+        correlationId:
+          type: string
+          description: The aggregate id this event concerns (decision id, challenge id, policy key, recovery id, or "fromSequence-toSequence" for chain breaks).
+        occurredAt:
+          type: string
+          format: date-time
+        data:
+          type: object
+
+    ProtectionDecisionMadeData:
+      type: object
+      required: [decisionId, protectionRequestId, outcome, riskScore, policyKey, policyVersion, decidedAt, degraded, clientId, subjectToken]
+      properties:
+        decisionId: {type: string, format: uuid}
+        protectionRequestId: {type: string, format: uuid}
+        outcome: {type: string, enum: [ALLOW, REQUIRE_STEP_UP, START_RECOVERY, TEMPORARILY_BLOCK]}
+        riskScore: {type: integer}
+        policyKey: {type: string}
+        policyVersion: {type: string}
+        decidedAt: {type: string, format: date-time}
+        degraded: {type: boolean}
+        degradationReason: {type: string, nullable: true}
+        clientId: {type: string}
+        subjectToken:
+          type: string
+          description: HMAC-SHA256 pseudonym of the account reference (ADR 0012). The raw accountReference field is never included on the wire.
+
+    ChallengeCompletedData:
+      type: object
+      required: [challengeId, challengeType, finalStatus, completedAt, subjectToken]
+      properties:
+        challengeId: {type: string, format: uuid}
+        challengeType: {type: string, enum: [TOTP_SIMULATED, EMAIL_SIMULATED, WEBAUTHN_SIMULATED]}
+        finalStatus: {type: string, enum: [PENDING, CHALLENGED, VERIFIED, CONSUMED, FAILED, EXPIRED]}
+        completedAt: {type: string, format: date-time}
+        subjectToken: {type: string}
+
+    PolicyActivatedData:
+      type: object
+      required: [policyKey, version, activatedAt]
+      description: Carries no account reference; not pseudonymized.
+      properties:
+        policyKey: {type: string}
+        version: {type: string}
+        activatedAt: {type: string, format: date-time}
+
+    RecoveryCompletedData:
+      type: object
+      required: [recoveryId, eventType, completedAt, subjectToken]
+      properties:
+        recoveryId: {type: string, format: uuid}
+        eventType: {type: string, enum: [LOGIN, PASSWORD_RESET, CREDENTIAL_CHANGE, DEVICE_TRUST_RESET]}
+        completedAt: {type: string, format: date-time}
+        subjectToken: {type: string}
+
+    RecoveryManualReviewRequiredData:
+      type: object
+      required: [recoveryId, classification, requiredAt, subjectToken]
+      properties:
+        recoveryId: {type: string, format: uuid}
+        classification: {type: string, enum: [IMMEDIATE, DELAYED, MANUAL_REVIEW]}
+        requiredAt: {type: string, format: date-time}
+        subjectToken: {type: string}
+
+    AuditChainIntegrityFailedData:
+      type: object
+      required: [fromSequence, toSequence, breaks, detectedAt]
+      description: Carries no account reference; not pseudonymized.
+      properties:
+        fromSequence: {type: integer, format: int64}
+        toSequence: {type: integer, format: int64}
+        breaks:
+          type: array
+          items:
+            type: object
+            required: [chainSequence, reason]
+            properties:
+              chainSequence: {type: integer, format: int64}
+              reason: {type: string}
+        detectedAt: {type: string, format: date-time}

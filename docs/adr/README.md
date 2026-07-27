@@ -34,6 +34,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0026](0026-signed-webhook-delivery-with-replay-protection.md) | Accepted | Deliver signed, replay-protected webhooks through a new `OutboxEventPublisher` backed by the existing outbox retry/backoff/dead-letter loop, with per-subscription secrets and an in-process demo receiver (`audit.integrity.failed` deferred) | Issue #47 |
 | [0027](0027-tamper-evident-audit-hash-chaining.md) | Accepted | Chain `audit.decision_trace` rows by content hash (application-assigned sequence, advisory-lock-serialized append), with bounded-range verification, a forward-only checkpointed integrity job, and operator diagnostics; completes ADR 0026's deferred `audit.integrity.failed` | Issue #40 |
 | [0028](0028-signed-redacted-decision-evidence-bundles.md) | Accepted | Compose the audit trace, replay, and audit-chain proof into one canonical-JSON evidence bundle, redact the raw account reference via the existing pseudonymization scheme, sign it with a new per-boot RSA signer, and audit every export (who, why) | Issue #42 |
+| [0029](0029-api-and-event-compatibility-gates.md) | Accepted | Detect breaking OpenAPI/event changes via hand-rolled structural comparators (no new dependency), a versioning policy, a self-bootstrapping baseline (no tagged release exists yet), consumer contract tests, and a build-artifact contract upload | Issue #52 |
 
 ## ADR lifecycle
 
