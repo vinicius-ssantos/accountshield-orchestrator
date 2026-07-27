@@ -34,7 +34,7 @@ Metric dimensions must come from code-owned allowlists. User-controlled strings 
 
 ## Web Vitals
 
-The browser reports only the standard `CLS`, `FCP`, `INP`, `LCP`, and `TTFB` metrics to the same-origin `/api/telemetry/web-vitals` endpoint.
+The browser reports only the standard `CLS`, `FCP`, `INP`, `LCP`, and `TTFB` metrics to the narrow same-origin `/api/bff/telemetry/web-vitals` endpoint.
 
 Accepted dimensions are limited to:
 
