@@ -21,6 +21,6 @@ jobs:
       # coverage/lint thresholds, this needs no pre-existing baseline to be a safe hard gate
       # (ADR 0031).
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
