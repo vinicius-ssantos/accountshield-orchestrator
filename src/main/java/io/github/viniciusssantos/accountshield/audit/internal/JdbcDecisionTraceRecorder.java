@@ -30,8 +30,13 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
 
     private static final String LOCK_CHAIN = "SELECT pg_advisory_xact_lock(?)";
 
+    // chain_sequence is nullable for rows written before this chain existed (or, in tests,
+    // fixture rows inserted directly without chain columns) -- Postgres sorts NULL first by
+    // default in DESC order, so those rows must be explicitly excluded or they would be
+    // mistaken for "the last link" and collapse every subsequent sequence back to 1.
     private static final String SELECT_LAST_LINK = """
             SELECT chain_sequence, record_hash FROM audit.decision_trace
+            WHERE chain_sequence IS NOT NULL
             ORDER BY chain_sequence DESC LIMIT 1
             """;
 

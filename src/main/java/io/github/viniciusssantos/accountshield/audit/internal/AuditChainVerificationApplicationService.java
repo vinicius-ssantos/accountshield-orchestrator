@@ -39,8 +39,12 @@ public class AuditChainVerificationApplicationService implements AuditChainVerif
             WHERE decision_id = ? ORDER BY ordinal
             """;
 
+    // chain_sequence is nullable for rows written before the chain existed (or fixture rows in
+    // tests inserted without chain columns) -- exclude them explicitly, since Postgres sorts
+    // NULL first by default in DESC order and they are not part of the chain at all.
     private static final String SELECT_TIP = """
             SELECT chain_sequence, record_hash, decided_at FROM audit.decision_trace
+            WHERE chain_sequence IS NOT NULL
             ORDER BY chain_sequence DESC LIMIT 1
             """;
 
