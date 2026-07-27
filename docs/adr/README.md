@@ -33,6 +33,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0025](0025-envelope-encryption-key-rotation-and-crypto-shredding.md) | Accepted | Envelope-encrypt `protection_request.account_reference` with a per-subject key wrapped by a versioned KEK, rotate keys via a bounded rewrap job, and support crypto-shredding (deliberately scoped to `protection_request`; `decision_trace` and other tables deferred) | Issue #49 |
 | [0026](0026-signed-webhook-delivery-with-replay-protection.md) | Accepted | Deliver signed, replay-protected webhooks through a new `OutboxEventPublisher` backed by the existing outbox retry/backoff/dead-letter loop, with per-subscription secrets and an in-process demo receiver (`audit.integrity.failed` deferred) | Issue #47 |
 | [0027](0027-tamper-evident-audit-hash-chaining.md) | Accepted | Chain `audit.decision_trace` rows by content hash (application-assigned sequence, advisory-lock-serialized append), with bounded-range verification, a forward-only checkpointed integrity job, and operator diagnostics; completes ADR 0026's deferred `audit.integrity.failed` | Issue #40 |
+| [0028](0028-signed-redacted-decision-evidence-bundles.md) | Accepted | Compose the audit trace, replay, and audit-chain proof into one canonical-JSON evidence bundle, redact the raw account reference via the existing pseudonymization scheme, sign it with a new per-boot RSA signer, and audit every export (who, why) | Issue #42 |
 
 ## ADR lifecycle
 

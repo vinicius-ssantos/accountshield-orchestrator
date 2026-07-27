@@ -102,3 +102,6 @@ accountshield:
       verification:
         batch-size: 500
         fixed-delay: 1h
+  evidence:
+    signing:
+      key-size: 2048

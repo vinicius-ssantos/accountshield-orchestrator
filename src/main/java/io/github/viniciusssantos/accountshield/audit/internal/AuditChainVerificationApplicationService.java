@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.audit.internal;
 
 import io.github.viniciusssantos.accountshield.audit.AuditChainBreak;
 import io.github.viniciusssantos.accountshield.audit.AuditChainHasher;
+import io.github.viniciusssantos.accountshield.audit.AuditChainRecordProof;
 import io.github.viniciusssantos.accountshield.audit.AuditChainRootHash;
 import io.github.viniciusssantos.accountshield.audit.AuditChainVerificationResult;
 import io.github.viniciusssantos.accountshield.audit.AuditChainVerificationService;
@@ -32,6 +33,12 @@ public class AuditChainVerificationApplicationService implements AuditChainVerif
 
     private static final String SELECT_HASH_AT_SEQUENCE = """
             SELECT record_hash FROM audit.decision_trace WHERE chain_sequence = ?
+            """;
+
+    private static final String SELECT_PROOF_BY_DECISION_ID = """
+            SELECT chain_sequence, previous_hash, record_hash, hash_algorithm, canonical_schema_version
+            FROM audit.decision_trace
+            WHERE id = ? AND chain_sequence IS NOT NULL
             """;
 
     private static final String SELECT_REASONS = """
@@ -91,6 +98,22 @@ public class AuditChainVerificationApplicationService implements AuditChainVerif
         return jdbcTemplate.query(SELECT_TIP, (rs, rowNum) -> new AuditChainRootHash(
                         rs.getLong("chain_sequence"), rs.getString("record_hash"),
                         rs.getTimestamp("decided_at").toInstant()))
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AuditChainRecordProof> findProof(UUID decisionId) {
+        Objects.requireNonNull(decisionId, "decisionId must not be null");
+
+        return jdbcTemplate.query(SELECT_PROOF_BY_DECISION_ID, (rs, rowNum) -> new AuditChainRecordProof(
+                        rs.getLong("chain_sequence"),
+                        rs.getString("previous_hash"),
+                        rs.getString("record_hash"),
+                        rs.getString("hash_algorithm"),
+                        rs.getString("canonical_schema_version")),
+                        decisionId)
                 .stream()
                 .findFirst();
     }

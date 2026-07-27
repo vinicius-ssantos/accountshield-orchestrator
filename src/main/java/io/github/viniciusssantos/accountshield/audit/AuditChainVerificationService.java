@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshield.audit;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface AuditChainVerificationService {
 
@@ -13,4 +14,10 @@ public interface AuditChainVerificationService {
 
     /** The current tip of the chain, or empty if no chained record exists yet. */
     Optional<AuditChainRootHash> currentRootHash();
+
+    /**
+     * The chain proof for one specific decision, or empty if the decision does not exist or was
+     * recorded before chaining existed (nullable chain columns).
+     */
+    Optional<AuditChainRecordProof> findProof(UUID decisionId);
 }

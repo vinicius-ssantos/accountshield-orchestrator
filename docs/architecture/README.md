@@ -60,6 +60,10 @@ Owns explicit recovery-authorization persistence and consumption, the secure rec
 
 Owns deterministic replay of historical decisions and shadow-policy evaluation against candidate policy versions. Both operations are side-effect-free. See ADR 0006. Replay re-runs the recorded risk algorithm (not just the recorded score) via a versioned `risk.RiskAlgorithmRegistry`, reconstructing the historical signal envelope from the persisted decision trace (ADR 0019).
 
+### `evidence`
+
+Composes the audit trace, a deterministic replay, and the decision's audit-chain proof into one canonical, hashed, and signed evidence bundle for a single historical decision — itself read-only, plus one append-only audit-log write of its own. See ADR 0028.
+
 ## Module interaction and dependency direction
 
 Runtime flow and source-code dependency are documented separately. An event can flow from a publisher to a consumer while the consumer depends on the publisher-owned public event contract.
@@ -98,6 +102,9 @@ recovery   -> protection public RecoveryAuthorizationIssued event
 simulation -> audit public API
 simulation -> policy public API
 simulation -> risk public API
+evidence   -> audit public API
+evidence   -> simulation public API
+evidence   -> outbox public AccountPseudonymizer
 outbox     -> public domain events from producing modules
 ```
 
@@ -176,6 +183,7 @@ Logs must not contain forbidden data. Sensitive values require explicit structur
 | `policy.client_policy_route` | Internal (client id + policy key, no account data) | Retained indefinitely | Simple client/event-to-policy-key mapping, not a governed lifecycle artifact |
 | `audit.decision_trace` / `audit.decision_reason` | Sensitive (decision evidence) | Retained indefinitely | Append-only compliance evidence; no automated deletion by design. `decision_trace` rows written after ADR 0027 also carry a tamper-evident hash chain (`chain_sequence`/`previous_hash`/`record_hash`) |
 | `audit.chain_verification_checkpoint` | Internal (a single sequence number, no account data) | Retained indefinitely; single-row table | Mutable operational bookkeeping for `AuditChainIntegrityCheckJob`, ADR 0027 |
+| `audit.evidence_export_log` | Internal (actor, reason, content hash — no raw account data) | Retained indefinitely | Append-only (reuses `audit.reject_audit_mutation()`); records who exported a signed evidence bundle and why, ADR 0028 |
 | `challenge.challenge_plan` | Sensitive (account reference); code is hashed, never stored raw | Terminal rows (VERIFIED/CONSUMED/FAILED/EXPIRED) purged after `accountshield.challenge.retention.terminal-ttl` (default 1 day) past expiry | `ChallengePlanRetentionCleanup` (`challenge/internal`), mirrors the recovery-flow job below |
 | `recovery.recovery_flow` | Sensitive (account reference, risk data) | Terminal rows purged after `accountshield.recovery.retention.terminal-ttl` (default 30 days) | `RecoveryFlowRetentionCleanup` (`recovery/internal`), added in issue #18 |
 | `recovery.recovery_authorization` | Sensitive (account reference) | Purged after `accountshield.recovery.authorization-retention.expired-ttl` (default 30 days) past `expires_at`, consumed or not | `RecoveryAuthorizationRetentionCleanup` (`recovery/internal`), ADR 0024 |
@@ -208,6 +216,10 @@ Domain events stay in-process only and are never logged with raw account identif
 ### Tamper-evident hash chaining
 
 Every `audit.decision_trace` row written since ADR 0027 carries `chain_sequence` (application-assigned, not a database `SERIAL`), `previous_hash`, `record_hash`, `hash_algorithm`, and `canonical_schema_version`. `JdbcDecisionTraceRecorder` computes each row's hash from its own content plus its `decision_reason` children and the previous row's hash, under a Postgres advisory transaction lock (`pg_advisory_xact_lock`) that serializes concurrent decisions into one unambiguous chain, using the same fixed-field-order `DataOutputStream`/SHA-256 canonical-hash pattern `protection.RequestFingerprint` established (ADR 0020). `audit.AuditChainVerificationService.verifyRange` recomputes and checks a bounded range; `AuditChainIntegrityCheckJob` advances a single-row checkpoint (`audit.chain_verification_checkpoint`) forward through history and does not advance past a detected break, publishing `AuditChainIntegrityFailed` (routed through the outbox to any webhook subscription, completing ADR 0026's deferred `audit.integrity.failed`) and exposing `accountshield.audit.chain.verified`/`accountshield.audit.chain.checkpoint` metrics. `GET /api/v1/audit/chain/verify` and `/root-hash` (`SECURITY_OPERATOR`) provide on-demand verification and the current chain tip. This detects tampering that bypasses the append-only trigger; it does not defend against a sustained, privileged attacker who also recomputes downstream hashes -- see ADR 0027's Limitations section.
+
+### Signed and redacted evidence bundles
+
+`evidence.EvidenceBundleService.exportBundle` composes `audit.DecisionTraceQuery`, `simulation.SimulationService.replay`, and `audit.AuditChainVerificationService.findProof` (a new single-decision chain-proof lookup, ADR 0028) into one `EvidenceBundleContent`: decision metadata, normalized input, risk reasons, policy/algorithm versions, the replay result, and the audit-chain proof if the decision was recorded after ADR 0027. The raw account reference is replaced with `outbox.AccountPseudonymizer`'s pseudonym (reused, not reimplemented); `normalizedContext` is coerced to a sorted map so canonical JSON is byte-identical across repeated exports of the same decision. `EvidenceBundleSigner` (a new, separate per-boot RSA keypair, `SHA256withRSA`, distinct from `LocalJwtKeys`) signs the canonical content, and the resulting `EvidenceManifest` embeds the signer's public key so a bundle is independently verifiable without access to the issuing system. Every export inserts one row into the append-only `audit.evidence_export_log` recording the actor (from the authenticated principal, not client input) and reason. `POST /api/v1/evidence/export` and `/verify` (`SECURITY_OPERATOR`) are the operator surface; `verify` is self-contained, requiring no database access. See ADR 0028's Limitations for what a self-contained `verify` can and cannot prove about the embedded key's authenticity.
 
 ### Webhook delivery
 
