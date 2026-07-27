@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Blocks only NEW additions in this PR's diff at high/critical severity -- unlike
       # coverage/lint thresholds, this needs no pre-existing baseline to be a safe hard gate
