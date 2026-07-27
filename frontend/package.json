@@ -12,6 +12,8 @@
     "typegen": "next typegen",
     "openapi:generate": "node scripts/generate-openapi-client.mjs",
     "openapi:check": "node scripts/generate-openapi-client.mjs --check",
+    "architecture:test": "node scripts/test-architecture-rules.mjs",
+    "architecture:check": "node scripts/check-architecture.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
