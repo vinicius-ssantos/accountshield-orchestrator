@@ -1,5 +1,3 @@
-import "server-only";
-
 import { BffError, createSafeLogRecord } from "./foundation";
 
 export type BffOutcome =
