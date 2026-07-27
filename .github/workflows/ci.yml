@@ -33,9 +33,12 @@ jobs:
       # "resilience"-tagged tests (fault-injection: real container startup, connection-timeout
       # waits) are excluded from this default gate and run in full every night instead
       # (nightly.yml, ADR 0032) -- the stable/default subset vs. full-suite split issue #39 asks
-      # for.
+      # for. "benchmark"-tagged tests (issue #50, ADR 0035: measurement-grade capacity numbers,
+      # tens of seconds each) are excluded the same way; a small untagged
+      # CapacitySmokeBenchmarkTest still runs here, proving the harness itself works on every PR
+      # without gating on noisy shared-runner timing.
       - name: Verify
-        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience
+        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience,benchmark
 
       - name: Assemble generated contracts
         if: always()
@@ -71,6 +74,17 @@ jobs:
         with:
           name: scenario-lab-report
           path: target/scenario-reports/**
+          retention-days: 90
+
+      # Issue #50 (ADR 0035): CapacitySmokeBenchmarkTest's tiny report, produced on every PR --
+      # the full measurement-grade benchmark reports (target/benchmark-reports/*.md, same
+      # directory) only exist on the nightly workflow, where the "benchmark"-tagged suite runs.
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report
+          path: target/benchmark-reports/**
           retention-days: 90
 
       # Real per-tag GitHub Release attachment deferred: no tags/releases exist yet in this repo

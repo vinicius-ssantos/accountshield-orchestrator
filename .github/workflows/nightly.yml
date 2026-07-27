@@ -27,11 +27,20 @@ jobs:
 
       # No -DexcludedGroups here, unlike ci.yml's default gate (ADR 0032): this is the "nightly
       # workflows run the full suite" half of issue #39's acceptance criterion, exercising the
-      # slower fault-injection (Toxiproxy) scenarios ci.yml's default gate skips. -Djqwik.tries
+      # slower fault-injection (Toxiproxy) scenarios ci.yml's default gate skips, plus the
+      # measurement-grade "benchmark"-tagged capacity suite (issue #50, ADR 0035). -Djqwik.tries
       # .default overrides src/test/resources/junit-platform.properties' bounded default (200)
       # for deeper property-based fuzzing (issue #53, ADR 0033).
       - name: Verify (full suite, deeper property-based fuzzing)
         run: mvn --batch-mode --no-transfer-progress verify -Djqwik.tries.default=2000
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-benchmark-report
+          path: target/benchmark-reports/**
+          retention-days: 90
 
       - name: Summarize test failure causes
         if: failure()
