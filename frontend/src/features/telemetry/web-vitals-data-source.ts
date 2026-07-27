@@ -1,6 +1,6 @@
 import type { SafeWebVital } from "./web-vitals-core";
 
-const ENDPOINT = "/api/telemetry/web-vitals";
+const ENDPOINT = "/api/bff/telemetry/web-vitals";
 
 export function sendWebVital(metric: SafeWebVital): void {
   const body = JSON.stringify(metric);
