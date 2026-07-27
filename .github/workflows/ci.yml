@@ -63,6 +63,16 @@ jobs:
           path: target/site/jacoco/**
           retention-days: 90
 
+      # Issue #54 (ADR 0034): the adversarial account-takeover scenario lab's decision-timeline
+      # report -- "results can feed demo dashboards".
+      - name: Upload scenario lab report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scenario-lab-report
+          path: target/scenario-reports/**
+          retention-days: 90
+
       # Real per-tag GitHub Release attachment deferred: no tags/releases exist yet in this repo
       # (ADR 0031, mirrors ADR 0029's identical bootstrap reasoning for contract baselines).
       - name: Upload CycloneDX SBOM
