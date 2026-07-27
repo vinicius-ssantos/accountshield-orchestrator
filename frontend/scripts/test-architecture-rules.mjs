@@ -103,6 +103,10 @@ await expectRule("generic BFF proxy", "ARCH006", {
   "src/app/api/bff/[...path]/route.ts": 'export async function GET(request) { const path = new URL(request.url).searchParams.get("path"); return fetch(path); }\n',
 });
 
+await expectRule("request-derived proxy destination", "ARCH006", {
+  "src/app/api/bff/proxy/route.ts": 'export async function GET(request) { return fetch(new URL(request.url)); }\n',
+});
+
 await expectRule("read-only mutation", "ARCH007", {
   "src/features/decisions/service.ts": 'import { create } from "@/generated/openapi-client";\nexport const submit = create;\n',
   "src/generated/openapi-client.ts": 'export function create(transport) { return transport.request({ method: "POST", path: "/decisions" }); }\n',
