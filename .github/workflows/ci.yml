@@ -118,7 +118,7 @@ jobs:
       # images this Dockerfile uses, so this does not fail the build yet -- results still appear
       # in the repository's code scanning tab. Revisit once a baseline is established.
       - name: Scan image for known vulnerabilities (advisory)
-        uses: aquasecurity/trivy-action@v0.33.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: accountshield-orchestrator:ci

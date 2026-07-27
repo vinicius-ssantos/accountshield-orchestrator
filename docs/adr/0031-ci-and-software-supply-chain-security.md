@@ -74,6 +74,20 @@ and whether gitleaks' default entropy/pattern rules false-positive on those coul
 without actually running it -- no local Docker daemon was available this session to test the
 action, and there's no equivalent of `./mvnw` to dry-run a GitHub Action locally.
 
+### The dependency review gate caught a real supply-chain compromise on its first real run
+
+The first CI run of this PR pinned `aquasecurity/trivy-action@v0.33.0` (a real, existing tag at the
+time). `dependency-review-action` failed the PR with a **critical**-severity finding:
+[GHSA-69fq-xp46-6x23](https://github.com/advisories/GHSA-69fq-xp46-6x23) -- a March 2026
+supply-chain compromise in which attackers used stolen credentials to force-push malicious commits
+(a credential-stealing `entrypoint.sh` payload) onto 76 of 77 existing `trivy-action` version tags,
+including `v0.33.0`. Only `v0.35.0` and later are safe, protected by GitHub's immutable-releases
+feature (which prevents a published tag from ever being force-pushed again). Both Trivy steps in
+this PR now use `v0.35.0`. This is exactly the acceptance criterion "pull requests fail on new
+critical/high dependency vulnerabilities" working as intended, on its very first real exercise --
+not a hypothetical benefit. Full SHA-pinning (the advisory's own strongest recommendation) was not
+applied on top of the immutable tag, given effort already spent on this PR; noted as a revisit item.
+
 ### CodeQL: verified locally up to the point CI diverges
 
 `codeql.yml` builds via `mvn -DskipTests package` (verified locally, see above) before CodeQL's own
@@ -160,6 +174,10 @@ revisit item rather than bundled into this already-broad PR.
 - once Trivy's filesystem/image scans and Gitleaks have each produced at least one clean run (or a
   triaged, allowlisted set of accepted findings), remove their advisory `exit-code`/
   `continue-on-error` settings and let them gate for real;
+- pin `aquasecurity/trivy-action` (and ideally every third-party action in these workflows) to a
+  full commit SHA rather than the `v0.35.0` tag, per GHSA-69fq-xp46-6x23's own strongest
+  recommendation -- the immutable-release tag is a real mitigation but SHA-pinning is stronger
+  still;
 - add SpotBugs and Checkstyle in a dedicated follow-up, with enough budget to actually tune
   suppression rules against this codebase's real, current state rather than guessing;
 - when the first git tag/GitHub Release is cut, attach the CycloneDX SBOM to it directly (mirrors
