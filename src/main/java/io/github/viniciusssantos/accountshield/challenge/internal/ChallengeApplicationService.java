@@ -15,7 +15,6 @@ import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateException;
 import io.github.viniciusssantos.accountshield.challenge.internal.persistence.ChallengePlanEntity;
 import io.github.viniciusssantos.accountshield.challenge.internal.persistence.ChallengePlanRepository;
-import io.micrometer.observation.annotation.Observed;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -54,7 +53,6 @@ class ChallengeApplicationService implements ChallengeService {
 
     @Override
     @Transactional
-    @Observed(name = "accountshield.challenge.create")
     public ChallengePlan create(CreateChallengeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 

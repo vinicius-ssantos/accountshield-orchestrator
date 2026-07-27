@@ -85,25 +85,32 @@ gained a real p50/p95/p99 panel plus new outbox/retention panels (dead-lettered 
 pending age, and `accountshield_retention_purged_total` broken down by the `job` tag, covering
 outbox, challenge, recovery, and idempotency retention jobs from metrics that already existed).
 
-### Micrometer Tracing + OTLP + `@Observed`, with Jaeger receiving OTLP directly
+### Micrometer Tracing + OTLP, with Jaeger receiving OTLP directly -- automatic spans only
 
-`micrometer-tracing-bridge-otel`, `opentelemetry-exporter-otlp`, and `spring-boot-starter-aop` were
-added (all managed by Spring Boot's own dependency management -- no explicit versions, matching
-every other Spring-managed dependency already in `pom.xml`). A genuinely surprising find during
-investigation: `application.yml`'s log pattern *already* contained `%X{traceId:-},%X{spanId:-}` MDC
-placeholders, apparently added in anticipation of tracing that was never wired up -- adding the
-bridge is closer to completing an already-declared intent than introducing a new one.
+`micrometer-tracing-bridge-otel` and `opentelemetry-exporter-otlp` were added (both managed by
+Spring Boot's own dependency management -- no explicit versions, matching every other Spring-
+managed dependency already in `pom.xml`). A genuinely surprising find during investigation:
+`application.yml`'s log pattern *already* contained `%X{traceId:-},%X{spanId:-}` MDC placeholders,
+apparently added in anticipation of tracing that was never wired up -- adding the bridge is closer
+to completing an already-declared intent than introducing a new one.
 `management.tracing.sampling.probability` defaults to full (1.0) sampling for this demo/local-scale
-system; `management.observations.annotations.enabled: true` activates Spring Boot's `ObservedAspect`
-for `@Observed`-annotated methods. One method per module named in the issue's scope now carries
-`@Observed`: `DeterministicRiskAssessmentService.assess`, `DatabasePolicyEvaluationService.evaluate`,
-`JdbcDecisionTraceRecorder.record`, `ChallengeApplicationService.create`,
-`RecoveryApplicationService.initiate`, and `OutboxRelay.dispatchPending` (the `@Scheduled` method
-itself, not the private `dispatchSingle` it calls -- Spring AOP proxies cannot intercept
-self-invocation, so annotating a private method called only via `this.` would have been silently
-inert). `compose.yaml` gained a single `jaeger` (all-in-one) service; a separate OpenTelemetry
+system. `compose.yaml` gained a single `jaeger` (all-in-one) service; a separate OpenTelemetry
 Collector was deliberately not added, since modern Jaeger accepts OTLP directly on 4317/4318 and a
 collector hop adds pipeline flexibility this scope has no use for.
+
+**`spring-boot-starter-aop` plus `@Observed` per-module spans were attempted and reverted.** CI
+failed with `'dependencies.dependency.version' for org.springframework.boot:spring-boot-starter-aop
+:jar is missing` -- this project's `spring-boot-starter-parent:4.1.0` does not manage a version for
+that artifact (every other new dependency in this PR resolved fine; only this one was reported).
+Since this environment cannot run Maven to discover the correct artifact name/version before
+pushing, and a second guess-and-push round trip for a non-essential piece of this issue was not
+worth the risk, `spring-boot-starter-aop` and all six `@Observed` annotations
+(`DeterministicRiskAssessmentService.assess`, `DatabasePolicyEvaluationService.evaluate`,
+`JdbcDecisionTraceRecorder.record`, `ChallengeApplicationService.create`,
+`RecoveryApplicationService.initiate`, `OutboxRelay.dispatchPending`) were removed. Tracing in this
+PR is therefore limited to Spring Boot's *automatic* instrumentation (an HTTP-server span per
+inbound request, populated via the bridge with no extra code), not the named per-module sub-spans
+the issue's acceptance criteria described. See Revisit criteria.
 
 Test `application.yml` disables OTLP export (`management.otlp.tracing.export.enabled: false`) so
 `mvn verify` never attempts a real network call to a nonexistent collector during CI, while still
@@ -139,10 +146,12 @@ the transaction manager's own error handling) rather than an oversight.
   it.
 - **An OpenTelemetry Collector between the app and Jaeger** -- rejected: modern Jaeger accepts OTLP
   natively; a collector adds a pipeline-processing hop with no consumer in this scope.
-- **Wiring `@Observed` onto `OutboxRelay.dispatchSingle`** (the actual per-event dispatch logic)
-  -- rejected: it's `private` and called via `this.dispatchSingle(...)`, which bypasses Spring's
-  proxy entirely; the annotation would compile but never fire. `dispatchPending` (the `@Scheduled`
-  entry point, invoked by Spring's scheduler through the proxy) was used instead.
+- **`spring-boot-starter-aop` + `@Observed` per-module spans** -- attempted, then reverted: CI
+  reported this artifact has no managed version under `spring-boot-starter-parent:4.1.0` (every
+  other new dependency in this PR resolved without issue). Rather than guess at a replacement
+  artifact/version through further unverifiable push-and-check round trips for a non-essential part
+  of this issue, the annotations and the dependency were removed; automatic HTTP-request-level
+  tracing (from the bridge alone) remains. See Revisit criteria.
 
 ## Consequences
 
@@ -153,19 +162,21 @@ the transaction manager's own error handling) rather than an oversight.
   broken a different, deliberate security-logging guarantee;
 - a real, intentionally-bucketed latency `Timer` now backs the SLO doc and dashboard instead of a
   metric that could never have produced a meaningful percentile;
-- tracing is wired end-to-end (bridge, OTLP export, `@Observed` spans across all six named modules,
-  Jaeger in Compose) using entirely Spring-Boot-managed dependency versions and a well-established
-  configuration recipe, with test-time export disabled so CI never depends on a running collector.
+- tracing is wired end-to-end (bridge, OTLP export, Jaeger in Compose) using Spring-Boot-managed
+  dependency versions, with test-time export disabled so CI never depends on a running collector.
 
 ### Negative
 
 - this issue's full scope also asked for genuinely new Grafana dashboards *per* outbox/challenge/
   recovery/idempotency concern; this PR added focused panels to the existing single dashboard
   rather than four new dashboard files, a smaller deliverable than the literal ask;
-  the tracing/`@Observed` wiring cannot be validated by actually running the application or Compose
-  stack in this environment -- it follows a well-documented Spring Boot recipe, but CI (`mvn
-  verify`) is the first real compilation/wiring check, consistent with every other issue this
-  session.
+- named per-module spans (`@Observed` on risk/policy/audit/challenge/recovery/outbox) were attempted
+  and reverted after `spring-boot-starter-aop` failed to resolve in CI -- tracing in this PR only
+  covers automatic HTTP-request-level spans, not "a demo request followed across decision, audit,
+  challenge/recovery, and outbox spans" as the issue's acceptance criteria describe;
+- the tracing wiring that *does* remain cannot be validated by actually running the application or
+  Compose stack in this environment -- CI (`mvn verify`) is the first real compilation/wiring check,
+  consistent with every other issue this session.
 
 ## Guardrails
 
@@ -190,6 +201,10 @@ bootstrap mode as of that issue's PR).
 
 ## Revisit criteria
 
+- **find the correct AOP-enabling artifact for this project's Spring Boot version and re-add
+  `@Observed` per-module spans** -- the highest-priority follow-up from this ADR: re-check what
+  `spring-boot-starter-parent:4.1.0` actually calls its AOP starter (or whether `@Observed` support
+  moved elsewhere in this Boot version), then restore the six annotations this PR had to revert;
 - when the `docs/roadmap.md`-deferred per-concern (outbox/challenge/recovery/idempotency)
   dashboards are actually needed as separate files rather than panels on one dashboard;
 - when a real Compose-based end-to-end trace walkthrough (a demo request followed across

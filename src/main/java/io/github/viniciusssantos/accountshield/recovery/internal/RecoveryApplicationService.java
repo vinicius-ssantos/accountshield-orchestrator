@@ -28,7 +28,6 @@ import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInit
 import io.github.viniciusssantos.accountshield.recovery.UnknownRecoveryClassificationRuleException;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowEntity;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowRepository;
-import io.micrometer.observation.annotation.Observed;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -68,7 +67,6 @@ class RecoveryApplicationService implements RecoveryService {
 
     @Override
     @Transactional
-    @Observed(name = "accountshield.recovery.initiate")
     public RecoveryFlow initiate(InitiateRecoveryCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 

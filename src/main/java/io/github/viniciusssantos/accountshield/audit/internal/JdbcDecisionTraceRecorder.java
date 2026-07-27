@@ -4,7 +4,6 @@ import io.github.viniciusssantos.accountshield.audit.AuditChainHasher;
 import io.github.viniciusssantos.accountshield.audit.DecisionReasonContribution;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceCommand;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
-import io.micrometer.observation.annotation.Observed;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
@@ -83,7 +82,6 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    @Observed(name = "accountshield.audit.record")
     public void record(DecisionTraceCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 
