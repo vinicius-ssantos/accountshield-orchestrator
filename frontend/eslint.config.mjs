@@ -32,5 +32,9 @@ export default defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    "scripts/architecture-analyzer.mjs",
+    "scripts/architecture-rules.mjs",
+    "scripts/check-architecture.mjs",
+    "scripts/test-architecture-rules.mjs",
   ]),
 ]);
