@@ -24,6 +24,9 @@ cd ../demo && mvn package
 java -jar target/accountshield-demo.jar
 ```
 
+**IDE note**: this is a standalone Maven project (no reactor) -- import `demo/pom.xml` as its own
+Maven project in your IDE, the same way as `sdk/pom.xml` above.
+
 Or through Docker Compose end to end from the repo root:
 
 ```bash
