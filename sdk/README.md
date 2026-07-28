@@ -18,6 +18,11 @@ cd sdk
 mvn install
 ```
 
+**IDE note**: this is a standalone Maven project (no reactor with the root `pom.xml`) -- opening
+just the repo root will not resolve `tools.jackson.*` or any `accountshieldsdk.*` class here.
+Import `sdk/pom.xml` as its own Maven project in your IDE (IntelliJ: Maven tool window -> `+` ->
+select `sdk/pom.xml`).
+
 Then depend on it:
 
 ```xml

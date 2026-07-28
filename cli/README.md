@@ -18,6 +18,13 @@ Produces `target/accountshield-cli.jar`, an executable fat jar:
 java -jar target/accountshield-cli.jar --help
 ```
 
+**IDE note**: `sdk/`, `demo/`, and `cli/` are standalone Maven projects (no reactor with the root
+`pom.xml`) -- opening just the repo root will not resolve `picocli` or any `accountshieldcli.*`
+class. Import `cli/pom.xml` (and `sdk/pom.xml`, `demo/pom.xml`) as their own Maven projects in your
+IDE (IntelliJ: Maven tool window -> `+` -> select the `pom.xml`), and make sure `sdk` has been
+`mvn install`ed locally first, since `cli` resolves it from your local `~/.m2` repository, not a
+reactor reference.
+
 ## Global options
 
 Every command accepts:

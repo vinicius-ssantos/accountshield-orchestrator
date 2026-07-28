@@ -1,10 +1,21 @@
 # AccountShield delivery roadmap
 
-- Updated: 2026-07-24
+- Updated: 2026-07-28
 - Execution tracker: GitHub issues
 - Portfolio release target: defensible AccountShield 1.0
 
 This roadmap defines dependency order and delivery gates. It does not replace GitHub issues; it explains which work must precede other work and which streams may proceed in parallel.
+
+## Delivery status (2026-07-28)
+
+Gates 1 through 8 are complete: every issue in their primary sequences is closed and merged to
+`main` (verified against each issue's real closing/merge reference; see Epic #15's checklist for
+the full, individually-verified list). Gate 9 is nearly complete: #27 is closed; #28 (this
+document's own governance/release work) is the one remaining open item across the entire roadmap,
+besides #41 (the operator console, a separate, larger frontend/BFF initiative tracked under its own
+dedicated epic and explicitly out of this roadmap's core backend-hardening scope). Do not treat any
+gate below as historical-only context now that the work is done -- the "why this order" reasoning
+in each gate remains the accurate record of the dependency logic that was actually followed.
 
 ## Priority rules
 
@@ -238,13 +249,9 @@ The frontend may remain read-only before Gate 2. Administrative mutations must n
 
 ## Recommended immediate order
 
-The next implementation sequence after this documentation PR is:
-
-```text
-#18 -> #37 -> #31 -> #36 -> #19
-```
-
-`#18` and the recovery portion of `#37` may be delivered together when one migration and one concurrency suite provide a cleaner atomic change. The PR must state which acceptance criteria from each issue are completed and leave any unrelated challenge constraints open.
+All of Gates 1-8's primary-sequence issues are closed. The only remaining work on this roadmap is
+**#28** (repository governance and reproducible release, this document included) and, independently,
+**#41** (operator console, own epic). There is no further backend-hardening sequence to recommend.
 
 ## Parallelization map
 

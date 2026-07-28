@@ -63,21 +63,30 @@ flowchart LR
     Decision --> Events[Transactional Outbox]
 ```
 
-A decision response is expected to expose both the outcome and its reasoning:
+A decision response exposes both the outcome and its reasoning -- this is the real, current
+`POST /api/v1/protection-decisions` response shape (see `docs/demo/curl-walkthrough.md` to produce
+it live):
 
 ```json
 {
-  "decisionId": "dec_01J...",
-  "decision": "REQUIRE_STEP_UP",
-  "riskScore": 78,
-  "riskLevel": "HIGH",
+  "decisionId": "5b1e...-uuid",
+  "protectionRequestId": "a37f...-uuid",
+  "recoveryAuthorizationId": null,
+  "outcome": "REQUIRE_STEP_UP",
+  "riskScore": 60,
+  "riskBand": "MEDIUM",
+  "algorithmVersion": "risk-v1",
+  "policyKey": "account-protection-default",
+  "policyVersion": "1.1.0",
   "reasons": [
-    { "code": "NEW_DEVICE", "contribution": 20 },
     { "code": "IMPOSSIBLE_TRAVEL", "contribution": 35 },
-    { "code": "RECENT_PASSWORD_CHANGE", "contribution": 23 }
+    { "code": "NETWORK_RISK_MEDIUM", "contribution": 10 },
+    { "code": "NEW_DEVICE", "contribution": 15 }
   ],
-  "requiredChallenge": "WEBAUTHN_SIMULATED",
-  "policyVersion": "2026.07.1"
+  "decidedAt": "2026-07-28T00:00:00Z",
+  "challenge": { "challengeId": "c9d4...-uuid", "challengeType": "TOTP_SIMULATED", "expiresAt": "2026-07-28T00:05:00Z" },
+  "degraded": false,
+  "degradationReason": null
 }
 ```
 
@@ -94,9 +103,12 @@ Modules:
 | `policy` | Versioned policy evaluation, lifecycle state machine, and shadow mode |
 | `challenge` | Step-up challenge lifecycle, attempts, expiry, and retry budget |
 | `recovery` | Expirable recovery authorization, secure state machine, risk gates, challenge binding, delay, and manual review |
-| `audit` | Immutable decision trace, replay query API, and security audit events |
-| `outbox` | Transactional outbox with scheduled relay and pluggable publisher port |
-| `simulation` | Deterministic historical replay and shadow-policy comparison |
+| `audit` | Immutable, hash-chained decision trace, replay query API, and security audit events |
+| `outbox` | Transactional outbox with `SKIP LOCKED` claiming, backoff, and dead letters |
+| `webhook` | Signed, replay-protected outbound webhook delivery |
+| `simulation` | Deterministic historical replay, shadow-policy comparison, and policy impact analysis |
+| `evidence` | Signed, redacted decision evidence bundle export and verification |
+| `crypto` | Envelope encryption, KEK rotation, and crypto-shredding for sensitive fields |
 
 Start with the canonical [`documentation map`](docs/README.md). It links the [feature catalog](docs/features/README.md), [architecture baseline](docs/architecture/README.md), [executable invariants](docs/architecture/invariants.md), [ADR index](docs/adr/README.md), and [delivery roadmap](docs/roadmap.md).
 
@@ -120,8 +132,7 @@ Start with the canonical [`documentation map`](docs/README.md). It links the [fe
 - PostgreSQL and Flyway;
 - Testcontainers;
 - ArchUnit;
-- Micrometer metrics and structured logging;
-- OpenTelemetry tracing planned under issue #24;
+- Micrometer metrics, structured logging, and OpenTelemetry tracing (OTLP + Jaeger);
 - Docker Compose;
 - GitHub Actions.
 
@@ -129,35 +140,34 @@ Exact dependency versions are pinned in the build and upgraded through reviewed 
 
 ## Current delivery status
 
-The authoritative capability status is maintained in the [feature catalog](docs/features/README.md). The catalog distinguishes implemented, partial, planned, and deferred behavior and links every known gap to an issue.
+The authoritative capability status is maintained in the [feature catalog](docs/features/README.md), which distinguishes implemented, partial, planned, and deferred behavior and links every known gap to an issue. This section is a summary, not the source of truth -- if it ever disagrees with the feature catalog, the feature catalog wins.
 
-### Implemented foundation
+### Implemented
 
 - modular-monolith boundaries verified by Spring Modulith and architecture tests;
 - PostgreSQL/Flyway source of truth with Hibernate schema validation;
-- deterministic risk assessment and versioned policy lifecycle;
-- explainable outcomes and append-only decision traces;
-- purpose-bound challenge lifecycle using simulated providers;
-- risk-gated recovery state machine;
-- explicit immutable, expirable, single-use recovery authorization;
-- deterministic policy replay/shadow evaluation baseline;
-- transactional outbox and simulated relay baseline;
-- structured security logs, metrics, Maven verification, and Docker build.
+- deterministic risk assessment and versioned policy lifecycle, with maker-checker approval, a static policy analyzer/linter, historical impact analysis, and deterministic canary rollout;
+- explainable outcomes and append-only, tamper-evident (hash-chained) decision traces;
+- purpose-bound challenge lifecycle using simulated providers, hardened against concurrent verification and blocked outright under a production-like profile;
+- risk-gated recovery state machine with an explicit, immutable, expirable, single-use recovery authorization;
+- deterministic policy replay by versioned algorithm registry, with full provenance;
+- signed, redacted, independently-verifiable decision evidence bundles;
+- JWT resource-server authentication and role-based authorization on every sensitive API, plus fresh purpose-bound step-up for privileged operations;
+- concurrency-safe idempotency (protection decisions and recovery initiation), transactional outbox with `SKIP LOCKED` claiming/backoff/dead letters, and signed webhook delivery with replay protection;
+- envelope encryption/key rotation/crypto-shredding, database least-privilege roles, and a data classification/pseudonymization/retention model;
+- transaction-aware observability, distributed tracing (Micrometer + OTLP + Jaeger), a resilience/concurrency fault-injection suite, property-based tests and API fuzzing, a reproducible capacity benchmark, and an executable backup/restore/disaster-recovery drill;
+- CI/software-supply-chain security (CodeQL, dependency review, Trivy/Gitleaks, SBOM, Dependabot), OpenAPI/AsyncAPI compatibility gates, and an adversarial account-takeover scenario laboratory;
+- a standalone Java SDK (`sdk/`) with a runnable demo consumer (`demo/`) and a Scenario CLI (`cli/`), all built on the public API only.
 
-### Important partial areas
+### Partial
 
-- concurrent recovery initiation and optimistic locking: issues #18 and #37;
-- concurrent protection idempotency: issue #22;
-- challenge secrecy and provider-specific behavior: issues #20 and #38;
-- complete historical algorithm replay/provenance: issues #21 and #43;
-- stable RFC 9457 problem-code catalog: issue #36;
-- outbox claiming, backoff, and dead letters: issue #23.
+See the [feature catalog](docs/features/README.md) for the exact, per-capability list of what remains partial (e.g. RFC 9457 problem-code completeness, some replay-provenance edges) -- none of it blocks the core golden path above.
 
 ### Not yet delivered
 
-Authentication/RBAC, privileged step-up authorization, maker-checker policy governance, client isolation, signed webhooks, cryptographic audit chaining, distributed tracing, production-grade challenge providers, operator mutations, SDK/CLI releases, and a reproducible 1.0 release remain planned.
+The operator console (issue #41, Next.js/BFF, its own dedicated epic) remains a separate, larger, in-progress initiative. A tagged `v1.0.0` release with Docker/GHCR artifacts, changelog, and SBOM attachment is being finalized (issue #28).
 
-See the [dependency-ordered roadmap](docs/roadmap.md) for the implementation sequence. Open pull requests are not classified as delivered until merged into `main`.
+See the [dependency-ordered roadmap](docs/roadmap.md) for the full delivery history and gate structure. Open pull requests are not classified as delivered until merged into `main`.
 
 ## Local development
 

@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a defect in executable behavior on main
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project never uses real credentials, authentication secrets, personal data, or
+        production security events in examples -- please redact anything like that from your
+        report.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Exact commands/requests, ideally against `docker compose up -d` locally.
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or tag
+      description: Which commit/tag on `main` did you observe this on?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or output
+      render: shell

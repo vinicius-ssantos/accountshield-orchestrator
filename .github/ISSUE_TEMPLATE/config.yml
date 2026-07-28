@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/vinicius-ssantos/accountshield-orchestrator/security/policy
+    about: Report a security vulnerability privately -- see SECURITY.md, do not open a public issue.
