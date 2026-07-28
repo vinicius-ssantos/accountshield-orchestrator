@@ -153,6 +153,20 @@
             <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Issue #55 (ADR 0037): proves the accountshield-sdk module's typed models are wire
+             compatible with this server's real responses. The sdk module is a standalone Maven
+             project (sdk/pom.xml has no parent/reactor relationship to this pom.xml, and no
+             dependency on it either); this is the one deliberate, one-directional exception: the
+             server's OWN test suite may depend on the SDK to verify it against a live instance,
+             which does not create a cycle and does not give the SDK's compiled classpath any
+             server-internal dependency. CI installs sdk into the local repo before running this
+             build's own verify (see ci.yml). -->
+        <dependency>
+            <groupId>io.github.vinicius-ssantos</groupId>
+            <artifactId>accountshield-sdk</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

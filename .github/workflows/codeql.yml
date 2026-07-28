@@ -36,6 +36,14 @@ jobs:
         with:
           languages: java
 
+      # accountshield-sdk is a standalone Maven project this build's test scope depends on
+      # (issue #55, ADR 0037) -- must be installed into the local repo before this job's own
+      # independent `mvn package` can resolve it (this job doesn't reuse ci.yml's verify job).
+      - name: Build and install accountshield-sdk module
+        run: |
+          cd sdk
+          mvn --batch-mode --no-transfer-progress install -DskipTests
+
       - name: Build (no tests -- CodeQL only needs compiled bytecode)
         run: mvn --batch-mode --no-transfer-progress -DskipTests package
 

@@ -25,6 +25,14 @@ jobs:
           java-version: "25"
           cache: maven
 
+      # accountshield-sdk is a standalone Maven project this build's test scope depends on
+      # (issue #55, ADR 0037: SdkContractVerificationTest) -- must be installed into the local
+      # repo before this job's own independent `mvn verify` can resolve it.
+      - name: Build and install accountshield-sdk module
+        run: |
+          cd sdk
+          mvn --batch-mode --no-transfer-progress install -DskipTests
+
       # No -DexcludedGroups here, unlike ci.yml's default gate (ADR 0032): this is the "nightly
       # workflows run the full suite" half of issue #39's acceptance criterion, exercising the
       # slower fault-injection (Toxiproxy) scenarios ci.yml's default gate skips, plus the
