@@ -6,6 +6,9 @@ UPDATE audit.decision_trace
  WHERE correlation_id IS NULL;
 
 ALTER TABLE audit.decision_trace
+    ALTER COLUMN correlation_id SET DEFAULT gen_random_uuid()::text;
+
+ALTER TABLE audit.decision_trace
     ALTER COLUMN correlation_id SET NOT NULL;
 
 CREATE INDEX ix_decision_trace_correlation_time
