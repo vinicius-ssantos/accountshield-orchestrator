@@ -42,8 +42,8 @@ public class JdbcDecisionInvestigationQuery implements DecisionInvestigationQuer
                        ELSE false
                    END AS simulated,
                    (dt.algorithm_version IS NOT NULL
-                       AND dt.normalized_context ? 'decisionEngineVersion'
-                       AND dt.normalized_context ? 'reasonCatalogVersion') AS provenance_available
+                       AND jsonb_exists(dt.normalized_context, 'decisionEngineVersion')
+                       AND jsonb_exists(dt.normalized_context, 'reasonCatalogVersion')) AS provenance_available
               FROM audit.decision_trace dt
               JOIN protection.protection_request pr
                 ON pr.id = dt.protection_request_id
