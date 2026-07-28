@@ -95,7 +95,7 @@ Rejected because it expands the attack surface, weakens query-cost bounds, and r
 
 ## Migration and compatibility
 
-Migration V25 adds `audit.decision_trace.correlation_id`, backfills existing records, installs a safe default for legacy writers, enforces non-null values, and adds lookup/order indexes. The change is additive to the public HTTP API. Existing decision creation requests and response models remain unchanged.
+Migration V26 adds `audit.decision_trace.correlation_id`, backfills existing records, installs a safe default for legacy writers, enforces non-null values, and adds lookup/order indexes. The change is additive to the public HTTP API. Existing decision creation requests and response models remain unchanged.
 
 ## Revisit criteria
 
