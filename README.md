@@ -216,6 +216,15 @@ docker compose up -d postgres
 ./mvnw spring-boot:run
 ```
 
+`./mvnw verify` is self-sufficient on a clean clone: the core build does not depend on the
+standalone `sdk/`/`cli/` modules (the CLI end-to-end test skips when its jar is absent). To
+exercise the CLI end-to-end test and the SDK contract test as well, build the standalone modules
+first:
+
+```bash
+cd sdk && mvn install && cd ../cli && mvn package && cd ..
+```
+
 No production credentials are required. All external challenge providers are simulated locally.
 
 Simulated providers are controlled by `accountshield.challenge.simulation-enabled` (default `true`) and are refused outright if the Spring `production` profile is ever active while that flag is still `true` — the application fails to start rather than silently issuing simulated TOTP/e-mail/WebAuthn proof in a production-like environment. Deploying with real challenge providers means implementing real provider adapters and setting `accountshield.challenge.simulation-enabled=false`. The active mode is visible, without secrets, at `GET /actuator/info` under `challengeProviders.simulated`.
