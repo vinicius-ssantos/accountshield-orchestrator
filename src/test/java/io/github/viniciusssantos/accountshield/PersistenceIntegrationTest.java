@@ -91,7 +91,7 @@ class PersistenceIntegrationTest {
                 OffsetDateTime.now(ZoneOffset.UTC));
 
         assertThatThrownBy(() -> jdbcTemplate.update(
-                        "UPDATE audit.decision_trace SET outcome = 'MONITOR' WHERE id = ?",
+                        "UPDATE audit.decision_trace SET outcome = 'TEMPORARILY_BLOCK' WHERE id = ?",
                         decisionId))
                 .isInstanceOf(DataAccessException.class)
                 .rootCause()
