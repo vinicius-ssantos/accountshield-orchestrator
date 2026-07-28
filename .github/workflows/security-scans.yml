@@ -26,7 +26,7 @@ jobs:
       # dependency tree, so this does not fail the build yet -- results still appear in the
       # repository's code scanning tab. Revisit once a baseline is established.
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
