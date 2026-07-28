@@ -25,6 +25,9 @@ public final class RetryPolicy {
         if (maxAttempts < 1) {
             throw new IllegalArgumentException("maxAttempts must be at least 1");
         }
+        if (maxAttempts > 62) {
+            throw new IllegalArgumentException("maxAttempts must not exceed 62");
+        }
         this.maxAttempts = maxAttempts;
         this.baseDelay = baseDelay;
         this.maxDelay = maxDelay;
