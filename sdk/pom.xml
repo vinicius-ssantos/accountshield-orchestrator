@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Deliberately standalone: no parent relationship to accountshield-orchestrator's pom.xml,
+        and no dependency on it either. This is what makes issue #55's "SDK has no dependency on
+        internal server packages" a real, structurally enforced fact rather than a convention that
+        could quietly slip; there is no Maven reactor connecting the two, so the SDK's classpath
+        can never contain a server-internal class. See docs/adr/0037-java-client-sdk-and-demo.md.
+    -->
+    <groupId>io.github.vinicius-ssantos</groupId>
+    <artifactId>accountshield-sdk</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <name>AccountShield Java SDK</name>
+    <description>Typed Java client for the AccountShield protection/recovery/webhook API</description>
+
+    <properties>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Pinned to match the server's exact Jackson 3.x coordinates (verified via
+             dependency:tree against accountshield-orchestrator's pom.xml) so a consumer that
+             depends on both artifacts never ends up with two different Jackson major versions
+             on one classpath; most relevantly this SDK's own server-side contract test
+             (accountshield-orchestrator's test scope depends on this artifact). -->
+        <jackson.version>3.1.4</jackson.version>
+        <junit.version>5.13.0</junit.version>
+        <assertj.version>3.27.2</assertj.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.6</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

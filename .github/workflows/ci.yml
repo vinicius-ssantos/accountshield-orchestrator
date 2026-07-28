@@ -30,6 +30,22 @@ jobs:
           java-version: "25"
           cache: maven
 
+      # Issue #55 (ADR 0037): accountshield-sdk is a standalone Maven project (no parent/reactor
+      # relationship to this pom.xml -- see sdk/pom.xml's own comment) that this build's own test
+      # suite depends on (test scope, SdkContractVerificationTest) to prove the SDK's typed models
+      # against a live instance of this server. It must be built and installed into the local repo
+      # before "Verify" below can resolve it. demo/ is built here too (package, not install) purely
+      # to catch a compile break early; the docker job below is what actually runs it end to end.
+      - name: Build and test accountshield-sdk module
+        run: |
+          cd sdk
+          mvn --batch-mode --no-transfer-progress install
+
+      - name: Build accountshield-demo module
+        run: |
+          cd demo
+          mvn --batch-mode --no-transfer-progress package
+
       # "resilience"-tagged tests (fault-injection: real container startup, connection-timeout
       # waits) are excluded from this default gate and run in full every night instead
       # (nightly.yml, ADR 0032) -- the stable/default subset vs. full-suite split issue #39 asks
@@ -131,6 +147,21 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # Issue #55 (ADR 0037): this job runs on a fresh runner (no local Maven repo carried over
+      # from the verify job), so accountshield-sdk and accountshield-demo are rebuilt here purely
+      # to produce the demo's runnable jar, used below for the real end-to-end flow check.
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Build accountshield-sdk and accountshield-demo modules
+        run: |
+          cd sdk && mvn --batch-mode --no-transfer-progress install -DskipTests
+          cd ../demo && mvn --batch-mode --no-transfer-progress package
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -194,6 +225,14 @@ jobs:
           done
           echo "Smoke test failed: /actuator/health never reported UP within 60s"
           exit 1
+
+      # Issue #55 (ADR 0037): "CI validates the end-to-end flow" -- runs the real SDK demo (built
+      # above) against the real, already-running smoke-test app container, submitting real
+      # protection decisions and exercising the challenge/recovery/webhook-verification paths. A
+      # non-zero exit fails this job.
+      - name: Run SDK demo end-to-end against the live smoke-test app
+        run: |
+          ACCOUNTSHIELD_BASE_URL=http://localhost:8080 java -jar demo/target/accountshield-demo.jar
 
       - name: Smoke test logs on failure
         if: failure()

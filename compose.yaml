@@ -30,6 +30,27 @@ services:
       ACCOUNTSHIELD_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
     ports:
       - "${APP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  # Issue #55 (ADR 0037): the realistic Java consumer demo, built on accountshield-sdk. Opt-in
+  # (profile, not started by a plain "docker compose up") since it is a one-shot client run, not a
+  # standing service -- run with: docker compose --profile demo up --build demo.
+  demo:
+    build:
+      context: .
+      dockerfile: demo/Dockerfile
+    container_name: accountshield-demo
+    profiles: ["demo"]
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      ACCOUNTSHIELD_BASE_URL: http://app:8080
 
   # Jaeger's all-in-one image accepts OTLP directly on 4317 (gRPC)/4318 (HTTP) in modern versions
   # -- no separate OpenTelemetry Collector hop is needed for this scope (ADR 0030).
