@@ -91,6 +91,16 @@ copies `sdk/` and runs `./mvnw -f sdk/pom.xml install -DskipTests` before resolv
 project's own dependencies. Caught by CI's `docker` job, not anticipated at design time -- stated
 here explicitly rather than only visible in the commit history.
 
+The same class of gap recurred in two more places once the first two were fixed: `codeql.yml`'s
+`Analyze (java)` job and `nightly.yml`'s `full-verify` job both invoke Maven independently of
+`ci.yml`'s `verify` job (their own `mvn package -DskipTests` / `mvn verify` runs, on a fresh
+runner with no shared local repo), so both needed the identical
+"install `sdk` first" step added. Every place in this repository that builds this project
+independently -- `ci.yml`'s `verify` job, `ci.yml`'s `docker` job (via `Dockerfile`), `codeql.yml`,
+and `nightly.yml` -- now installs `accountshield-sdk` first; `dependency-review.yml` and
+`security-scans.yml` do not build the project (manifest/filesystem scans only) and needed no
+change.
+
 ### Retries: explicit safety, per operation, never inferred
 
 `RetryPolicy` never infers whether an operation is safe from the HTTP method alone. Each
