@@ -61,7 +61,7 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 record_hash,
                 hash_algorithm,
                 canonical_schema_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String INSERT_REASON = """
