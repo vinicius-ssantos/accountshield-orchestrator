@@ -175,11 +175,12 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-            <!-- Coverage reporting only for now (ADR 0031): no hard-failing threshold, since no
-                 real baseline coverage number has ever been observed for this codebase. Report is
-                 uploaded as a CI artifact; the "suggested initial thresholds" from issue #27
-                 (line 80%/branch 70%, stricter for recovery/challenge/policy/idempotency/outbox)
-                 are deferred to a follow-up PR once a real number exists to phase them in against. -->
+            <!-- Coverage: report every run, and enforce a conservative floor so coverage cannot
+                 regress silently. The baseline (observed at the v1.0.0 tag) is ~89% instruction
+                 coverage; the floor is set at 80%, deliberately below the baseline so a normal PR
+                 is not blocked, but a sustained regression fails the build. ADR 0031's revisit
+                 criterion (phase in per-module thresholds for recovery/challenge/policy/etc.) remains
+                 open; this is the project-wide floor it called for first. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -197,6 +198,27 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <id>check-coverage-floor</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.80</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

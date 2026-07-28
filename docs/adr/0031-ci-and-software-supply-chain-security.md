@@ -168,9 +168,13 @@ revisit item rather than bundled into this already-broad PR.
 
 ## Revisit criteria
 
-- once a real JaCoCo coverage number is observed from a CI run, phase in the issue's suggested
+- ~~once a real JaCoCo coverage number is observed from a CI run, phase in the issue's suggested
   thresholds (80% line / 70% branch, stricter for recovery/challenge/policy/idempotency/outbox) in
-  a dedicated follow-up PR;
+  a dedicated follow-up PR~~ -- **done (post-v1.0.0 review, F-05):** a project-wide `jacoco:check`
+  floor of 80% instruction coverage is now enforced in the `verify` phase, set deliberately below
+  the ~89% baseline observed at the v1.0.0 tag so a normal PR is not blocked while a sustained
+  regression fails the build. Per-module thresholds (stricter for recovery/challenge/policy/
+  idempotency/outbox) remain the next step;
 - once Trivy's filesystem/image scans and Gitleaks have each produced at least one clean run (or a
   triaged, allowlisted set of accepted findings), remove their advisory `exit-code`/
   `continue-on-error` settings and let them gate for real;
