@@ -74,6 +74,6 @@ jobs:
             target/bom.json \
             cli/target/accountshield-cli.jar \
             demo/target/accountshield-demo.jar \
-            sdk/target/accountshield-sdk-0.1.0-SNAPSHOT.jar \
+            sdk/target/accountshield-sdk-*.jar \
             docs/postman/AccountShield.postman_collection.json \
             CHANGELOG.md

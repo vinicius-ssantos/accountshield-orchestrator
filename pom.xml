@@ -13,7 +13,7 @@
 
     <groupId>io.github.vinicius-ssantos</groupId>
     <artifactId>accountshield-orchestrator</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>AccountShield Orchestrator</name>
     <description>Explainable account-protection decision and orchestration platform</description>
 
@@ -164,7 +164,7 @@
         <dependency>
             <groupId>io.github.vinicius-ssantos</groupId>
             <artifactId>accountshield-sdk</artifactId>
-            <version>0.1.0-SNAPSHOT</version>
+            <version>1.0.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
