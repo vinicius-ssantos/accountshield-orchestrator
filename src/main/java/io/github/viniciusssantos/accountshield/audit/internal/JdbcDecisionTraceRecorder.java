@@ -112,6 +112,7 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 INSERT_TRACE,
                 command.decisionId(),
                 command.protectionRequestId(),
+                currentCorrelationId(),
                 command.accountReference(),
                 command.requestFingerprint(),
                 command.algorithmVersion(),
