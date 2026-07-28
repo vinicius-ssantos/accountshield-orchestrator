@@ -3,15 +3,21 @@ package io.github.viniciusssantos.accountshieldsdk;
 import io.github.viniciusssantos.accountshieldsdk.internal.ProblemDetailsParser;
 import io.github.viniciusssantos.accountshieldsdk.model.ChallengeVerificationRequest;
 import io.github.viniciusssantos.accountshieldsdk.model.ChallengeVerificationResponse;
+import io.github.viniciusssantos.accountshieldsdk.model.EvidenceVerificationResult;
+import io.github.viniciusssantos.accountshieldsdk.model.PolicyAnalysisRequest;
+import io.github.viniciusssantos.accountshieldsdk.model.PolicyAnalysisResult;
+import io.github.viniciusssantos.accountshieldsdk.model.PolicyImpactReport;
 import io.github.viniciusssantos.accountshieldsdk.model.ProblemDetails;
 import io.github.viniciusssantos.accountshieldsdk.model.ProtectionDecisionRequest;
 import io.github.viniciusssantos.accountshieldsdk.model.ProtectionDecisionResponse;
 import io.github.viniciusssantos.accountshieldsdk.model.RecoveryResponse;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -106,11 +112,53 @@ public final class AccountShieldClient {
                 RecoveryResponse.class, 200, false, correlationId);
     }
 
+    /**
+     * Static, deterministic, side-effect-free threshold analysis -- no persistence, so always safe
+     * to retry. Requires the {@code POLICY_ADMIN} role.
+     */
+    public PolicyAnalysisResult analyzePolicy(PolicyAnalysisRequest request, String correlationId) {
+        return execute("POST", "/api/v1/policies/analyze", request, PolicyAnalysisResult.class,
+                200, true, correlationId);
+    }
+
+    /**
+     * Replays recent historical decision traces for {@code policyKey} against
+     * {@code candidatePolicyVersion} -- read-only, no persistence, always safe to retry. Requires
+     * the {@code SIMULATION_ANALYST} role. Note there is no separate "stable version" parameter:
+     * each historical trace is compared against whatever policy version actually produced it at
+     * the time, not a second explicit version argument.
+     */
+    public PolicyImpactReport analyzePolicyImpact(
+            String policyKey, String candidatePolicyVersion, int maxSamples, String correlationId) {
+        String path = "/api/v1/simulation/policy-impact?policyKey=" + urlEncode(policyKey)
+                + "&candidatePolicyVersion=" + urlEncode(candidatePolicyVersion)
+                + "&maxSamples=" + maxSamples;
+        return execute("POST", path, null, PolicyImpactReport.class, 200, true, correlationId);
+    }
+
+    /**
+     * Verifies a previously-exported evidence bundle. Takes the bundle's raw JSON text directly
+     * (as read from wherever it was exported to) rather than a typed model, since this SDK never
+     * needs to construct or inspect a bundle's internal structure -- only pass it through
+     * byte-for-byte to the server, which is also what keeps this a genuinely safe, side-effect-free,
+     * always-retryable read. Requires the {@code SECURITY_OPERATOR} role.
+     */
+    public EvidenceVerificationResult verifyEvidenceBundle(String rawBundleJson, String correlationId) {
+        return executeWithRawBody("POST", "/api/v1/evidence/verify", rawBundleJson,
+                EvidenceVerificationResult.class, 200, true, correlationId);
+    }
+
     private <T> T execute(
             String method, String path, Object requestBody, Class<T> responseType,
             int expectedStatus, boolean safeToRetry, String correlationId) {
-        String resolvedCorrelationId = resolveCorrelationId(correlationId);
         String jsonBody = requestBody == null ? "" : objectMapper.writeValueAsString(requestBody);
+        return executeWithRawBody(method, path, jsonBody, responseType, expectedStatus, safeToRetry, correlationId);
+    }
+
+    private <T> T executeWithRawBody(
+            String method, String path, String jsonBody, Class<T> responseType,
+            int expectedStatus, boolean safeToRetry, String correlationId) {
+        String resolvedCorrelationId = resolveCorrelationId(correlationId);
 
         int attempt = 0;
         while (true) {
@@ -203,6 +251,10 @@ public final class AccountShieldClient {
 
     private String truncate(String text) {
         return text.length() <= 500 ? text : text.substring(0, 500) + "...";
+    }
+
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private record InitiateRecoveryBody(UUID authorizationId) {

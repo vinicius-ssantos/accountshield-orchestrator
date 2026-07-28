@@ -4,7 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
+import io.github.viniciusssantos.accountshieldsdk.model.EvidenceVerificationResult;
 import io.github.viniciusssantos.accountshieldsdk.model.NetworkRiskLevel;
+import io.github.viniciusssantos.accountshieldsdk.model.PolicyAnalysisRequest;
+import io.github.viniciusssantos.accountshieldsdk.model.PolicyAnalysisResult;
+import io.github.viniciusssantos.accountshieldsdk.model.PolicyImpactReport;
 import io.github.viniciusssantos.accountshieldsdk.model.ProtectionDecisionRequest;
 import io.github.viniciusssantos.accountshieldsdk.model.ProtectionDecisionResponse;
 import io.github.viniciusssantos.accountshieldsdk.model.ProtectionEventType;
@@ -190,5 +194,82 @@ class AccountShieldClientTest {
                 .isInstanceOf(AccountShieldClientException.class);
 
         assertThat(seenHeaders).containsExactly("my-correlation-id");
+    }
+
+    @Test
+    void analyzePolicyParsesARealAnalysisResponse() {
+        server.createContext("/api/v1/policies/analyze", exchange -> {
+            String body = "{\"analyzerVersion\":\"policy-analyzer-1.0\",\"diagnostics\":["
+                    + "{\"code\":\"STEP_UP_BAND_SHADOWED\",\"severity\":\"WARNING\",\"path\":\"stepUpMaxScore\","
+                    + "\"message\":\"shadowed\"}]}";
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+
+        AccountShieldClient client = AccountShieldClient.builder(baseUri).build();
+        PolicyAnalysisResult result = client.analyzePolicy(
+                new PolicyAnalysisRequest(29, 69, 89), null);
+
+        assertThat(result.analyzerVersion()).isEqualTo("policy-analyzer-1.0");
+        assertThat(result.hasErrors()).isFalse();
+        assertThat(result.diagnostics()).hasSize(1);
+        assertThat(result.diagnostics().get(0).code()).isEqualTo("STEP_UP_BAND_SHADOWED");
+    }
+
+    @Test
+    void analyzePolicyImpactSendsQueryParametersAndParsesTheResponse() {
+        List<String> seenQueries = new java.util.ArrayList<>();
+        server.createContext("/api/v1/simulation/policy-impact", exchange -> {
+            seenQueries.add(exchange.getRequestURI().getQuery());
+            String body = "{\"policyKey\":\"account-protection-default\",\"candidatePolicyVersion\":\"1.2.0\","
+                    + "\"originalPolicyVersionsObserved\":[\"1.1.0\"],\"algorithmVersionsObserved\":[\"risk-v1\"],"
+                    + "\"totalDecisions\":10,\"divergentDecisionsCount\":1,\"divergencePercentage\":10.0,"
+                    + "\"maxDivergencePercentageThreshold\":5.0,\"exceedsDivergenceThreshold\":true,"
+                    + "\"transitionMatrix\":{\"ALLOW\":{\"ALLOW\":9,\"REQUIRE_STEP_UP\":1}},"
+                    + "\"impactByEventType\":{},\"impactByRiskBand\":{},\"divergentDecisions\":[]}";
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+
+        AccountShieldClient client = AccountShieldClient.builder(baseUri).build();
+        PolicyImpactReport report = client.analyzePolicyImpact(
+                "account-protection-default", "1.2.0", 5000, null);
+
+        assertThat(seenQueries).containsExactly(
+                "policyKey=account-protection-default&candidatePolicyVersion=1.2.0&maxSamples=5000");
+        assertThat(report.exceedsDivergenceThreshold()).isTrue();
+        assertThat(report.divergentDecisionsCount()).isEqualTo(1);
+        assertThat(report.transitionMatrix().get("ALLOW").get("REQUIRE_STEP_UP")).isEqualTo(1L);
+    }
+
+    @Test
+    void verifyEvidenceBundleSendsTheRawBodyUnmodifiedAndParsesTheResult() {
+        List<String> seenBodies = new java.util.ArrayList<>();
+        String rawBundle = "{\"manifest\":{\"bundleSchemaVersion\":\"evidence-bundle-1.0\"},\"content\":{}}";
+        server.createContext("/api/v1/evidence/verify", exchange -> {
+            seenBodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            String body = "{\"valid\":true,\"problems\":[]}";
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+
+        AccountShieldClient client = AccountShieldClient.builder(baseUri).build();
+        EvidenceVerificationResult result = client.verifyEvidenceBundle(rawBundle, null);
+
+        assertThat(seenBodies).containsExactly(rawBundle);
+        assertThat(result.valid()).isTrue();
+        assertThat(result.problems()).isEmpty();
     }
 }

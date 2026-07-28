@@ -1,5 +1,10 @@
 # AccountShield SDK Demo
 
+For exploring a running instance from a terminal, the [Scenario CLI](../cli/README.md) (issue #56)
+is the primary walkthrough. This demo is the equivalent, fully-programmatic Java example for
+consumers integrating the SDK directly into their own application, rather than exploring
+interactively.
+
 A realistic Java consumer built entirely on `../sdk` (`accountshield-sdk`) -- no dependency on any
 AccountShield server-internal package. Submits three protection decisions covering all three
 consumer-visible outcomes (`ALLOW`, `REQUIRE_STEP_UP`, `START_RECOVERY`), handles the step-up and
