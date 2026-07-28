@@ -10,9 +10,13 @@ history instead.
 
 ## [Unreleased]
 
-Everything below has been implemented and merged to `main`; no tagged release has been cut yet
-(see `docs/roadmap.md`'s delivery status and Epic #15 for the individually-verified completion
-record of every issue referenced here).
+Nothing yet.
+
+## [1.0.0] - 2026-07-28
+
+First tagged release. Everything below has been implemented and merged to `main` (see
+`docs/roadmap.md`'s delivery status and Epic #15 for the individually-verified completion record
+of every issue referenced here).
 
 ### Added
 
