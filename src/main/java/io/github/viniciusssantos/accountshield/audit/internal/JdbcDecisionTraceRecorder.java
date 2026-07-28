@@ -1,5 +1,6 @@
 package io.github.viniciusssantos.accountshield.audit.internal;
 
+import io.github.viniciusssantos.accountshield.CorrelationIdFilter;
 import io.github.viniciusssantos.accountshield.audit.AuditChainHasher;
 import io.github.viniciusssantos.accountshield.audit.DecisionReasonContribution;
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceCommand;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -44,6 +46,7 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
             INSERT INTO audit.decision_trace (
                 id,
                 protection_request_id,
+                correlation_id,
                 account_reference,
                 request_fingerprint,
                 algorithm_version,
@@ -58,7 +61,7 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 record_hash,
                 hash_algorithm,
                 canonical_schema_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String INSERT_REASON = """
@@ -142,6 +145,13 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 SELECT_LAST_LINK,
                 (rs, rowNum) -> new ChainLink(rs.getLong("chain_sequence"), rs.getString("record_hash")));
         return rows.stream().findFirst().orElse(new ChainLink(0L, null));
+    }
+
+    private String currentCorrelationId() {
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+        return correlationId == null || correlationId.isBlank()
+                ? UUID.randomUUID().toString()
+                : correlationId;
     }
 
     private String toJson(Map<String, Object> value) {
