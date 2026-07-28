@@ -3,9 +3,6 @@ package io.github.viniciusssantos.accountshield.audit.internal.web;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationCriteria;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationPage;
-import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
-import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
-import io.github.viniciusssantos.accountshield.risk.RiskBand;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -43,9 +40,9 @@ public class DecisionInvestigationController {
 
     public record DecisionSearchRequest(
             @Pattern(regexp = CORRELATION_PATTERN) String correlationId,
-            ProtectionEventType eventType,
-            ProtectionOutcome outcome,
-            RiskBand riskBand,
+            DecisionSearchEventType eventType,
+            DecisionSearchOutcome outcome,
+            DecisionSearchRiskBand riskBand,
             @Size(max = 40) String policyVersion,
             Instant decidedFrom,
             Instant decidedTo,
@@ -64,6 +61,28 @@ public class DecisionInvestigationController {
                     cursor,
                     pageSize == null ? DecisionInvestigationQuery.DEFAULT_PAGE_SIZE : pageSize);
         }
+    }
+
+    public enum DecisionSearchEventType {
+        LOGIN_ATTEMPT,
+        SENSITIVE_ACTION,
+        LOGIN_RECOVERY_ATTEMPT,
+        PASSWORD_RESET_ATTEMPT,
+        CREDENTIAL_CHANGE_ATTEMPT,
+        DEVICE_TRUST_RESET_ATTEMPT
+    }
+
+    public enum DecisionSearchOutcome {
+        ALLOW,
+        REQUIRE_STEP_UP,
+        START_RECOVERY,
+        TEMPORARILY_BLOCK
+    }
+
+    public enum DecisionSearchRiskBand {
+        LOW,
+        MEDIUM,
+        HIGH
     }
 
     public record DecisionSearchResponse(
