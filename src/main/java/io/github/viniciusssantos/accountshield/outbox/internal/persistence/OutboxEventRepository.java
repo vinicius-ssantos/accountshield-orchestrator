@@ -1,9 +1,10 @@
 package io.github.viniciusssantos.accountshield.outbox.internal.persistence;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,7 +14,7 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEventEntity, 
 
     long countByStatus(String status);
 
-    List<OutboxEventEntity> findByStatus(String status);
+    Page<OutboxEventEntity> findByStatus(String status, Pageable pageable);
 
     @Query("select min(e.occurredAt) from OutboxEventEntity e where e.status = 'PENDING'")
     Optional<Instant> findOldestPendingOccurredAt();
