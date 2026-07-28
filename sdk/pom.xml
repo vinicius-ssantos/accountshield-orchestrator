@@ -21,12 +21,15 @@
     <properties>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Pinned to match the server's exact Jackson 3.x coordinates (verified via
+        <!-- Base coordinates match the server's exact Jackson 3.x line (verified via
              dependency:tree against accountshield-orchestrator's pom.xml) so a consumer that
              depends on both artifacts never ends up with two different Jackson major versions
              on one classpath; most relevantly this SDK's own server-side contract test
-             (accountshield-orchestrator's test scope depends on this artifact). -->
-        <jackson.version>3.1.4</jackson.version>
+             (accountshield-orchestrator's test scope depends on this artifact). Bumped to 3.1.5
+             (patch only) to fix CVE-2026-59889 (a @JsonView/@JsonUnwrapped deserialization bypass
+             in 3.1.4, flagged by CI's Trivy dependency scan); Maven's nearest-wins mediation
+             resolves this same patched version on the server's test classpath too. -->
+        <jackson.version>3.1.5</jackson.version>
         <junit.version>5.13.0</junit.version>
         <assertj.version>3.27.2</assertj.version>
     </properties>
