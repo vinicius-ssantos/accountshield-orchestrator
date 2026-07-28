@@ -80,6 +80,17 @@ clearly" standard exists to surface rather than hide. Fixed by:
   established, local-dev/demo-only tooling, not a hardened deployment descriptor -- the identical
   reasoning ADR 0024 used to justify not wiring the restricted database role into it.
 
+### A second real finding: the main app's own Docker image build
+
+Adding `accountshield-sdk` as a test-scope dependency to the root `pom.xml` broke
+`accountshield-orchestrator`'s **own** `Dockerfile` build in CI: its build stage runs
+`mvn dependency:go-offline`/`package` inside an isolated container with no access to the host's
+local Maven repository, so it could not resolve the unpublished `accountshield-sdk` artifact.
+Fixed the same way `demo/Dockerfile` already does it: the root `Dockerfile`'s build stage now
+copies `sdk/` and runs `./mvnw -f sdk/pom.xml install -DskipTests` before resolving the root
+project's own dependencies. Caught by CI's `docker` job, not anticipated at design time -- stated
+here explicitly rather than only visible in the commit history.
+
 ### Retries: explicit safety, per operation, never inferred
 
 `RetryPolicy` never infers whether an operation is safe from the HTTP method alone. Each
