@@ -53,6 +53,33 @@ returned for `ALLOW`, `REQUIRE_STEP_UP` (plus a real challenge-verification roun
 Details response. This is the SDK's "contract-tested" guarantee -- a live round trip, not a
 generated-and-hoped-consistent model.
 
+### Authentication: bearer tokens, caught by CI, not anticipated at design time
+
+Every endpoint the SDK calls except `/demo/webhook-receiver` sits behind this server's JWT
+resource server (ADR 0011, `SecurityConfig`: `/api/v1/protection-decisions` and the
+consumer-facing recovery endpoints require the `PROTECTION_CLIENT` role; `/api/v1/challenges/**`
+requires any authenticated principal). This was **not accounted for in the initial implementation**
+of this ADR -- `SdkContractVerificationTest` failed in CI with real `401 AUTHENTICATION_REQUIRED`
+responses, exactly the kind of gap this project's "state assumptions and incomplete verification
+clearly" standard exists to surface rather than hide. Fixed by:
+
+- `AccountShieldClient.Builder.bearerToken(String)` / `.bearerTokenSupplier(Supplier<String>)`:
+  attaches `Authorization: Bearer <token>` per request when configured, the same
+  supplier-per-request pattern already used for `traceparent`.
+- `SdkContractVerificationTest` mints a real `PROTECTION_CLIENT` token via the `LocalJwtKeys` bean
+  directly (the same mechanism `SecurityIntegrationTest` already uses), not the profile-gated
+  `/dev/tokens` HTTP endpoint, since a plain `@SpringBootTest` does not activate the `local`
+  profile.
+- `accountshield-demo` acquires a token itself: `ACCOUNTSHIELD_BEARER_TOKEN` if supplied, otherwise
+  it self-mints one via `POST /dev/tokens` (dev/demo-only, `local`-profile-gated, permitted
+  anonymously) -- not something a real external consumer would do, since they would obtain a token
+  from whatever real identity provider issues them, which this demo has no equivalent of.
+- `compose.yaml`'s `app` service and `ci.yml`'s smoke-test app container both now set
+  `SPRING_PROFILES_ACTIVE=local`, enabling `/dev/tokens` for the demo run. Applied unconditionally
+  to the `app` service (not only when the `demo` profile is used) since `compose.yaml` is already
+  established, local-dev/demo-only tooling, not a hardened deployment descriptor -- the identical
+  reasoning ADR 0024 used to justify not wiring the restricted database role into it.
+
 ### Retries: explicit safety, per operation, never inferred
 
 `RetryPolicy` never infers whether an operation is safe from the HTTP method alone. Each
@@ -184,14 +211,17 @@ wrapper. Run with `docker compose --profile demo up --build demo`.
   tamper/stale-timestamp cases, and `AccountShieldClient` HTTP behavior against a plain
   `com.sun.net.httpserver.HttpServer` fake -- no mocking framework) all passed locally before this
   PR.
-- `SdkContractVerificationTest` (server-side, live-instance): written and compiles; **not run
-  locally** in this environment for this PR (Docker/Testcontainers unavailable in this session at
-  implementation time) -- CI is its first real execution. Every field it asserts was independently
-  verified by reading the real controller/DTO source directly beforehand (not guessed), and the
-  SDK's own local HTTP-fake tests already prove the client's parsing/error-handling logic in
-  isolation.
-- `accountshield-demo`: compiles and packages standalone (`mvn package`, verified locally); not run
-  against a live server in this environment for the same Docker-availability reason above.
+- `SdkContractVerificationTest` (server-side, live-instance): written and compiled locally, but
+  Docker/Testcontainers was unavailable in this environment at implementation time, so its first
+  real execution was CI on the initial PR revision -- and it correctly caught the missing-
+  authentication gap described above (3 errors, 1 failure, all `401`). That is exactly the kind of
+  thing this test is for; fixed in the same PR (see "Authentication" above) and re-verified by CI
+  on the corrected revision.
+- `accountshield-demo`: compiles and packages standalone (`mvn package`, verified locally); the
+  jar was run directly with no live server reachable, confirming clean retry behavior and graceful
+  failure (including, after the auth fix, a clear message when token acquisition itself fails).
+  The full live-server/Compose-profile path was not run in this environment for the same
+  Docker-availability reason -- CI's `docker` job is its first real execution.
 - No hardcoded server response data anywhere in the SDK; every model is a direct, minimal
   transcription of the real DTO field names and types.
 

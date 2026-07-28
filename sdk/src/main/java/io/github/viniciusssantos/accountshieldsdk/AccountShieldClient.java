@@ -39,12 +39,14 @@ public final class AccountShieldClient {
     private final Duration requestTimeout;
     private final RetryPolicy retryPolicy;
     private final Supplier<String> traceparentSupplier;
+    private final Supplier<String> bearerTokenSupplier;
 
     private AccountShieldClient(Builder builder) {
         this.baseUri = builder.baseUri;
         this.requestTimeout = builder.requestTimeout;
         this.retryPolicy = builder.retryPolicy;
         this.traceparentSupplier = builder.traceparentSupplier;
+        this.bearerTokenSupplier = builder.bearerTokenSupplier;
         this.objectMapper = JsonMapper.builder().build();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(builder.connectTimeout)
@@ -158,6 +160,16 @@ public final class AccountShieldClient {
                 builder.header("traceparent", traceparent);
             }
         }
+        // Most endpoints (protection decisions, recovery initiation/confirm/complete, challenge
+        // verification) are behind this server's JWT resource server (ADR 0011) -- a bearer token
+        // supplier lets a long-lived client keep using a refreshed token without rebuilding the
+        // client.
+        if (bearerTokenSupplier != null) {
+            String token = bearerTokenSupplier.get();
+            if (token != null && !token.isBlank()) {
+                builder.header("Authorization", "Bearer " + token);
+            }
+        }
         HttpRequest.BodyPublisher body = jsonBody.isEmpty()
                 ? HttpRequest.BodyPublishers.noBody()
                 : HttpRequest.BodyPublishers.ofString(jsonBody);
@@ -205,6 +217,7 @@ public final class AccountShieldClient {
         private Duration requestTimeout = Duration.ofSeconds(10);
         private RetryPolicy retryPolicy = RetryPolicy.defaultPolicy();
         private Supplier<String> traceparentSupplier;
+        private Supplier<String> bearerTokenSupplier;
 
         private Builder(URI baseUri) {
             this.baseUri = baseUri;
@@ -228,6 +241,22 @@ public final class AccountShieldClient {
         /** Supplies a W3C {@code traceparent} header value per request; omitted when null or blank. */
         public Builder traceparentSupplier(Supplier<String> traceparentSupplier) {
             this.traceparentSupplier = traceparentSupplier;
+            return this;
+        }
+
+        /**
+         * Supplies an {@code Authorization: Bearer <token>} header per request; omitted when null
+         * or blank. Required for every endpoint except {@code /demo/webhook-receiver} (see
+         * {@code SecurityConfig} on the server).
+         */
+        public Builder bearerTokenSupplier(Supplier<String> bearerTokenSupplier) {
+            this.bearerTokenSupplier = bearerTokenSupplier;
+            return this;
+        }
+
+        /** Convenience for a fixed token that never changes for this client's lifetime. */
+        public Builder bearerToken(String token) {
+            this.bearerTokenSupplier = () -> token;
             return this;
         }
 

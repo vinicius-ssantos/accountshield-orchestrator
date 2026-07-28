@@ -28,6 +28,11 @@ services:
       DATABASE_USERNAME: ${POSTGRES_USER:-accountshield}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-accountshield-local-only}
       ACCOUNTSHIELD_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      # Enables the local/demo-only /dev/tokens endpoint (SecurityConfig permits it anonymously
+      # only under this profile) so the "demo" service below can self-mint a bearer token --
+      # consistent with this file already being local-dev/demo tooling, not a hardened deployment
+      # descriptor (see ADR 0024's identical reasoning for not wiring the restricted DB role here).
+      SPRING_PROFILES_ACTIVE: local
     ports:
       - "${APP_PORT:-8080}:8080"
     healthcheck:

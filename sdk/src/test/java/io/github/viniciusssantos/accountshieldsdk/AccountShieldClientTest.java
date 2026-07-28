@@ -151,6 +151,27 @@ class AccountShieldClientTest {
     }
 
     @Test
+    void sendsABearerTokenHeaderWhenConfigured() {
+        List<String> seenAuthHeaders = new java.util.ArrayList<>();
+        server.createContext("/api/v1/protection-decisions", exchange -> {
+            seenAuthHeaders.add(exchange.getRequestHeaders().getFirst("Authorization"));
+            exchange.sendResponseHeaders(401, -1);
+            exchange.close();
+        });
+        server.start();
+
+        AccountShieldClient client = AccountShieldClient.builder(baseUri)
+                .retryPolicy(RetryPolicy.noRetries())
+                .bearerToken("my-jwt-token")
+                .build();
+        assertThatThrownBy(() -> client.decideProtection(
+                ProtectionDecisionRequest.builder("alice@example.test", ProtectionEventType.LOGIN_ATTEMPT).build()))
+                .isInstanceOf(AccountShieldClientException.class);
+
+        assertThat(seenAuthHeaders).containsExactly("Bearer my-jwt-token");
+    }
+
+    @Test
     void sendsACorrelationIdHeaderOnEveryRequest() {
         List<String> seenHeaders = new java.util.ArrayList<>();
         server.createContext("/api/v1/protection-decisions", exchange -> {

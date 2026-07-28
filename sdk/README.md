@@ -28,6 +28,21 @@ Then depend on it:
 </dependency>
 ```
 
+## Authentication
+
+Every endpoint except the webhook receiver sits behind AccountShield's JWT resource server (ADR
+0011). Supply a bearer token when building the client:
+
+```java
+AccountShieldClient client = AccountShieldClient.builder(URI.create("http://localhost:8080"))
+        .bearerToken(myJwt) // or .bearerTokenSupplier(() -> refreshTokenIfNeeded())
+        .build();
+```
+
+`decideProtection` and the consumer-facing recovery endpoints require the `PROTECTION_CLIENT` role;
+`verifyChallenge` requires any authenticated principal. How you obtain a token is up to your
+identity provider integration -- this SDK does not issue tokens itself.
+
 ## Quick start: submit a protection decision
 
 ```java
@@ -36,7 +51,9 @@ import io.github.viniciusssantos.accountshieldsdk.model.*;
 import java.net.URI;
 import java.util.UUID;
 
-AccountShieldClient client = AccountShieldClient.builder(URI.create("http://localhost:8080")).build();
+AccountShieldClient client = AccountShieldClient.builder(URI.create("http://localhost:8080"))
+        .bearerToken(myJwt)
+        .build();
 
 ProtectionDecisionRequest request = ProtectionDecisionRequest
         .builder("alice@example.com", ProtectionEventType.LOGIN_ATTEMPT)

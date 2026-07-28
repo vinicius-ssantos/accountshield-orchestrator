@@ -28,6 +28,15 @@ docker compose --profile demo up --build demo
 Override the target instance with the `ACCOUNTSHIELD_BASE_URL` environment variable (default
 `http://localhost:8080`; the Compose profile sets it to `http://app:8080` automatically).
 
+## Authentication
+
+Every endpoint this demo calls except the webhook demo sits behind AccountShield's JWT resource
+server (ADR 0011). Set `ACCOUNTSHIELD_BEARER_TOKEN` to supply a token yourself; otherwise this demo
+self-mints one via the server's `local`-profile-only `POST /dev/tokens` endpoint (dev/demo tooling
+only -- a real consumer would obtain a token from its own identity provider integration). Both
+`compose.yaml`'s `app` service and CI's smoke-test container run with `SPRING_PROFILES_ACTIVE=local`
+specifically so this works out of the box.
+
 A non-zero exit code means the demo detected an unexpected outcome or the server was unreachable --
 this is exactly what CI's `docker` job checks on every PR (issue #55's "CI validates the end-to-end
 flow").

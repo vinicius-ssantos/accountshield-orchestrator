@@ -209,9 +209,14 @@ jobs:
             docker exec accountshield-smoke-postgres pg_isready -U accountshield -d accountshield && break
             sleep 2
           done
+          # SPRING_PROFILES_ACTIVE=local (issue #55, ADR 0037): enables the local/demo-only
+          # /dev/tokens endpoint (SecurityConfig permits it anonymously only under this profile),
+          # which the SDK demo below uses to self-mint a bearer token -- every real endpoint it
+          # calls sits behind this server's JWT resource server (ADR 0011).
           docker run -d --name accountshield-smoke-app --network accountshield-smoke-net -p 8080:8080 \
             -e DATABASE_URL=jdbc:postgresql://accountshield-smoke-postgres:5432/accountshield \
             -e DATABASE_USERNAME=accountshield -e DATABASE_PASSWORD=accountshield-local-only \
+            -e SPRING_PROFILES_ACTIVE=local \
             accountshield-orchestrator:ci
 
       - name: Wait for the app to report healthy

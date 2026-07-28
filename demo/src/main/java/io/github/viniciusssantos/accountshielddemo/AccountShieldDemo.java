@@ -14,8 +14,14 @@ import io.github.viniciusssantos.accountshieldsdk.webhook.WebhookSignatureVerifi
 import io.github.viniciusssantos.accountshieldsdk.webhook.WebhookSigner;
 import io.github.viniciusssantos.accountshieldsdk.webhook.WebhookVerificationResult;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Issue #55's "realistic Java consumer" demo, built entirely on {@code accountshield-sdk} -- no
@@ -30,7 +36,11 @@ import java.util.UUID;
  *
  * <p>Run against a live AccountShield instance (default {@code http://localhost:8080}, override
  * with the {@code ACCOUNTSHIELD_BASE_URL} environment variable): {@code
- * java -jar accountshield-demo.jar}.
+ * java -jar accountshield-demo.jar}. Every endpoint below except the webhook demo sits behind this
+ * server's JWT resource server (ADR 0011) -- set {@code ACCOUNTSHIELD_BEARER_TOKEN} to supply a
+ * token yourself, or leave it unset to have this demo mint its own via the server's {@code
+ * local}-profile-only {@code /dev/tokens} endpoint (exactly what {@code compose.yaml}'s
+ * {@code demo} profile does for its {@code app} service).
  */
 public final class AccountShieldDemo {
 
@@ -39,10 +49,13 @@ public final class AccountShieldDemo {
     public static void main(String[] args) {
         EventTimeline timeline = new EventTimeline();
         String baseUrl = System.getenv().getOrDefault("ACCOUNTSHIELD_BASE_URL", "http://localhost:8080");
-        AccountShieldClient client = AccountShieldClient.builder(URI.create(baseUrl)).build();
 
         try {
             timeline.record("Connecting to AccountShield at " + baseUrl);
+            String bearerToken = acquireBearerToken(baseUrl, timeline);
+            AccountShieldClient client = AccountShieldClient.builder(URI.create(baseUrl))
+                    .bearerToken(bearerToken)
+                    .build();
             runAllowScenario(client, timeline);
             runStepUpScenario(client, timeline);
             runRecoveryScenario(client, timeline);
@@ -148,6 +161,52 @@ public final class AccountShieldDemo {
         if (replay.accepted()) {
             throw new IllegalStateException("expected the replayed delivery to be rejected, but it was accepted");
         }
+    }
+
+    /**
+     * {@code /dev/tokens} is dev/demo-only tooling (gated behind the server's {@code local} Spring
+     * profile, {@code SecurityConfig} permits it anonymously) -- not part of the real AccountShield
+     * API contract, so this bypasses {@code AccountShieldClient} entirely and speaks to it with a
+     * plain {@link HttpClient} call. A real external consumer would obtain a token from whatever
+     * identity provider actually issues them; this demo has no such provider to integrate with.
+     */
+    private static String acquireBearerToken(String baseUrl, EventTimeline timeline) {
+        String suppliedToken = System.getenv("ACCOUNTSHIELD_BEARER_TOKEN");
+        if (suppliedToken != null && !suppliedToken.isBlank()) {
+            timeline.record("Using bearer token supplied via ACCOUNTSHIELD_BEARER_TOKEN");
+            return suppliedToken;
+        }
+        timeline.record("No bearer token supplied -- minting one via /dev/tokens (server must run with "
+                + "the 'local' Spring profile active)");
+        try {
+            JsonMapper mapper = JsonMapper.builder().build();
+            String requestBody = mapper.writeValueAsString(new DevTokenRequest(
+                    "accountshield-demo", List.of("PROTECTION_CLIENT")));
+            HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl).resolve("/dev/tokens"))
+                    .timeout(Duration.ofSeconds(5))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+            HttpResponse<String> response = HttpClient.newHttpClient()
+                    .send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new IllegalStateException(
+                        "/dev/tokens returned " + response.statusCode() + " -- is the server running with "
+                                + "SPRING_PROFILES_ACTIVE=local? Otherwise set ACCOUNTSHIELD_BEARER_TOKEN yourself.");
+            }
+            return mapper.readValue(response.body(), DevTokenResponse.class).token();
+        } catch (java.io.IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new IllegalStateException("failed to acquire a bearer token from /dev/tokens", exception);
+        }
+    }
+
+    private record DevTokenRequest(String subject, List<String> roles) {
+    }
+
+    private record DevTokenResponse(String token) {
     }
 
     private static String syntheticAccountReference(String slug) {

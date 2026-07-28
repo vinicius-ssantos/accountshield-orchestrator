@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.sdk;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.viniciusssantos.accountshield.LocalJwtKeys;
 import io.github.viniciusssantos.accountshield.PostgreSqlTestConfiguration;
 import io.github.viniciusssantos.accountshieldsdk.AccountShieldApiException;
 import io.github.viniciusssantos.accountshieldsdk.AccountShieldClient;
@@ -16,8 +17,12 @@ import io.github.viniciusssantos.accountshieldsdk.model.ProtectionEventType;
 import io.github.viniciusssantos.accountshieldsdk.model.ProtectionOutcome;
 import io.github.viniciusssantos.accountshieldsdk.model.RecoveryResponse;
 import java.net.URI;
+import java.time.Clock;
+import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -31,6 +36,12 @@ import org.springframework.context.annotation.Import;
  * typed field the SDK parses matches what the real server actually returned. This is the one
  * deliberate, one-directional dependency exception ADR 0037 documents: this server-side test
  * depends on the sdk artifact (test scope, see pom.xml), never the other way around.
+ *
+ * <p>Every endpoint the SDK calls here (all but {@code /demo/webhook-receiver}) sits behind this
+ * server's JWT resource server (ADR 0011, {@code SecurityConfig}), so every call is made with a
+ * real bearer token minted via the same {@code LocalJwtKeys} bean {@code SecurityIntegrationTest}
+ * uses -- not the {@code /dev/tokens} HTTP endpoint, which is gated behind the {@code local}
+ * Spring profile and not active in this test's default profile.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(PostgreSqlTestConfiguration.class)
@@ -39,8 +50,15 @@ class SdkContractVerificationTest {
     @Value("${local.server.port}")
     private int port;
 
+    @Autowired
+    private LocalJwtKeys localJwtKeys;
+
     private AccountShieldClient client() {
-        return AccountShieldClient.builder(URI.create("http://localhost:" + port)).build();
+        String token = localJwtKeys.signToken(
+                "sdk-contract-test-client", List.of("PROTECTION_CLIENT"), Duration.ofMinutes(5), Clock.systemUTC());
+        return AccountShieldClient.builder(URI.create("http://localhost:" + port))
+                .bearerToken(token)
+                .build();
     }
 
     @Test
