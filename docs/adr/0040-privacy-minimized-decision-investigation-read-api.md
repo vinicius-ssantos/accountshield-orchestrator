@@ -1,4 +1,4 @@
-# ADR 0037: Privacy-minimized decision investigation read API
+# ADR 0040: Privacy-minimized decision investigation read API
 
 - Status: Accepted
 - Date: 2026-07-28
