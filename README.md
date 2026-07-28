@@ -177,6 +177,11 @@ See the [dependency-ordered roadmap](docs/roadmap.md) for the full delivery hist
 docker compose up -d
 ```
 
+> **Local/demo only.** The compose stack runs under the `local` Spring profile, which enables
+> `POST /dev/tokens` -- an unauthenticated endpoint that mints privileged JWTs (any role) for the
+> demo consumer. Never expose port 8080 outside `localhost` with this profile active; it is not a
+> hardened deployment descriptor. See [`SECURITY.md`](SECURITY.md).
+
 This starts:
 
 | Service | Port | Purpose |

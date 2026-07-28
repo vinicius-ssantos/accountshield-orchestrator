@@ -32,6 +32,8 @@ services:
       # only under this profile) so the "demo" service below can self-mint a bearer token --
       # consistent with this file already being local-dev/demo tooling, not a hardened deployment
       # descriptor (see ADR 0024's identical reasoning for not wiring the restricted DB role here).
+      # WARNING: /dev/tokens mints privileged JWTs (any role) without authentication. Never expose
+      # the app's port 8080 outside localhost while this profile is active (see SECURITY.md).
       SPRING_PROFILES_ACTIVE: local
     ports:
       - "${APP_PORT:-8080}:8080"
