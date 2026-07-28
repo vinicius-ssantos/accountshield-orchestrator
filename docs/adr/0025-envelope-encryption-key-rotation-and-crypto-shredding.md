@@ -45,10 +45,12 @@ recovery tables is untouched, larger, separate work.
 
 A two-level envelope:
 
-- **Key-encryption key (KEK)**: an AES-256 key derived (SHA-256) from an operator-configured
-  secret string, matching this codebase's existing house style for `AccountPseudonymizer` and
-  `HmacChallengeCodeHasher` (a flat configured secret, not a generated/pasted key). Exactly one
-  **active** version and, during a rotation window, one **previous** version are configured
+- **Key-encryption key (KEK)**: an AES-256 key whose material is provided as base64-encoded
+  bytes that must decode to exactly 32 bytes, validated at construction. This rejects
+  human-readable passphrases -- a bare SHA-256 of a passphrase offers no resistance to offline
+  brute force, so the operator must supply real high-entropy key material (e.g.
+  `openssl rand -base64 32`, documented in `docs/RELEASING.md`). Exactly one **active** version
+  and, during a rotation window, one **previous** version are configured
   (`accountshield.crypto.active-kek-version`/`-secret`, `...previous-kek-version`/`-secret`) --
   enough to satisfy "support current and previous data-encryption keys" without an open-ended key
   ring, which this system has no present need for.
@@ -118,6 +120,12 @@ them in the background with zero downtime.
 - **A generic Google Tink/BouncyCastle dependency** -- rejected; plain JDK `javax.crypto`
   (`Cipher`, `AES/GCM/NoPadding`) is sufficient and matches this codebase's existing preference
   for JDK-native crypto (`Mac`, `MessageDigest`) over third-party libraries.
+- **Deriving the KEK from a passphrase via a password-based KDF (PBKDF2/scrypt/Argon2)** --
+  rejected in favor of requiring raw high-entropy key material. A KDF would still leave the
+  system dependent on the operator choosing a strong passphrase, and requires persisting a salt
+  per KEK version. Requiring 32 bytes of base64-encoded key material (validated at boot, blocked
+  in production by `ProductionSecretsGuard`) is simpler and removes the passphrase weakness
+  entirely.
 
 ## Consequences
 

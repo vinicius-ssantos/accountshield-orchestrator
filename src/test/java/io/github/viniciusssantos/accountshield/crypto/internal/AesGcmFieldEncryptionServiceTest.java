@@ -26,7 +26,7 @@ class AesGcmFieldEncryptionServiceTest {
     void setUp() {
         store.clear();
         subjectKeyStore = new FakeSubjectKeyStore();
-        KeyEncryptionKeyResolver kekResolver = new KeyEncryptionKeyResolver(1, "test-active-kek", 0, "");
+        KeyEncryptionKeyResolver kekResolver = new KeyEncryptionKeyResolver(1, "D/d4CZZMPi+4f/3+7JoUrg0QEuVrXVNgQ8YTNigBcPk=", 0, "");
         SubjectIdDerivation subjectIdDerivation = new SubjectIdDerivation("test-subject-id-secret");
         Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
         service = new AesGcmFieldEncryptionService(subjectKeyStore, subjectIdDerivation, kekResolver, clock);
