@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -18,22 +19,10 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
 
-    /**
-     * Arbitrary fixed key scoping a Postgres advisory transaction lock to "appending the next
-     * link of the audit hash chain". Held for the duration of this method's transaction
-     * (released automatically at commit/rollback) so concurrent decisions are serialized into
-     * one unambiguous chain rather than racing on which row is "last" -- including when the
-     * chain is currently empty, where a row-level lock on "the last row" would have nothing to
-     * lock against.
-     */
     private static final long CHAIN_LOCK_KEY = 8842017332157841L;
-
+    private static final String CORRELATION_ID_MDC_KEY = "correlationId";
     private static final String LOCK_CHAIN = "SELECT pg_advisory_xact_lock(?)";
 
-    // chain_sequence is nullable for rows written before this chain existed (or, in tests,
-    // fixture rows inserted directly without chain columns) -- Postgres sorts NULL first by
-    // default in DESC order, so those rows must be explicitly excluded or they would be
-    // mistaken for "the last link" and collapse every subsequent sequence back to 1.
     private static final String SELECT_LAST_LINK = """
             SELECT chain_sequence, record_hash FROM audit.decision_trace
             WHERE chain_sequence IS NOT NULL
@@ -44,6 +33,7 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
             INSERT INTO audit.decision_trace (
                 id,
                 protection_request_id,
+                correlation_id,
                 account_reference,
                 request_fingerprint,
                 algorithm_version,
@@ -58,7 +48,7 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 record_hash,
                 hash_algorithm,
                 canonical_schema_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String INSERT_REASON = """
@@ -109,6 +99,7 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
                 INSERT_TRACE,
                 command.decisionId(),
                 command.protectionRequestId(),
+                currentCorrelationId(),
                 command.accountReference(),
                 command.requestFingerprint(),
                 command.algorithmVersion(),
@@ -140,15 +131,24 @@ public class JdbcDecisionTraceRecorder implements DecisionTraceRecorder {
     private ChainLink lockLastLink() {
         List<ChainLink> rows = jdbcTemplate.query(
                 SELECT_LAST_LINK,
-                (rs, rowNum) -> new ChainLink(rs.getLong("chain_sequence"), rs.getString("record_hash")));
+                (rs, rowNum) -> new ChainLink(
+                        rs.getLong("chain_sequence"), rs.getString("record_hash")));
         return rows.stream().findFirst().orElse(new ChainLink(0L, null));
+    }
+
+    private String currentCorrelationId() {
+        String correlationId = MDC.get(CORRELATION_ID_MDC_KEY);
+        return correlationId == null || correlationId.isBlank()
+                ? UUID.randomUUID().toString()
+                : correlationId;
     }
 
     private String toJson(Map<String, Object> value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (RuntimeException exception) {
-            throw new IllegalStateException("failed to serialize bounded audit context", exception);
+            throw new IllegalStateException(
+                    "failed to serialize bounded audit context", exception);
         }
     }
 

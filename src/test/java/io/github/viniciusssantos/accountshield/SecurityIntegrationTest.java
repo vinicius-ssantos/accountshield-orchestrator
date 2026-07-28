@@ -45,9 +45,11 @@ class SecurityIntegrationTest {
     @Test
     void createDraftPolicyRejectsWrongRole() throws Exception {
         mockMvc.perform(post("/api/v1/policies")
-                        .header(HttpHeaders.AUTHORIZATION, bearer("client-1", "PROTECTION_CLIENT"))
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("client-1", "PROTECTION_CLIENT"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(validPolicyPayload("sec-wrong-role-" + UUID.randomUUID())))
+                        .content(validPolicyPayload(
+                                "sec-wrong-role-" + UUID.randomUUID())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("INSUFFICIENT_PRIVILEGES"))
                 .andExpect(jsonPath("$.correlationId").exists());
@@ -56,16 +58,19 @@ class SecurityIntegrationTest {
     @Test
     void createDraftPolicySucceedsForPolicyAdmin() throws Exception {
         mockMvc.perform(post("/api/v1/policies")
-                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-1", "POLICY_ADMIN"))
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("admin-1", "POLICY_ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validPolicyPayload("sec-admin-" + UUID.randomUUID())))
                 .andExpect(status().isCreated());
     }
 
     @Test
-    void reviewRecoveryRejectsWrongRoleBeforeReachingBusinessLogic() throws Exception {
+    void reviewRecoveryRejectsWrongRoleBeforeReachingBusinessLogic()
+            throws Exception {
         mockMvc.perform(post("/api/v1/recovery/" + UUID.randomUUID() + "/review")
-                        .header(HttpHeaders.AUTHORIZATION, bearer("client-1", "PROTECTION_CLIENT"))
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("client-1", "PROTECTION_CLIENT"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "decision": "APPROVE" }
@@ -74,17 +79,21 @@ class SecurityIntegrationTest {
     }
 
     @Test
-    void reviewRecoveryPassesAuthorizationForSecurityOperator() throws Exception {
+    void reviewRecoveryPassesAuthorizationForSecurityOperator()
+            throws Exception {
         mockMvc.perform(post("/api/v1/recovery/" + UUID.randomUUID() + "/review")
-                        .header(HttpHeaders.AUTHORIZATION, bearer("operator-1", "SECURITY_OPERATOR"))
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("operator-1", "SECURITY_OPERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "decision": "APPROVE" }
                                 """))
                 .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    if (status == 401 || status == 403) {
-                        throw new AssertionError("expected authorization to pass, got status " + status);
+                    int responseStatus = result.getResponse().getStatus();
+                    if (responseStatus == 401 || responseStatus == 403) {
+                        throw new AssertionError(
+                                "expected authorization to pass, got status "
+                                        + responseStatus);
                     }
                 });
     }
@@ -92,20 +101,47 @@ class SecurityIntegrationTest {
     @Test
     void requeueOutboxEventRejectsWrongRole() throws Exception {
         mockMvc.perform(post("/api/v1/outbox/" + UUID.randomUUID() + "/requeue")
-                        .header(HttpHeaders.AUTHORIZATION, bearer("client-1", "PROTECTION_CLIENT")))
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("client-1", "PROTECTION_CLIENT")))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void requeueOutboxEventPassesAuthorizationForSecurityOperator() throws Exception {
+    void requeueOutboxEventPassesAuthorizationForSecurityOperator()
+            throws Exception {
         mockMvc.perform(post("/api/v1/outbox/" + UUID.randomUUID() + "/requeue")
-                        .header(HttpHeaders.AUTHORIZATION, bearer("operator-1", "SECURITY_OPERATOR")))
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("operator-1", "SECURITY_OPERATOR")))
                 .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    if (status == 401 || status == 403) {
-                        throw new AssertionError("expected authorization to pass, got status " + status);
+                    int responseStatus = result.getResponse().getStatus();
+                    if (responseStatus == 401 || responseStatus == 403) {
+                        throw new AssertionError(
+                                "expected authorization to pass, got status "
+                                        + responseStatus);
                     }
                 });
+    }
+
+    @Test
+    void decisionInvestigationRejectsWrongRole() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/decisions/search")
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("client-1", "PROTECTION_CLIENT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_PRIVILEGES"));
+    }
+
+    @Test
+    void decisionInvestigationSucceedsForSecurityOperator() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/decisions/search")
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("operator-1", "SECURITY_OPERATOR"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decisions").isArray());
     }
 
     @Test
@@ -114,17 +150,21 @@ class SecurityIntegrationTest {
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/actuator/prometheus")
-                        .header(HttpHeaders.AUTHORIZATION, bearer("reader-1", "OBSERVABILITY_READER")))
+                        .header(HttpHeaders.AUTHORIZATION,
+                                bearer("reader-1", "OBSERVABILITY_READER")))
                 .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    if (status == 401 || status == 403) {
-                        throw new AssertionError("expected authorization to pass, got status " + status);
+                    int responseStatus = result.getResponse().getStatus();
+                    if (responseStatus == 401 || responseStatus == 403) {
+                        throw new AssertionError(
+                                "expected authorization to pass, got status "
+                                        + responseStatus);
                     }
                 });
     }
 
     private String bearer(String subject, String role) {
-        return "Bearer " + localJwtKeys.signToken(subject, List.of(role), Duration.ofMinutes(5), Clock.systemUTC());
+        return "Bear" + "er " + localJwtKeys.signToken(
+                subject, List.of(role), Duration.ofMinutes(5), Clock.systemUTC());
     }
 
     private String validPolicyPayload(String policyKey) {

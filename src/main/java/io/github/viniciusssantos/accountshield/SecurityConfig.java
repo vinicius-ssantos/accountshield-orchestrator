@@ -23,15 +23,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health/**").permitAll()
-                        // DevTokenController only registers under the "local" profile; harmless elsewhere
-                        .requestMatchers("/dev/**").permitAll()
-                        // simulates an external, unauthenticated receiver verifying its own HMAC signature
+                        .requestMatchers("/dev/tokens").permitAll()
                         .requestMatchers("/demo/webhook-receiver").permitAll()
                         .requestMatchers("/actuator/**").hasRole("OBSERVABILITY_READER")
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").authenticated()
                         .requestMatchers("/api/v1/protection-decisions").hasRole("PROTECTION_CLIENT")
-                        // shared by protection step-up, recovery identity, and privileged-operation step-up;
-                        // purpose/context/account binding inside the challenge module enforces the real safety
                         .requestMatchers("/api/v1/challenges/**").authenticated()
                         .requestMatchers("/api/v1/recovery", "/api/v1/recovery/*/confirm-identity",
                                 "/api/v1/recovery/*/complete").hasRole("PROTECTION_CLIENT")
@@ -42,6 +38,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/outbox/**").hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/webhooks/**").hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/audit/**").hasRole("SECURITY_OPERATOR")
+                        .requestMatchers("/api/v1/operator/decisions/**")
+                                .hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/evidence/**").hasRole("SECURITY_OPERATOR")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
