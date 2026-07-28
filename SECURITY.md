@@ -37,7 +37,7 @@ Use synthetic fixtures and clearly fake credentials in documentation and tests.
 
 ## Supported versions
 
-Until the first tagged release, only the latest commit on `main` is considered for security fixes. Older commits and feature branches are not supported.
+Only the latest tagged release (`v1.0.0` and later, as they ship) and the latest commit on `main` are considered for security fixes. Older tags, commits, and feature branches are not supported.
 
 ## Security expectations for contributions
 
