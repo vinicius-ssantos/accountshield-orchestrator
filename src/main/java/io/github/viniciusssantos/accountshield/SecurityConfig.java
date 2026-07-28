@@ -23,8 +23,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health/**").permitAll()
-                        // DevTokenController only registers under the "local" profile; harmless elsewhere
-                        .requestMatchers("/dev/**").permitAll()
+                        // DevTokenController (POST /dev/tokens) only registers under the "local"
+                        // profile; the matcher is scoped to its exact path (not /dev/**) so a future
+                        // controller under /dev/* that forgets @Profile("local") is NOT public by default.
+                        .requestMatchers("/dev/tokens").permitAll()
                         // simulates an external, unauthenticated receiver verifying its own HMAC signature
                         .requestMatchers("/demo/webhook-receiver").permitAll()
                         .requestMatchers("/actuator/**").hasRole("OBSERVABILITY_READER")

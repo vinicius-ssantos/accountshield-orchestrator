@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshieldsdk;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -47,5 +48,19 @@ class RetryPolicyTest {
         assertThat(policy.delayBeforeAttempt(1)).isEqualTo(Duration.ofMillis(100));
         assertThat(policy.delayBeforeAttempt(2)).isEqualTo(Duration.ofMillis(200));
         assertThat(policy.delayBeforeAttempt(3)).isEqualTo(Duration.ofMillis(350));
+    }
+
+    @Test
+    void rejectsMaxAttemptsAbove62() {
+        assertThatThrownBy(() -> new RetryPolicy(63, Duration.ofMillis(10), Duration.ofSeconds(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not exceed 62");
+    }
+
+    @Test
+    void doesNotOverflowWithAnExtremelyLargeAttemptNumber() {
+        RetryPolicy policy = new RetryPolicy(62, Duration.ofMillis(1), Duration.ofSeconds(10));
+
+        assertThat(policy.delayBeforeAttempt(10_000).toMillis()).isPositive();
     }
 }

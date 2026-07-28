@@ -9,6 +9,22 @@
   `CONTRIBUTING.md`'s "Roadmap maintenance" rule) -- a release should never publish a claim that
   contradicts the feature catalog or `SECURITY.md`.
 
+## Production secrets
+
+The `production` Spring profile activates `ProductionSecretsGuard`, which refuses to boot if any
+configured secret is still at its `accountshield-local-only-` default. The AES-256 key-encryption
+key (ADR 0025) and the webhook secret-encryption key must be base64-encoded material that decodes
+to exactly 32 bytes -- generate each independently:
+
+```bash
+openssl rand -base64 32   # ACCOUNTSHIELD_CRYPTO_ACTIVE_KEK_SECRET
+openssl rand -base64 32   # ACCOUNTSHIELD_WEBHOOK_SECRET_ENCRYPTION_KEY
+```
+
+The HMAC and pseudonym secrets (`CHALLENGE_HMAC_SECRET`, `ACCOUNT_PSEUDONYM_SECRET`,
+`ACCOUNTSHIELD_CRYPTO_SUBJECT_ID_SECRET`) accept arbitrary high-entropy strings; generate them
+with `openssl rand -hex 32` or equivalent. Never reuse a key across purposes.
+
 ## Cutting the release
 
 ```bash

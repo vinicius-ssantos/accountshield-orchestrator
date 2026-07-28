@@ -30,13 +30,12 @@ import tools.jackson.databind.ObjectMapper;
  * {@link OpenApiSchemaCompatibilityChecker}. Also always writes the current spec to
  * {@code target/contracts/openapi.json} as a build artifact (uploaded by CI, ADR 0029).
  *
- * <p><b>Bootstrap mode:</b> this repository has never cut a tagged release (zero git tags at the
- * time this test was added), so there is no prior baseline to compare against yet. If the baseline
- * file is absent, this test captures the current spec as that baseline and passes -- a maintainer
- * must commit the resulting {@code src/test/resources/contracts/openapi-baseline.json} to activate
- * the gate for subsequent PRs. Once committed, any future incompatible change fails this test
- * unless the baseline file is deliberately updated in the same PR (a visible, reviewable diff),
- * which is exactly the versioning-policy enforcement mechanism ADR 0029 describes.</p>
+ * <p>The baseline is pinned to the {@code v1.0.0} tagged contract. Any future incompatible
+ * change fails this test unless the baseline file is deliberately updated in the same PR (a
+ * visible, reviewable diff) and the API's major version is bumped per ADR 0029's versioning
+ * policy. To regenerate the baseline after an intentional, reviewed breaking change, delete the
+ * file and re-run this test (it writes the current spec in bootstrap mode), then commit the
+ * result.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

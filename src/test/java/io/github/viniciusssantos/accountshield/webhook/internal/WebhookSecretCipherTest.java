@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 class WebhookSecretCipherTest {
 
-    private final WebhookSecretCipher cipher = new WebhookSecretCipher("test-secret-encryption-key");
+    private final WebhookSecretCipher cipher = new WebhookSecretCipher("D/d4CZZMPi+4f/3+7JoUrg0QEuVrXVNgQ8YTNigBcPk=");
 
     @Test
     void encryptsAndDecryptsRoundTrip() {
@@ -28,7 +28,7 @@ class WebhookSecretCipherTest {
 
     @Test
     void decryptingWithADifferentKeyFails() {
-        WebhookSecretCipher other = new WebhookSecretCipher("a-completely-different-key");
+        WebhookSecretCipher other = new WebhookSecretCipher("q8lFeegq4dCZQxqe5z6HTOzFCiJI2f/iiB4gKn2ePGQ=");
         WebhookSecretCipher.EncryptedSecret encrypted = cipher.encrypt("my-webhook-secret");
 
         assertThatThrownBy(() -> other.decrypt(encrypted.ciphertext(), encrypted.nonce()))

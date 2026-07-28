@@ -26,6 +26,12 @@ import tools.jackson.databind.json.JsonMapper;
  * subprocess (see ci.yml: the cli module is built before this build's own verify step) against
  * this test's own live, random-port server instance, and asserts on the real process exit code and
  * real stdout JSON.
+ *
+ * <p>The CLI jar is a build artifact of a standalone Maven project outside this reactor, so a
+ * clean clone that runs {@code ./mvnw verify} without first building the CLI would otherwise hit
+ * a hard failure here. {@code assumeTrue} turns that into a skip, keeping the root build
+ * self-sufficient (the acceptance criterion of issue #28) while still exercising the real
+ * subprocess end to end whenever the jar is present -- which CI guarantees by building it first.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(PostgreSqlTestConfiguration.class)
@@ -41,9 +47,10 @@ class CliEndToEndTest {
 
     @Test
     void scenarioRunExecutesARealAdversarialScenarioAgainstALiveServer(@TempDir Path outputDir) throws Exception {
-        assertThat(Files.exists(CLI_JAR))
-                .as("%s must be built first (mvn package in cli/) before this test runs", CLI_JAR)
-                .isTrue();
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(CLI_JAR),
+                () -> CLI_JAR + " is not built -- run 'mvn package' in cli/ (after 'mvn install' in sdk/) "
+                        + "to exercise the CLI subprocess end to end; skipped otherwise so a clean-clone "
+                        + "./mvnw verify stays self-sufficient.");
 
         String token = localJwtKeys.signToken(
                 "cli-e2e-test-client", List.of("PROTECTION_CLIENT"), Duration.ofMinutes(5), Clock.systemUTC());

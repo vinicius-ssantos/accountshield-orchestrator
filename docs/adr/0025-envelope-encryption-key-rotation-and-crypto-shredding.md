@@ -36,19 +36,44 @@ plaintext by any other module. **Explicitly deferred**: applying the same mechan
 `audit.decision_trace`, `challenge.challenge_plan`, `recovery.recovery_flow`, and
 `recovery.recovery_authorization` is follow-up work once this pattern is proven. Until that
 follow-up lands, crypto-shredding a subject under this ADR makes their identifier irrecoverable
-in `protection_request` only -- the same plaintext value still exists in the other four tables.
-This is a real, deliberate limit on the "irrecoverable" guarantee, not an oversight: extending it
-to `decision_trace` requires updating the two read paths above; extending it to the challenge/
-recovery tables is untouched, larger, separate work.
+from the **active state** of `protection_request` only -- the same plaintext value still exists
+in the other four tables. This is a real, deliberate limit on the "irrecoverable" guarantee, not
+an oversight: extending it to `decision_trace` requires updating the two read paths above;
+extending it to the challenge/recovery tables is untouched, larger, separate work.
+
+### What "irrecoverable" does and does not cover
+
+Crypto-shredding nulls the wrapped DEK, DEK nonce, and KEK version on the subject's row. Against
+the **current, live database state** the encrypted `account_reference` values are then genuinely
+unrecoverable: there is no key material left to unwrap the DEK that protects them. This is the
+property the feature delivers, and it is real.
+
+It does **not** retroactively erase history that PostgreSQL retains outside the active tuple:
+
+- **Backups taken before the shred** contain the `wrapped_dek` intact. With the KEK (still held
+  in application configuration), the data is recoverable from that backup. This project now has
+  a tested backup/restore procedure (ADR 0036), so the probability that such a backup exists is
+  high *by design*.
+- **The WAL archive** retains the pre-shred tuple for the configured retention window.
+- **Pre-`VACUUM` heap tuples**: a PostgreSQL `UPDATE` creates a new tuple version and leaves the
+  old one on the heap until `VACUUM` reclaims it, so the pre-shred `wrapped_dek` is physically
+  present in the table file until then.
+
+A real data-erasure policy must therefore pair crypto-shredding with a backup-retention policy
+whose window is aligned to the erasure requirement, and treat the guarantee as "irrecoverable
+from the live database after shred," not "erased from every medium that ever held the data."
+This cross-cutting concern is also called out in ADR 0036's interaction with this feature.
 
 ### Key hierarchy
 
 A two-level envelope:
 
-- **Key-encryption key (KEK)**: an AES-256 key derived (SHA-256) from an operator-configured
-  secret string, matching this codebase's existing house style for `AccountPseudonymizer` and
-  `HmacChallengeCodeHasher` (a flat configured secret, not a generated/pasted key). Exactly one
-  **active** version and, during a rotation window, one **previous** version are configured
+- **Key-encryption key (KEK)**: an AES-256 key whose material is provided as base64-encoded
+  bytes that must decode to exactly 32 bytes, validated at construction. This rejects
+  human-readable passphrases -- a bare SHA-256 of a passphrase offers no resistance to offline
+  brute force, so the operator must supply real high-entropy key material (e.g.
+  `openssl rand -base64 32`, documented in `docs/RELEASING.md`). Exactly one **active** version
+  and, during a rotation window, one **previous** version are configured
   (`accountshield.crypto.active-kek-version`/`-secret`, `...previous-kek-version`/`-secret`) --
   enough to satisfy "support current and previous data-encryption keys" without an open-ended key
   ring, which this system has no present need for.
@@ -118,6 +143,12 @@ them in the background with zero downtime.
 - **A generic Google Tink/BouncyCastle dependency** -- rejected; plain JDK `javax.crypto`
   (`Cipher`, `AES/GCM/NoPadding`) is sufficient and matches this codebase's existing preference
   for JDK-native crypto (`Mac`, `MessageDigest`) over third-party libraries.
+- **Deriving the KEK from a passphrase via a password-based KDF (PBKDF2/scrypt/Argon2)** --
+  rejected in favor of requiring raw high-entropy key material. A KDF would still leave the
+  system dependent on the operator choosing a strong passphrase, and requires persisting a salt
+  per KEK version. Requiring 32 bytes of base64-encoded key material (validated at boot, blocked
+  in production by `ProductionSecretsGuard`) is simpler and removes the passphrase weakness
+  entirely.
 
 ## Consequences
 

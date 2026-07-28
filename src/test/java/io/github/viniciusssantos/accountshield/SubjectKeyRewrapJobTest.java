@@ -6,8 +6,6 @@ import io.github.viniciusssantos.accountshield.crypto.internal.KeyEncryptionKeyR
 import io.github.viniciusssantos.accountshield.crypto.internal.SubjectKeyRewrapJob;
 import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyRecord;
 import io.github.viniciusssantos.accountshield.crypto.internal.persistence.SubjectKeyStore;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.UUID;
@@ -23,9 +21,7 @@ import org.springframework.context.annotation.Import;
 @Import(PostgreSqlTestConfiguration.class)
 class SubjectKeyRewrapJobTest {
 
-    private static final String STALE_KEK_SECRET = "accountshield-local-only-kek-v99-test";
     private static final int STALE_KEK_VERSION = 99;
-    private static final String ACTIVE_KEK_SECRET = "accountshield-local-only-kek-v1";
 
     @Autowired
     private SubjectKeyRewrapJob rewrapJob;
@@ -39,8 +35,10 @@ class SubjectKeyRewrapJobTest {
     @Test
     void rewrapsOnlySubjectKeysOnANonActiveKekVersion() throws Exception {
         int activeVersion = kekResolver.activeVersion();
-        String upToDateSubjectId = insertSubjectKey(activeVersion, ACTIVE_KEK_SECRET);
-        String staleSubjectId = insertSubjectKey(STALE_KEK_VERSION, STALE_KEK_SECRET);
+        SecretKeySpec activeKek = kekResolver.keyForVersion(activeVersion);
+        SecretKeySpec staleKek = kekResolver.keyForVersion(STALE_KEK_VERSION);
+        String upToDateSubjectId = insertSubjectKey(activeVersion, activeKek);
+        String staleSubjectId = insertSubjectKey(STALE_KEK_VERSION, staleKek);
 
         rewrapJob.rewrapPendingSubjectKeys();
 
@@ -57,14 +55,12 @@ class SubjectKeyRewrapJobTest {
         assertThat(dek).hasSize(32);
     }
 
-    private String insertSubjectKey(int kekVersion, String kekSecret) throws Exception {
+    private String insertSubjectKey(int kekVersion, SecretKeySpec kek) throws Exception {
         String subjectId = UUID.randomUUID().toString().replace("-", "");
         byte[] dek = new byte[32];
         new SecureRandom().nextBytes(dek);
         byte[] nonce = new byte[12];
         new SecureRandom().nextBytes(nonce);
-        SecretKeySpec kek = new SecretKeySpec(
-                MessageDigest.getInstance("SHA-256").digest(kekSecret.getBytes(StandardCharsets.UTF_8)), "AES");
         byte[] wrappedDek = aesGcm(Cipher.ENCRYPT_MODE, kek, nonce, dek);
 
         subjectKeyStore.insert(subjectId, wrappedDek, nonce, kekVersion, Instant.now());

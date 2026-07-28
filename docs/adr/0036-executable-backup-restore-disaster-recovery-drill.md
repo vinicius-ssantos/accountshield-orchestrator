@@ -158,6 +158,18 @@ unavailable, every envelope-encrypted field becomes permanently, unrecoverably u
 by design (ADR 0025's crypto-shredding property cuts both ways) but must be an explicit, understood
 operational dependency, not an implicit assumption.
 
+### Interaction with crypto-shredding (ADR 0025)
+
+A `pg_dump` backup captures the **full live state** at backup time, including any `wrapped_dek`
+that was later crypto-shredded. This means: a backup taken **before** a shred retains the key
+material, and -- with the KEK -- the shredded account reference is recoverable from that backup.
+The drill does not currently exercise a shred-across-backup-boundary scenario, and no
+backup-retention policy is enforced. **A real erasure obligation must pair crypto-shredding with a
+backup-retention window aligned to the erasure requirement** (and WAL archive retention, and a
+`VACUUM` cadence), or the "irrecoverable" guarantee holds only against the live database, not
+against historical media. See ADR 0025's "What 'irrecoverable' does and does not cover" section
+for the full qualification.
+
 ## Guardrails
 
 - Every assertion (migration count, audit-chain validity, policy uniqueness, outbox counts,

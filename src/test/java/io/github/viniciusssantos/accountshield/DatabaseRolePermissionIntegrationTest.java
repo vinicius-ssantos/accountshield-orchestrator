@@ -57,7 +57,7 @@ class DatabaseRolePermissionIntegrationTest {
 
         try (Connection connection = runtimeConnection();
                 PreparedStatement statement = connection.prepareStatement(
-                        "UPDATE audit.decision_trace SET outcome = 'MONITOR' WHERE id = ?")) {
+                        "UPDATE audit.decision_trace SET outcome = 'TEMPORARILY_BLOCK' WHERE id = ?")) {
             statement.setObject(1, decisionId);
 
             assertThatThrownBy(statement::executeUpdate)

@@ -2,6 +2,7 @@ package io.github.viniciusssantos.accountshield.outbox;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 
 public interface OutboxAdminService {
 
@@ -12,6 +13,10 @@ public interface OutboxAdminService {
      */
     void requeue(UUID eventId, String actor);
 
-    /** Delivery history, optionally filtered to one status (e.g. {@code DEAD_LETTERED}); null for all. */
-    List<OutboxEventSummary> list(String statusFilter);
+    /**
+     * Delivery history, optionally filtered to one status (e.g. {@code DEAD_LETTERED}); null for all.
+     * The {@link Pageable} bounds the result set (page/size query parameters); the implementation
+     * caps the page size so a growing table cannot trigger an unbounded load or OOM.
+     */
+    List<OutboxEventSummary> list(String statusFilter, Pageable pageable);
 }

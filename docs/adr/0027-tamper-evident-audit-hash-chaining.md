@@ -99,6 +99,26 @@ internally consistent -- which is what an ordinary compromised-credential or acc
 scenario looks like, and exactly what bypassing (not exploiting a flaw in) the append-only
 trigger would produce.
 
+**Coverage boundary -- `normalized_context` is not in the chain hash.** `AuditChainHasher`
+includes the decision's identity, request fingerprint, algorithm/policy versions, outcome,
+risk score, timestamp, and reason children -- but **not** the `normalized_context` JSONB column.
+This is a deliberate boundary, now stated explicitly rather than left implicit: the chain alone
+cannot detect tampering with *which signals fed the decision*. It is covered by defense in depth
+instead:
+
+- `audit.decision_trace` is append-only at the database level (`trg_decision_trace_append_only`
+  blocks `UPDATE`/`DELETE` on the whole row), so the easy mutation path is closed.
+- `outcome` and `risk_score` **are** in the hash, and replay (ADR 0019/0020) recomputes the
+  score from `normalized_context` -- so an attacker who rewrites the signals cannot adjust the
+  outcome/score to stay consistent with the chain without breaking it.
+- evidence bundles (ADR 0028) include `normalizedContext` in their signed content, giving an
+  independently verifiable snapshot of the exact signals at decision time.
+
+A future change that folds `normalized_context` into the chain hash would require bumping
+`CANONICAL_SCHEMA_VERSION` (already stored per row, so old history keeps verifying under the old
+version). Until then, the chain's tamper-evidence guarantee applies to every field listed in
+`AuditChainHasher.computeRecordHash` and to `normalized_context` only via the mechanisms above.
+
 **What this does not catch:** an attacker with sustained, privileged write access who tampers
 with a row *and* recomputes every subsequent row's hash to keep the chain internally consistent.
 A hash chain stored in the same database it protects cannot distinguish a self-consistent forged
