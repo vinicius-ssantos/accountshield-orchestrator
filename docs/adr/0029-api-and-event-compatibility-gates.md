@@ -68,24 +68,17 @@ domain enum serialized into a public API response or event payload
 are always allowed. This is the same category of check `OpenApiSchemaCompatibilityChecker`'s
 `enum` handling performs for schema-documented enums, just applied where no schema exists to walk.
 
-### Baseline bootstrap: this PR ships the mechanism, not yet an active gate
+### Baseline: pinned to the v1.0.0 tagged contract (F-06, post-v1.0.0 review)
 
-With zero prior tags/releases and no way to run the app locally to hand-produce an accurate
-baseline file, `OpenApiCompatibilityTest` and `IntegrationEventContractTest` self-bootstrap: if
-their respective checked-in baseline file
-(`src/test/resources/contracts/openapi-baseline.json`, `src/test/resources/contracts/events/
-<eventType>.json`) is absent, the test captures the current spec/fixture shape, writes it to that
-path, and passes. **This PR does not commit those baseline files** -- doing so without ever having
-run the real app would mean guessing springdoc's exact generated JSON (schema naming, `$ref`
-structure, nullability conventions) by hand, and an inaccurate guess would make the very first
-comparison fail for reasons that are transcription errors, not real incompatibilities. Instead:
-this PR's own CI run exercises the bootstrap path (proving the mechanism produces valid output and
-the artifact-upload step works), and a small follow-up commit -- taking the `contracts` build
-artifact CI produces and committing it as the baseline -- activates the gate for every subsequent
-PR. From that point on, any incompatible change fails the relevant test unless the baseline file
-itself is deliberately updated in the same PR, which is a visible, reviewable diff -- the practical
-mechanism behind "compare PR contracts against the latest released baseline" until a real tagged
-release exists to fetch from instead (see Revisit criteria).
+The OpenAPI baseline (`src/test/resources/contracts/openapi-baseline.json`) is now committed and
+pinned to the `v1.0.0` tagged API contract. The gate no longer auto-bootstraps on every run: it
+compares the live `/v3/api-docs` against the committed file and fails on any breaking change
+unless the baseline itself is deliberately updated in the same PR (a visible, reviewable diff),
+which is the practical mechanism behind "compare PR contracts against the latest released
+baseline." The bootstrap code path (write-and-pass when the baseline file is absent) is retained
+solely as a maintenance tool: deleting the file and re-running the test regenerates it after an
+intentional, reviewed breaking change. The CI comment in `ci.yml` previously justified the
+auto-bootstrap with "no tagged release exists yet" -- that premise no longer holds.
 
 ### Versioning policy
 
@@ -186,9 +179,12 @@ criterion actually asks for.
 
 ## Revisit criteria
 
-- when the first git tag / GitHub Release is actually cut: switch the baseline source from a
+- ~~when the first git tag / GitHub Release is actually cut: switch the baseline source from a
   checked-in file to fetching the previous release's published artifact, and add the tag-triggered
-  release-upload workflow this ADR deferred;
+  release-upload workflow this ADR deferred~~ -- **done (post-v1.0.0 review, F-06):** the OpenAPI
+  baseline is now committed and pinned to the v1.0.0 contract; the gate compares against it
+  instead of auto-bootstrapping. Fetching the baseline from the published release artifact (rather
+  than a checked-in file) remains a future hardening step;
 - if a real, well-verified OpenAPI/AsyncAPI diff library becomes safe to adopt in this environment
   (e.g. once local Maven/JDK availability allows verifying it before merge), consider replacing the
   hand-rolled comparators -- they were chosen for this session's specific verifiability constraint,
