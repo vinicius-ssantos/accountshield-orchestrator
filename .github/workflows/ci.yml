@@ -51,7 +51,7 @@ jobs:
 
       - name: Upload generated contracts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: contracts
           path: target/contracts/**
@@ -62,7 +62,7 @@ jobs:
       # here so a real number can be established, then thresholds phased in as a follow-up.
       - name: Upload JaCoCo coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-coverage-report
           path: target/site/jacoco/**
@@ -72,7 +72,7 @@ jobs:
       # report -- "results can feed demo dashboards".
       - name: Upload scenario lab report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: scenario-lab-report
           path: target/scenario-reports/**
@@ -83,7 +83,7 @@ jobs:
       # directory) only exist on the nightly workflow, where the "benchmark"-tagged suite runs.
       - name: Upload benchmark report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-report
           path: target/benchmark-reports/**
@@ -93,7 +93,7 @@ jobs:
       # (ADR 0031, mirrors ADR 0029's identical bootstrap reasoning for contract baselines).
       - name: Upload CycloneDX SBOM
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: |
@@ -112,7 +112,7 @@ jobs:
 
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: surefire-reports
           path: target/surefire-reports/**
