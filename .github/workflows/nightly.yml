@@ -33,6 +33,13 @@ jobs:
           cd sdk
           mvn --batch-mode --no-transfer-progress install -DskipTests
 
+      # accountshield-cli (issue #56, ADR 0038) must be assembled (not just installed) since
+      # CliEndToEndTest below runs the jar itself as a real subprocess.
+      - name: Build accountshield-cli module
+        run: |
+          cd cli
+          mvn --batch-mode --no-transfer-progress package -DskipTests
+
       # No -DexcludedGroups here, unlike ci.yml's default gate (ADR 0032): this is the "nightly
       # workflows run the full suite" half of issue #39's acceptance criterion, exercising the
       # slower fault-injection (Toxiproxy) scenarios ci.yml's default gate skips, plus the

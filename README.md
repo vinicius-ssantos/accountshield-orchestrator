@@ -180,6 +180,22 @@ The Grafana dashboard is auto-provisioned from `grafana/accountshield-dashboard.
 
 Interactive API docs are available at `http://localhost:8080/swagger-ui.html` once the application is running.
 
+### Try it with the Scenario CLI
+
+The primary walkthrough for exploring a running instance is the [Scenario CLI](cli/README.md)
+(issue #56), built on the [Java SDK](sdk/README.md) (issue #55) -- no server-internal dependency,
+just the public API:
+
+```bash
+cd sdk && mvn install -DskipTests && cd ../cli && mvn package
+java -jar target/accountshield-cli.jar scenario list
+java -jar target/accountshield-cli.jar scenario run credential-stuffing --token <jwt>
+```
+
+See `cli/README.md` for the full command reference (scenarios, policy lint/diff, evidence verify)
+and exit-code contract. `demo/README.md` has an equivalent, fully-programmatic Java example built
+directly on the SDK, for consumers integrating rather than exploring from a terminal.
+
 ### Developer workflow
 
 ```bash

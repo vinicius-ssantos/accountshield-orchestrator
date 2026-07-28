@@ -46,6 +46,14 @@ jobs:
           cd demo
           mvn --batch-mode --no-transfer-progress package
 
+      # Issue #56 (ADR 0038): accountshield-cli is a standalone Maven project depending only on
+      # accountshield-sdk. "Verify" below's CliEndToEndTest runs the assembled jar built here as a
+      # real subprocess against a live test server -- the jar must exist on disk first.
+      - name: Build and test accountshield-cli module
+        run: |
+          cd cli
+          mvn --batch-mode --no-transfer-progress package
+
       # "resilience"-tagged tests (fault-injection: real container startup, connection-timeout
       # waits) are excluded from this default gate and run in full every night instead
       # (nightly.yml, ADR 0032) -- the stable/default subset vs. full-suite split issue #39 asks
