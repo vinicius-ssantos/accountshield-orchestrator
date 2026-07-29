@@ -46,12 +46,19 @@ public class SubjectKeyStore {
                 subjectId, wrappedDek, dekNonce, kekVersion, Timestamp.from(createdAt));
     }
 
+    /**
+     * Guarded by {@code destroyed_at IS NULL} so a rewrap that races a concurrent {@link
+     * #destroy} can never write a live key back onto a row a crypto-shred already marked
+     * destroyed (issue #143 / F-19): without this guard, the shredded row would end up with
+     * both {@code destroyed_at} set and a decryptable {@code wrapped_dek} -- the row would claim
+     * to be destroyed while the data is recoverable again, contradicting ADR 0025.
+     */
     public void rewrap(String subjectId, byte[] newWrappedDek, byte[] newNonce, int newKekVersion, Instant now) {
         jdbcTemplate.update(
                 """
                 UPDATE crypto.subject_key
                 SET wrapped_dek = ?, dek_nonce = ?, kek_version = ?, rewrapped_at = ?
-                WHERE subject_id = ?
+                WHERE subject_id = ? AND destroyed_at IS NULL
                 """,
                 newWrappedDek, newNonce, newKekVersion, Timestamp.from(now), subjectId);
     }
@@ -70,6 +77,15 @@ public class SubjectKeyStore {
                 Timestamp.from(now), subjectId);
     }
 
+    /**
+     * {@code FOR UPDATE SKIP LOCKED} within the caller's transaction ({@link
+     * io.github.viniciusssantos.accountshield.crypto.internal.SubjectKeyRewrapJob#rewrapPendingSubjectKeys}
+     * is {@code @Transactional}) so a second instance's concurrent batch skips rows already
+     * claimed by this one instead of re-rewrapping them, and so a concurrent {@link #destroy}
+     * targeting a locked row blocks until this transaction commits -- at which point its {@code
+     * destroyed_at IS NULL} predicate re-evaluates against the now-current row and no longer
+     * matches, closing the same race the {@link #rewrap} guard defends against independently.
+     */
     public List<SubjectKeyRecord> findBatchNeedingRewrap(int activeKekVersion, int batchSize) {
         return jdbcTemplate.query(
                 """
@@ -78,6 +94,7 @@ public class SubjectKeyStore {
                 WHERE kek_version <> ? AND destroyed_at IS NULL
                 ORDER BY created_at
                 LIMIT ?
+                FOR UPDATE SKIP LOCKED
                 """,
                 SubjectKeyStore::mapRow, activeKekVersion, batchSize);
     }

@@ -34,6 +34,7 @@ class ProductionSecretsGuard {
             "accountshield-local-only-challenge-secret",
             "accountshield-local-only-pseudonym-secret",
             "accountshield-local-only-subject-id-secret",
+            "accountshield-local-only-demo-receiver-secret",
             "fV2x6TR85adre0B8wtaHGnLekX6MOoPjm1du9h/MBKY=",
             "MQK2zVpJuhFHt9iIhP2WkFZC0rW80SVg5vz9SStRMxQ=");
 
@@ -51,14 +52,20 @@ class ProductionSecretsGuard {
             @Value("${accountshield.crypto.active-kek-secret:fV2x6TR85adre0B8wtaHGnLekX6MOoPjm1du9h/MBKY=}")
             String cryptoActiveKekSecret,
             @Value("${accountshield.crypto.subject-id-secret:accountshield-local-only-subject-id-secret}")
-            String cryptoSubjectIdSecret) {
+            String cryptoSubjectIdSecret,
+            @Value("${accountshield.webhook.demo-receiver.secret:accountshield-local-only-demo-receiver-secret}")
+            String webhookDemoReceiverSecret) {
         this.environment = environment;
         this.secrets = List.of(
                 new ConfiguredSecret("accountshield.challenge.hmac-secret", challengeHmacSecret),
                 new ConfiguredSecret("accountshield.privacy.pseudonym-secret", pseudonymSecret),
                 new ConfiguredSecret("accountshield.webhook.secret-encryption-key", webhookSecretEncryptionKey),
                 new ConfiguredSecret("accountshield.crypto.active-kek-secret", cryptoActiveKekSecret),
-                new ConfiguredSecret("accountshield.crypto.subject-id-secret", cryptoSubjectIdSecret));
+                new ConfiguredSecret("accountshield.crypto.subject-id-secret", cryptoSubjectIdSecret),
+                // Checked independently of DemoWebhookReceiverController's own @Profile("local")
+                // gate (issue #144 / F-17): this guard is the backstop for a future controller
+                // that reintroduces the endpoint outside that profile.
+                new ConfiguredSecret("accountshield.webhook.demo-receiver.secret", webhookDemoReceiverSecret));
     }
 
     @PostConstruct
