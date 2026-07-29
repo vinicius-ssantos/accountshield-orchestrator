@@ -43,6 +43,7 @@ class OutboxRelayTest {
     void marksEventAsPublishedWhenPublisherSucceeds() {
         ClaimedOutboxEvent event = claimedEvent(0);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
+        when(claimStore.markPublished(event.id(), event.claimToken(), FIXED_INSTANT)).thenReturn(true);
         OutboxRelay relay = newRelay(5);
 
         relay.dispatchPending();
@@ -51,13 +52,14 @@ class OutboxRelayTest {
         verify(publisher).publish(messageCaptor.capture());
         assertThat(messageCaptor.getValue().eventType()).isEqualTo("PROTECTION_DECISION_MADE");
         assertThat(messageCaptor.getValue().aggregateId()).isEqualTo("dec-123");
-        verify(claimStore).markPublished(event.id(), FIXED_INSTANT);
+        verify(claimStore).markPublished(event.id(), event.claimToken(), FIXED_INSTANT);
     }
 
     @Test
     void recordsBackoffAndIncrementsAttemptOnFailureBelowMaxAttempts() {
         ClaimedOutboxEvent event = claimedEvent(0);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
+        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any())).thenReturn(true);
         doThrow(new RuntimeException("connection refused")).when(publisher).publish(any());
         OutboxRelay relay = newRelay(5);
 
@@ -65,28 +67,30 @@ class OutboxRelayTest {
 
         ArgumentCaptor<Instant> nextAttemptCaptor = ArgumentCaptor.forClass(Instant.class);
         verify(claimStore).markFailedWithBackoff(
-                eq(event.id()), eq(1), eq("connection refused"), nextAttemptCaptor.capture());
+                eq(event.id()), eq(event.claimToken()), eq(1), eq("connection refused"), nextAttemptCaptor.capture());
         assertThat(nextAttemptCaptor.getValue()).isAfter(FIXED_INSTANT);
-        verify(claimStore, never()).markDeadLettered(any(), anyInt(), any(), any());
+        verify(claimStore, never()).markDeadLettered(any(), any(), anyInt(), any(), any());
     }
 
     @Test
     void deadLettersEventWhenAttemptCountReachesMaxAttempts() {
         ClaimedOutboxEvent event = claimedEvent(4);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
+        when(claimStore.markDeadLettered(any(), any(), anyInt(), any(), any())).thenReturn(true);
         doThrow(new RuntimeException("still failing")).when(publisher).publish(any());
         OutboxRelay relay = newRelay(5);
 
         relay.dispatchPending();
 
-        verify(claimStore).markDeadLettered(event.id(), 5, "still failing", FIXED_INSTANT);
-        verify(claimStore, never()).markFailedWithBackoff(any(), anyInt(), any(), any());
+        verify(claimStore).markDeadLettered(event.id(), event.claimToken(), 5, "still failing", FIXED_INSTANT);
+        verify(claimStore, never()).markFailedWithBackoff(any(), any(), anyInt(), any(), any());
     }
 
     @Test
     void boundsErrorMessageLength() {
         ClaimedOutboxEvent event = claimedEvent(0);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
+        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any())).thenReturn(true);
         String longError = "x".repeat(2000);
         doThrow(new RuntimeException(longError)).when(publisher).publish(any());
         OutboxRelay relay = newRelay(5);
@@ -94,7 +98,7 @@ class OutboxRelayTest {
         relay.dispatchPending();
 
         ArgumentCaptor<String> errorCaptor = ArgumentCaptor.forClass(String.class);
-        verify(claimStore).markFailedWithBackoff(any(), anyInt(), errorCaptor.capture(), any());
+        verify(claimStore).markFailedWithBackoff(any(), any(), anyInt(), errorCaptor.capture(), any());
         assertThat(errorCaptor.getValue()).hasSize(1000);
     }
 
@@ -102,14 +106,32 @@ class OutboxRelayTest {
     void usesExceptionClassNameWhenMessageIsNull() {
         ClaimedOutboxEvent event = claimedEvent(0);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
+        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any())).thenReturn(true);
         doThrow(new NullPointerException()).when(publisher).publish(any());
         OutboxRelay relay = newRelay(5);
 
         relay.dispatchPending();
 
         ArgumentCaptor<String> errorCaptor = ArgumentCaptor.forClass(String.class);
-        verify(claimStore).markFailedWithBackoff(any(), anyInt(), errorCaptor.capture(), any());
+        verify(claimStore).markFailedWithBackoff(any(), any(), anyInt(), errorCaptor.capture(), any());
         assertThat(errorCaptor.getValue()).isEqualTo("NullPointerException");
+    }
+
+    /**
+     * Issue #145 / F-18: when the ack store reports the claim was already superseded (a stale
+     * ack), the relay must not log it as a genuine failure/dead-letter outcome -- there's nothing
+     * wrong with the event, this worker simply lost the race to a newer claim owner.
+     */
+    @Test
+    void doesNotTreatAStalePublishAckAsAnError() {
+        ClaimedOutboxEvent event = claimedEvent(0);
+        when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
+        when(claimStore.markPublished(event.id(), event.claimToken(), FIXED_INSTANT)).thenReturn(false);
+        OutboxRelay relay = newRelay(5);
+
+        relay.dispatchPending();
+
+        verify(claimStore).markPublished(event.id(), event.claimToken(), FIXED_INSTANT);
     }
 
     @Test
@@ -138,6 +160,7 @@ class OutboxRelayTest {
                 "PROTECTION_DECISION_MADE",
                 "{\"outcome\":\"ALLOW\"}",
                 FIXED_INSTANT.minusSeconds(60),
-                attemptCount);
+                attemptCount,
+                UUID.randomUUID());
     }
 }
