@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshield.contracts;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,8 +35,12 @@ import tools.jackson.databind.ObjectMapper;
  * change fails this test unless the baseline file is deliberately updated in the same PR (a
  * visible, reviewable diff) and the API's major version is bumped per ADR 0029's versioning
  * policy. To regenerate the baseline after an intentional, reviewed breaking change, delete the
- * file and re-run this test (it writes the current spec in bootstrap mode), then commit the
- * result.
+ * file and re-run this test with {@code -Dcontracts.baseline.bootstrap=true} (it writes the
+ * current spec in bootstrap mode), then commit the result. Without that system property -- which
+ * {@code ci.yml} never sets -- a missing baseline fails the test instead of silently regenerating
+ * it (issue #152 / F-06): otherwise deleting the committed baseline, introducing a breaking
+ * change, and running the test locally would regenerate a baseline that already contains the
+ * break and pass CI.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -44,6 +49,7 @@ class OpenApiCompatibilityTest {
 
     private static final Path BASELINE_PATH = Path.of("src/test/resources/contracts/openapi-baseline.json");
     private static final Path ARTIFACT_PATH = Path.of("target/contracts/openapi.json");
+    private static final boolean BOOTSTRAP_MODE = Boolean.getBoolean("contracts.baseline.bootstrap");
 
     @Autowired
     private MockMvc mockMvc;
@@ -67,6 +73,11 @@ class OpenApiCompatibilityTest {
         writeArtifact(currentJson);
 
         if (Files.notExists(BASELINE_PATH)) {
+            if (!BOOTSTRAP_MODE) {
+                fail("Baseline file " + BASELINE_PATH + " is missing. If this is an intentional, reviewed "
+                        + "breaking change, regenerate it locally with -Dcontracts.baseline.bootstrap=true "
+                        + "and commit the result -- a missing baseline must not silently pass.");
+            }
             Files.createDirectories(BASELINE_PATH.getParent());
             Files.writeString(BASELINE_PATH, currentJson, StandardCharsets.UTF_8);
             return;
