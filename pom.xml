@@ -171,9 +171,22 @@
 
     <build>
         <plugins>
+            <!-- build-info bound to generate-resources (not the goal's own default,
+                 prepare-package) so META-INF/build-info.properties exists before the test phase
+                 runs, not only after it; the BuildProperties bean OpenApiConfiguration uses as
+                 the single source of truth for the live OpenAPI contract's info.version
+                 (issue #151 / F-23) requires that file to already be on the classpath. -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                        <phase>generate-resources</phase>
+                    </execution>
+                </executions>
             </plugin>
             <!-- Coverage: report every run, and enforce a conservative floor so coverage cannot
                  regress silently. The baseline (observed at the v1.0.0 tag) is ~89% instruction

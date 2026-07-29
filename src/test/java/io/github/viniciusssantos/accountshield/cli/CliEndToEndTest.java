@@ -29,9 +29,13 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>The CLI jar is a build artifact of a standalone Maven project outside this reactor, so a
  * clean clone that runs {@code ./mvnw verify} without first building the CLI would otherwise hit
- * a hard failure here. {@code assumeTrue} turns that into a skip, keeping the root build
- * self-sufficient (the acceptance criterion of issue #28) while still exercising the real
- * subprocess end to end whenever the jar is present -- which CI guarantees by building it first.
+ * a hard failure here. {@code assumeTrue} turns that into a skip, exercising the real subprocess
+ * end to end whenever the jar is present -- which CI guarantees by building it first. This only
+ * covers the CLI half of issue #28's self-sufficiency goal: the root build's test scope also has
+ * a hard compile-time dependency on {@code accountshield-sdk} (see {@code
+ * SdkContractVerificationTest}), which still must be installed locally before {@code ./mvnw
+ * verify} can even reach {@code test-compile} (issue #148 / F-04, see README's developer
+ * workflow section).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(PostgreSqlTestConfiguration.class)

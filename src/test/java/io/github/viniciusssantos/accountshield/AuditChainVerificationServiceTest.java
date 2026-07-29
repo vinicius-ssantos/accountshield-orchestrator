@@ -16,9 +16,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * {@code @Transactional} (issue #146 / F-20): every test here deliberately inserts broken chain
+ * links -- tampered hashes, a broken previous-hash link, an unknown schema version, and even a
+ * physical deletion via a temporarily disabled trigger -- directly into the real, shared
+ * {@code audit.decision_trace} table. Without a rollback, those rows persisted for the rest of
+ * the Testcontainers instance's lifetime and permanently corrupted the audit chain for any other
+ * test class sharing that container -- concretely, {@code DisasterRecoveryDrillTest}'s "source
+ * chain must verify cleanly before backup" precondition failed whenever it ran after this class,
+ * on an unrelated range of the chain it never touched. Postgres DDL (the trigger
+ * disable/re-enable in {@code missingRecordViaDeletionIsDetected}) is transactional too, so it
+ * rolls back cleanly along with everything else.
+ */
 @SpringBootTest
 @Import(PostgreSqlTestConfiguration.class)
+@Transactional
 class AuditChainVerificationServiceTest {
 
     @Autowired
