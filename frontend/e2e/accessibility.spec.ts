@@ -8,6 +8,11 @@ const scenarios = [
     heading: "Account protection at a glance",
   },
   {
+    name: "decision investigation",
+    path: "/decisions",
+    heading: "Decision investigation",
+  },
+  {
     name: "design-system showcase",
     path: "/design-system",
     heading: "AccountShield console design system",
@@ -25,6 +30,12 @@ for (const scenario of scenarios) {
         name: scenario.heading,
       }),
     ).toBeVisible();
+
+    if (scenario.path === "/decisions") {
+      await expect(
+        page.getByRole("table", { name: "Decision investigation results" }),
+      ).toBeVisible();
+    }
 
     const results = await new AxeBuilder({ page }).analyze();
     const blockingViolations = results.violations.filter(

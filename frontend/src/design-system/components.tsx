@@ -272,7 +272,7 @@ export function DataTable({
   emptyMessage?: string;
 }) {
   return (
-    <div className="tableWrapper">
+    <div aria-label={caption} className="tableWrapper" role="group" tabIndex={0}>
       <table className="dataTable">
         <caption className="srOnly">{caption}</caption>
         <thead>
