@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationCriteria;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationDetail;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationPage;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.SectionAvailability;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
@@ -83,6 +85,48 @@ class DecisionInvestigationIntegrationTest {
     }
 
     @Test
+    void returnsDeterministicMinimizedTimelineWithoutRawSubjectOrPayloads() {
+        String correlationId = "investigation-detail-" + UUID.randomUUID();
+        String rawAccountReference = "sensitive-account-" + UUID.randomUUID();
+        MDC.put(CorrelationIdFilter.MDC_KEY, correlationId);
+
+        ProtectionDecisionResult result = decide(
+                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                rawAccountReference);
+
+        DecisionInvestigationDetail detail = investigationQuery
+                .investigate(result.decisionId().toString())
+                .orElseThrow();
+
+        assertThat(detail.decision().decisionReference()).isEqualTo(result.decisionId().toString());
+        assertThat(detail.decision().correlationId()).isEqualTo(correlationId);
+        assertThat(detail.maskedSubjectReference())
+                .startsWith("••••")
+                .endsWith(rawAccountReference.substring(rawAccountReference.length() - 4))
+                .doesNotContain(rawAccountReference);
+        assertThat(detail.signalProvenance().state()).isEqualTo("SIMULATED");
+        assertThat(detail.signalProvenance().provider()).isEqualTo("CLIENT_SUPPLIED");
+        assertThat(detail.signalProvenance().schemaVersion()).isEqualTo(
+                RiskSignalEnvelope.CURRENT_SCHEMA_VERSION);
+        assertThat(detail.policyProvenance().policyVersion()).isEqualTo(result.policyVersion());
+        assertThat(detail.executionProvenance().algorithmVersion()).isEqualTo(result.algorithmVersion());
+        assertThat(detail.executionProvenance().auditRecordHashAvailable()).isTrue();
+        assertThat(detail.sections().challenge()).isEqualTo(SectionAvailability.NOT_APPLICABLE);
+        assertThat(detail.sections().recovery()).isEqualTo(SectionAvailability.NOT_APPLICABLE);
+        assertThat(detail.sections().outbox()).isEqualTo(SectionAvailability.AVAILABLE);
+        assertThat(detail.outboxEvents())
+                .isNotEmpty()
+                .allSatisfy(event -> assertThat(event.reference()).isNotBlank());
+        assertThat(detail.timeline())
+                .extracting(entry -> entry.occurredAt())
+                .isSorted();
+        assertThat(detail.timeline())
+                .extracting(entry -> entry.kind())
+                .startsWith("REQUEST_RECEIVED", "DECISION_RECORDED", "OUTBOX_EVENT_RECORDED");
+        assertThat(detail.partial()).isFalse();
+    }
+
+    @Test
     void appliesRiskBandFilterWithinTheExactCorrelationScope() {
         String correlationId = "investigation-filter-" + UUID.randomUUID();
         MDC.put(CorrelationIdFilter.MDC_KEY, correlationId);
@@ -104,11 +148,14 @@ class DecisionInvestigationIntegrationTest {
     }
 
     @Test
-    void rejectsMalformedCursorWithoutExposingPersistenceDetails() {
+    void rejectsMalformedReferencesWithoutExposingPersistenceDetails() {
         assertThatThrownBy(() -> investigationQuery.search(criteria(
                 null, null, null, null, "not-a-valid-cursor", 25)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("invalid decision search cursor");
+        assertThatThrownBy(() -> investigationQuery.investigate("not-a-decision-reference"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("decisionReference must be a valid UUID");
     }
 
     private DecisionInvestigationCriteria criteria(
@@ -131,8 +178,12 @@ class DecisionInvestigationIntegrationTest {
     }
 
     private ProtectionDecisionResult decide(RiskSignals signals) {
+        return decide(signals, "investigation-account-" + UUID.randomUUID());
+    }
+
+    private ProtectionDecisionResult decide(RiskSignals signals, String accountReference) {
         return protectionDecisionService.decide(new ProtectionDecisionCommand(
-                "investigation-account-" + UUID.randomUUID(),
+                accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
                 new RiskSignalEnvelope(
                         signals,
