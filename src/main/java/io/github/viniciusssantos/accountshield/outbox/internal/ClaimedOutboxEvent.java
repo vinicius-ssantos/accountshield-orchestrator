@@ -10,5 +10,6 @@ record ClaimedOutboxEvent(
         String eventType,
         String payload,
         Instant occurredAt,
-        int attemptCount) {
+        int attemptCount,
+        UUID claimToken) {
 }
