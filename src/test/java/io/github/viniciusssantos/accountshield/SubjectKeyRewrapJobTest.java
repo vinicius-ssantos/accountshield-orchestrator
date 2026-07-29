@@ -55,6 +55,34 @@ class SubjectKeyRewrapJobTest {
         assertThat(dek).hasSize(32);
     }
 
+    /**
+     * Issue #143 / F-19: a rewrap racing a crypto-shred must never resurrect the shredded key.
+     * {@code destroy()} then {@code rewrap()} on the same subject simulates the shred landing
+     * between the job's batch SELECT and its per-record UPDATE -- the rewrap must be a no-op.
+     */
+    @Test
+    void rewrapDoesNotResurrectAnAlreadyDestroyedSubjectKey() throws Exception {
+        SecretKeySpec staleKek = kekResolver.keyForVersion(STALE_KEK_VERSION);
+        String subjectId = insertSubjectKey(STALE_KEK_VERSION, staleKek);
+        Instant destroyedAt = Instant.now();
+
+        subjectKeyStore.destroy(subjectId, destroyedAt);
+        SubjectKeyRecord destroyed = subjectKeyStore.findById(subjectId).orElseThrow();
+        assertThat(destroyed.destroyedAt()).isNotNull();
+        assertThat(destroyed.wrappedDek()).isNull();
+
+        byte[] fakeNewWrappedDek = new byte[48];
+        new SecureRandom().nextBytes(fakeNewWrappedDek);
+        byte[] fakeNewNonce = new byte[12];
+        new SecureRandom().nextBytes(fakeNewNonce);
+        subjectKeyStore.rewrap(subjectId, fakeNewWrappedDek, fakeNewNonce, kekResolver.activeVersion(), Instant.now());
+
+        SubjectKeyRecord afterRewrap = subjectKeyStore.findById(subjectId).orElseThrow();
+        assertThat(afterRewrap.destroyedAt()).isEqualTo(destroyed.destroyedAt());
+        assertThat(afterRewrap.wrappedDek()).isNull();
+        assertThat(afterRewrap.rewrappedAt()).isNull();
+    }
+
     private String insertSubjectKey(int kekVersion, SecretKeySpec kek) throws Exception {
         String subjectId = UUID.randomUUID().toString().replace("-", "");
         byte[] dek = new byte[32];

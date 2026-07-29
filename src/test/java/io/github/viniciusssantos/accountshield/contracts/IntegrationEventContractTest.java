@@ -1,6 +1,7 @@
 package io.github.viniciusssantos.accountshield.contracts;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import io.github.viniciusssantos.accountshield.outbox.IntegrationEventEnvelope;
 import java.io.IOException;
@@ -17,15 +18,17 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * Diffs the wire shape of every outbox integration event type against a checked-in baseline
  * fixture ({@code src/test/resources/contracts/events/<eventType>.json}) using
- * {@link EventPayloadShapeChecker}. Self-bootstraps the same way as
- * {@link OpenApiCompatibilityTest}: this repository has no tagged release yet, so on the first run
- * for a given event type this test captures the current shape as the baseline and passes. See
+ * {@link EventPayloadShapeChecker}. All 6 baselines are committed; bootstrapping a fresh one (for
+ * a genuinely new event type) requires {@code -Dcontracts.baseline.bootstrap=true} -- which
+ * {@code ci.yml} never sets -- so a baseline missing in CI fails the test instead of silently
+ * regenerating it (issue #152 / F-06, same treatment as {@link OpenApiCompatibilityTest}). See
  * ADR 0029.
  */
 class IntegrationEventContractTest {
 
     private static final Path EVENTS_DIR = Path.of("src/test/resources/contracts/events");
     private static final ObjectMapper OBJECT_MAPPER = IntegrationEventFixtures.objectMapper();
+    private static final boolean BOOTSTRAP_MODE = Boolean.getBoolean("contracts.baseline.bootstrap");
 
     @ParameterizedTest
     @MethodSource("eventTypes")
@@ -37,6 +40,12 @@ class IntegrationEventContractTest {
 
         Path baselinePath = EVENTS_DIR.resolve(eventType + ".json");
         if (Files.notExists(baselinePath)) {
+            if (!BOOTSTRAP_MODE) {
+                fail("Baseline file " + baselinePath + " is missing. If this is an intentional, reviewed "
+                        + "breaking change or a genuinely new event type, regenerate it locally with "
+                        + "-Dcontracts.baseline.bootstrap=true and commit the result -- a missing baseline "
+                        + "must not silently pass.");
+            }
             Files.createDirectories(EVENTS_DIR);
             Files.writeString(baselinePath, currentJson, StandardCharsets.UTF_8);
             return;

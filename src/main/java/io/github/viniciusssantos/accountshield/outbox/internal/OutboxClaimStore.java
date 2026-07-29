@@ -11,6 +11,13 @@ import org.springframework.stereotype.Component;
  * Atomic claim-and-transition operations over {@code outbox.outbox_event}, deliberately bypassing
  * JPA/optimistic-locking for this table: {@code FOR UPDATE SKIP LOCKED} at the row level is what
  * makes concurrent claiming safe across relay instances, not the entity's {@code @Version} column.
+ *
+ * <p>Every successful claim (including reclaiming an abandoned {@code IN_PROGRESS} row past the
+ * claim timeout -- see {@link #CLAIM_BATCH}) is issued a fresh random {@code claim_token}. Every
+ * acknowledgement ({@link #markPublished}, {@link #markFailedWithBackoff}, {@link
+ * #markDeadLettered}) requires that exact token and {@code status = 'IN_PROGRESS'}; a stale
+ * worker whose claim was already reclaimed by a newer owner therefore affects zero rows instead
+ * of overwriting state the new owner already wrote (issue #145 / F-18).
  */
 @Component
 class OutboxClaimStore {
@@ -18,7 +25,7 @@ class OutboxClaimStore {
     private static final String CLAIM_BATCH = """
             WITH claimed AS (
                 UPDATE outbox.outbox_event
-                   SET status = 'IN_PROGRESS', claimed_at = ?, claimed_by = ?
+                   SET status = 'IN_PROGRESS', claimed_at = ?, claimed_by = ?, claim_token = gen_random_uuid()
                  WHERE id IN (
                      SELECT id FROM outbox.outbox_event
                       WHERE (status = 'PENDING' AND next_attempt_at <= ?)
@@ -28,7 +35,7 @@ class OutboxClaimStore {
                         FOR UPDATE SKIP LOCKED
                  )
                 RETURNING id, aggregate_type, aggregate_id, event_type, payload::text AS payload_text,
-                          occurred_at, attempt_count
+                          occurred_at, attempt_count, claim_token
             )
             SELECT * FROM claimed ORDER BY occurred_at ASC
             """;
@@ -36,20 +43,20 @@ class OutboxClaimStore {
     private static final String MARK_PUBLISHED = """
             UPDATE outbox.outbox_event
                SET status = 'PUBLISHED', published_at = ?
-             WHERE id = ?
+             WHERE id = ? AND status = 'IN_PROGRESS' AND claim_token = ?
             """;
 
     private static final String MARK_FAILED_WITH_BACKOFF = """
             UPDATE outbox.outbox_event
                SET status = 'PENDING', attempt_count = ?, last_error = ?, next_attempt_at = ?,
-                   claimed_at = NULL, claimed_by = NULL
-             WHERE id = ?
+                   claimed_at = NULL, claimed_by = NULL, claim_token = NULL
+             WHERE id = ? AND status = 'IN_PROGRESS' AND claim_token = ?
             """;
 
     private static final String MARK_DEAD_LETTERED = """
             UPDATE outbox.outbox_event
                SET status = 'DEAD_LETTERED', attempt_count = ?, last_error = ?, dead_lettered_at = ?
-             WHERE id = ?
+             WHERE id = ? AND status = 'IN_PROGRESS' AND claim_token = ?
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -68,19 +75,28 @@ class OutboxClaimStore {
                         rs.getString("event_type"),
                         rs.getString("payload_text"),
                         rs.getTimestamp("occurred_at").toInstant(),
-                        rs.getInt("attempt_count")),
+                        rs.getInt("attempt_count"),
+                        rs.getObject("claim_token", UUID.class)),
                 Timestamp.from(now), instanceId, Timestamp.from(now), Timestamp.from(staleClaimCutoff), batchSize);
     }
 
-    void markPublished(UUID id, Instant now) {
-        jdbcTemplate.update(MARK_PUBLISHED, Timestamp.from(now), id);
+    /** @return {@code true} if this was still the current claim owner, {@code false} if the ack was stale (a no-op). */
+    boolean markPublished(UUID id, UUID claimToken, Instant now) {
+        int rowsAffected = jdbcTemplate.update(MARK_PUBLISHED, Timestamp.from(now), id, claimToken);
+        return rowsAffected > 0;
     }
 
-    void markFailedWithBackoff(UUID id, int newAttemptCount, String error, Instant nextAttemptAt) {
-        jdbcTemplate.update(MARK_FAILED_WITH_BACKOFF, newAttemptCount, error, Timestamp.from(nextAttemptAt), id);
+    /** @return {@code true} if this was still the current claim owner, {@code false} if the ack was stale (a no-op). */
+    boolean markFailedWithBackoff(UUID id, UUID claimToken, int newAttemptCount, String error, Instant nextAttemptAt) {
+        int rowsAffected = jdbcTemplate.update(
+                MARK_FAILED_WITH_BACKOFF, newAttemptCount, error, Timestamp.from(nextAttemptAt), id, claimToken);
+        return rowsAffected > 0;
     }
 
-    void markDeadLettered(UUID id, int newAttemptCount, String error, Instant now) {
-        jdbcTemplate.update(MARK_DEAD_LETTERED, newAttemptCount, error, Timestamp.from(now), id);
+    /** @return {@code true} if this was still the current claim owner, {@code false} if the ack was stale (a no-op). */
+    boolean markDeadLettered(UUID id, UUID claimToken, int newAttemptCount, String error, Instant now) {
+        int rowsAffected =
+                jdbcTemplate.update(MARK_DEAD_LETTERED, newAttemptCount, error, Timestamp.from(now), id, claimToken);
+        return rowsAffected > 0;
     }
 }

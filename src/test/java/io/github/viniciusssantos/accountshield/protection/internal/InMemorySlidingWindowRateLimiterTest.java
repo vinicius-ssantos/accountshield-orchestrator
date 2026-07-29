@@ -90,4 +90,40 @@ class InMemorySlidingWindowRateLimiterTest {
         assertThatThrownBy(() -> new InMemorySlidingWindowRateLimiter(5, Duration.ZERO))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    /**
+     * Issue #149 / F-21: {@code checkLimit} alone never leaves a key both present and empty, so
+     * an abandoned account reference's map entry survives forever without a periodic sweep.
+     * Proves the sweep actually shrinks the tracked-window count once every timestamp in a key's
+     * window has expired, without disturbing a key that is still active.
+     */
+    @Test
+    void evictExpiredWindowsRemovesOnlyEntriesWithNoLiveTimestampsLeft() {
+        var limiter = new InMemorySlidingWindowRateLimiter(5, Duration.ofSeconds(60));
+
+        limiter.checkLimit(CLIENT, "abandoned-acct", BASE);
+        limiter.checkLimit(CLIENT, "still-active-acct", BASE);
+        assertThat(limiter.trackedWindowCount()).isEqualTo(2);
+
+        Instant afterAbandonedWindowExpires = BASE.plusSeconds(61);
+        limiter.checkLimit(CLIENT, "still-active-acct", afterAbandonedWindowExpires);
+
+        limiter.evictExpiredWindows(afterAbandonedWindowExpires);
+
+        assertThat(limiter.trackedWindowCount()).isEqualTo(1);
+        assertThatCode(() -> limiter.checkLimit(CLIENT, "abandoned-acct", afterAbandonedWindowExpires))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void evictExpiredWindowsIsANoOpWhenNothingHasExpired() {
+        var limiter = new InMemorySlidingWindowRateLimiter(1, Duration.ofSeconds(60));
+
+        limiter.checkLimit(CLIENT, "acct-5", BASE);
+        limiter.evictExpiredWindows(BASE.plusSeconds(10));
+
+        assertThat(limiter.trackedWindowCount()).isEqualTo(1);
+        assertThatThrownBy(() -> limiter.checkLimit(CLIENT, "acct-5", BASE.plusSeconds(11)))
+                .isInstanceOf(RateLimitExceededException.class);
+    }
 }

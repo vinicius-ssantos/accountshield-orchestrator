@@ -78,4 +78,52 @@ class OutboxReclaimAfterProcessFailureTest {
 
         assertThat(reclaimed).extracting(ClaimedOutboxEvent::id).doesNotContain(id);
     }
+
+    /**
+     * Issue #145 / F-18: the concrete race the claim_token fencing closes. Worker A claims the
+     * event, stalls past the claim timeout, and worker B reclaims and publishes it. When A
+     * finally resumes and tries to ack with its now-superseded claim_token, that ack must affect
+     * zero rows and must not revert the event B already published back to PENDING.
+     */
+    @Test
+    void aStaleAckAfterReclaimDoesNotOverwriteTheNewOwnersState() {
+        UUID id = UUID.randomUUID();
+        repository.save(new OutboxEventEntity(
+                id, "Test", "agg-" + id, "TEST_EVENT", "{}", Instant.now().minusSeconds(999_997)));
+
+        Instant firstClaimAt = Instant.now();
+        List<ClaimedOutboxEvent> firstClaim =
+                claimStore.claimBatch(firstClaimAt, firstClaimAt.minusSeconds(120), "worker-a", 50);
+        UUID staleClaimToken = firstClaim.stream()
+                .filter(event -> event.id().equals(id))
+                .findFirst()
+                .orElseThrow()
+                .claimToken();
+
+        // Simulate worker-a stalling past the claim timeout without ever acking.
+        jdbcTemplate.update(
+                "UPDATE outbox.outbox_event SET claimed_at = ? WHERE id = ?",
+                Timestamp.from(Instant.now().minus(Duration.ofMinutes(10))), id);
+
+        Instant reclaimAt = Instant.now();
+        List<ClaimedOutboxEvent> reclaimed =
+                claimStore.claimBatch(reclaimAt, reclaimAt.minus(Duration.ofMinutes(2)), "worker-b", 50);
+        UUID currentClaimToken = reclaimed.stream()
+                .filter(event -> event.id().equals(id))
+                .findFirst()
+                .orElseThrow()
+                .claimToken();
+        assertThat(currentClaimToken).isNotEqualTo(staleClaimToken);
+
+        boolean newOwnerAcked = claimStore.markPublished(id, currentClaimToken, Instant.now());
+        assertThat(newOwnerAcked).isTrue();
+
+        boolean staleWorkerAcked = claimStore.markFailedWithBackoff(
+                id, staleClaimToken, 1, "worker-a resumed too late", Instant.now().plusSeconds(60));
+        assertThat(staleWorkerAcked).isFalse();
+
+        String finalStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM outbox.outbox_event WHERE id = ?", String.class, id);
+        assertThat(finalStatus).isEqualTo("PUBLISHED");
+    }
 }
