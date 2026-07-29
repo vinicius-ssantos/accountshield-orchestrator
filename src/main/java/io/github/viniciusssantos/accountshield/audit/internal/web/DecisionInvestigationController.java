@@ -1,11 +1,23 @@
 package io.github.viniciusssantos.accountshield.audit.internal.web;
 
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.ChallengeSummary;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationCriteria;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationDetail;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationPage;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionReasonSummary;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionTimelineEntry;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.ExecutionProvenanceSummary;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.InvestigationSections;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.OutboxSummary;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.PolicyProvenanceSummary;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.RecoverySummary;
+import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.SignalProvenanceSummary;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
@@ -22,6 +34,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class DecisionInvestigationController {
 
     private static final String CORRELATION_PATTERN = "[A-Za-z0-9._-]{1,128}";
+    private static final String DECISION_REFERENCE_PATTERN =
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 
     private final DecisionInvestigationQuery query;
 
@@ -29,6 +43,9 @@ public class DecisionInvestigationController {
         this.query = query;
     }
 
+    @Operation(
+            operationId = "searchDecisionInvestigations",
+            summary = "Search the authorized privacy-minimized decision investigation read model")
     @PostMapping("/search")
     public ResponseEntity<DecisionSearchResponse> search(
             @Valid @RequestBody DecisionSearchRequest request) {
@@ -36,6 +53,26 @@ public class DecisionInvestigationController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(DecisionSearchResponse.from(page));
+    }
+
+    @Operation(
+            operationId = "investigateDecision",
+            summary = "Retrieve one authorized privacy-minimized decision timeline and provenance view")
+    @PostMapping("/investigate")
+    public ResponseEntity<DecisionInvestigationResponse> investigate(
+            @Valid @RequestBody DecisionInvestigationRequest request) {
+        DecisionInvestigationDetail detail = query.investigate(request.decisionReference())
+                .orElseThrow(DecisionInvestigationNotFoundException::new);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(DecisionInvestigationResponse.from(detail));
+    }
+
+    public record DecisionInvestigationRequest(
+            @NotBlank
+            @Size(max = 36)
+            @Pattern(regexp = DECISION_REFERENCE_PATTERN)
+            String decisionReference) {
     }
 
     public record DecisionSearchRequest(
@@ -129,6 +166,37 @@ public class DecisionInvestigationController {
                     summary.degraded(),
                     summary.simulated(),
                     summary.provenanceAvailable());
+        }
+    }
+
+    public record DecisionInvestigationResponse(
+            DecisionSummaryResponse decision,
+            String maskedSubjectReference,
+            List<DecisionReasonSummary> reasons,
+            SignalProvenanceSummary signalProvenance,
+            PolicyProvenanceSummary policyProvenance,
+            ExecutionProvenanceSummary executionProvenance,
+            List<ChallengeSummary> challenges,
+            RecoverySummary recovery,
+            List<OutboxSummary> outboxEvents,
+            List<DecisionTimelineEntry> timeline,
+            InvestigationSections sections,
+            boolean partial) {
+
+        static DecisionInvestigationResponse from(DecisionInvestigationDetail detail) {
+            return new DecisionInvestigationResponse(
+                    DecisionSummaryResponse.from(detail.decision()),
+                    detail.maskedSubjectReference(),
+                    detail.reasons(),
+                    detail.signalProvenance(),
+                    detail.policyProvenance(),
+                    detail.executionProvenance(),
+                    detail.challenges(),
+                    detail.recovery(),
+                    detail.outboxEvents(),
+                    detail.timeline(),
+                    detail.sections(),
+                    detail.partial());
         }
     }
 }
