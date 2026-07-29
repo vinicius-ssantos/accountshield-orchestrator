@@ -33,23 +33,24 @@ The operation:
 
 1. requires the backend role `SECURITY_OPERATOR` through the existing operator route rule;
 2. loads the owning audit trace through `DecisionInvestigationQuery`;
-3. obtains challenge, recovery and outbox projections through public module-owned read ports;
-4. returns one dedicated minimized projection rather than internal entities or generic maps;
-5. masks the retained subject reference before serialization;
-6. emits reason code, contribution and stable ordinal without unrestricted detail maps;
-7. exposes bounded signal, policy and execution provenance fields individually;
-8. exposes challenge and recovery summaries without values, tokens, provider payloads or unrestricted subject identifiers;
-9. exposes outbox metadata without event payload or failure text;
-10. returns `Cache-Control: no-store`;
-11. maps invalid, absent and unavailable investigations to stable redacted Problem Details.
+3. obtains audit evidence plus challenge, recovery and outbox projections through public module-owned read ports;
+4. composes those projections in the dedicated top-level `investigation` module, preventing reverse dependencies from `audit` into delivery modules;
+5. returns one dedicated minimized projection rather than internal entities or generic maps;
+6. masks the retained subject reference before serialization;
+7. emits reason code, contribution and stable ordinal without unrestricted detail maps;
+8. exposes bounded signal, policy and execution provenance fields individually;
+9. exposes challenge and recovery summaries without values, tokens, provider payloads or unrestricted subject identifiers;
+10. exposes outbox metadata without event payload or failure text;
+11. returns `Cache-Control: no-store`;
+12. maps invalid, absent and unavailable investigations to stable redacted Problem Details.
 
 ## Module-owned read ports
 
 The challenge, recovery and outbox modules publish small investigation interfaces. Their implementations remain internal to the owning module and map persistence entities to immutable, privacy-minimized records.
 
-The audit implementation composes these public projections. It does not import another module's `internal.persistence` package.
+The `audit` module publishes a minimized `DecisionEvidenceQuery` containing only audit-owned facts. The top-level `investigation` module consumes that port together with the challenge, recovery and outbox ports and performs the composition. It never imports another module's `internal.persistence` package.
 
-This keeps the aggregation in the backend while preserving module ownership and allows each module to change persistence independently of the HTTP contract.
+This keeps aggregation in the backend, preserves module ownership, prevents an `audit ↔ outbox` dependency cycle, and allows each module to change persistence independently of the HTTP contract.
 
 ## Availability semantics
 
