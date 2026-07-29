@@ -53,9 +53,19 @@ public final class RetryPolicy {
         return networkFailure || RETRYABLE_STATUS_CODES.contains(httpStatus);
     }
 
-    /** Exponential backoff with a fixed ceiling; {@code attemptNumber} is 1-based. */
+    /**
+     * Exponential backoff with a fixed ceiling; {@code attemptNumber} is 1-based. The exponent is
+     * capped at 32 (issue #147 / F-16): {@code 1L << n} on a {@code long} only masks the shift
+     * amount to its low 6 bits, so an uncapped exponent at {@code attemptNumber >= 65} silently
+     * wraps back to a small shift instead of growing, and intermediate values before the wrap
+     * (e.g. {@code attemptNumber} in the high 50s/60s with a realistic {@code baseDelay}) can
+     * overflow {@code long} into a negative multiplier, producing a negative {@code Duration}.
+     * {@code 2^32 * baseDelay} already dwarfs any realistic {@code maxDelay}, so capping here
+     * changes no observable behavior for a policy actually used to completion.
+     */
     public Duration delayBeforeAttempt(int attemptNumber) {
-        long millis = baseDelay.toMillis() * (1L << Math.max(0, attemptNumber - 1));
+        int exponent = Math.min(Math.max(0, attemptNumber - 1), 32);
+        long millis = baseDelay.toMillis() * (1L << exponent);
         return Duration.ofMillis(Math.min(millis, maxDelay.toMillis()));
     }
 }
