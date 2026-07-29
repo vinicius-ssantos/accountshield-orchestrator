@@ -14,38 +14,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class DecisionInvestigationProblemHandler {
 
     private static final URI INVALID_TYPE =
-            URI.create("urn:accountshield:problem:invalid-decision-investigation");
-    private static final URI NOT_FOUND_TYPE =
-            URI.create("urn:accountshield:problem:decision-investigation-not-found");
+            URI.create("urn:accountshield:problem:invalid-decision-search");
     private static final URI UNAVAILABLE_TYPE =
-            URI.create("urn:accountshield:problem:decision-investigation-unavailable");
+            URI.create("urn:accountshield:problem:decision-search-unavailable");
 
     @ExceptionHandler({
         IllegalArgumentException.class,
         MethodArgumentNotValidException.class,
         HttpMessageNotReadableException.class
     })
-    ResponseEntity<ProblemDetail> invalidRequest(Exception exception) {
+    ResponseEntity<ProblemDetail> invalidSearch(Exception exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST,
-                "The decision investigation request is invalid or outside the supported bounds.");
+                "The decision search request is invalid or outside the supported bounds.");
         problem.setType(INVALID_TYPE);
-        problem.setTitle("Decision investigation rejected");
+        problem.setTitle("Decision search rejected");
         problem.setProperty("code", "INVALID_DECISION_SEARCH");
         problem.setProperty("retryable", false);
         return ResponseEntity.badRequest().body(problem);
-    }
-
-    @ExceptionHandler(DecisionInvestigationNotFoundException.class)
-    ResponseEntity<ProblemDetail> notFound(DecisionInvestigationNotFoundException exception) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.NOT_FOUND,
-                "The requested decision investigation is unavailable.");
-        problem.setType(NOT_FOUND_TYPE);
-        problem.setTitle("Decision investigation unavailable");
-        problem.setProperty("code", "DECISION_INVESTIGATION_NOT_FOUND");
-        problem.setProperty("retryable", false);
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
     @ExceptionHandler(DataAccessException.class)
@@ -54,7 +40,7 @@ public class DecisionInvestigationProblemHandler {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "Decision investigation is temporarily unavailable.");
         problem.setType(UNAVAILABLE_TYPE);
-        problem.setTitle("Decision investigation unavailable");
+        problem.setTitle("Decision search unavailable");
         problem.setProperty("code", "DECISION_SEARCH_UNAVAILABLE");
         problem.setProperty("retryable", true);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(problem);
