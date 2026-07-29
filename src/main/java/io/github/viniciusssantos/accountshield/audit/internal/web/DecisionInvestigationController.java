@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.audit.internal.web;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationCriteria;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationPage;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -29,6 +30,9 @@ public class DecisionInvestigationController {
         this.query = query;
     }
 
+    @Operation(
+            operationId = "searchDecisionInvestigations",
+            summary = "Search the authorized privacy-minimized decision investigation read model")
     @PostMapping("/search")
     public ResponseEntity<DecisionSearchResponse> search(
             @Valid @RequestBody DecisionSearchRequest request) {
