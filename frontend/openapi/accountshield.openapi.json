@@ -763,4 +763,258 @@
             "$ref": "#/components/schemas/DecisionSummaryResponse"
           },
           "maskedSubjectReference": {
-__ACCOUNT_SHIELD_CONTRACT_CONTINUE__
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonEvidence"
+            }
+          },
+          "signalProvenance": {
+            "$ref": "#/components/schemas/SignalProvenanceEvidence"
+          },
+          "policyProvenance": {
+            "$ref": "#/components/schemas/PolicyProvenanceEvidence"
+          },
+          "executionProvenance": {
+            "$ref": "#/components/schemas/ExecutionProvenanceEvidence"
+          },
+          "challenges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChallengeSummary"
+            }
+          },
+          "recovery": {
+            "$ref": "#/components/schemas/RecoverySummary"
+          },
+          "outboxEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutboxSummary"
+            }
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            }
+          },
+          "sections": {
+            "$ref": "#/components/schemas/InvestigationSections"
+          },
+          "partial": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProtectionDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountReference",
+          "eventType"
+        ],
+        "properties": {
+          "accountReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "eventType": {
+            "$ref": "#/components/schemas/ProtectionEventType"
+          },
+          "failedAttempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "default": 0
+          },
+          "newDevice": {
+            "type": "boolean",
+            "default": false
+          },
+          "impossibleTravel": {
+            "type": "boolean",
+            "default": false
+          },
+          "compromisedCredential": {
+            "type": "boolean",
+            "default": false
+          },
+          "networkRiskLevel": {
+            "$ref": "#/components/schemas/NetworkRiskLevel"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128
+          }
+        }
+      },
+      "ReasonResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "contribution"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "integer"
+          }
+        }
+      },
+      "ChallengeResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "challengeId",
+          "challengeType",
+          "expiresAt"
+        ],
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "challengeType": {
+            "$ref": "#/components/schemas/ChallengeType"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProtectionDecisionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisionId",
+          "outcome",
+          "riskScore",
+          "riskBand",
+          "algorithmVersion",
+          "policyKey",
+          "policyVersion",
+          "reasons",
+          "decidedAt"
+        ],
+        "properties": {
+          "decisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectionRequestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "recoveryAuthorizationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ProtectionOutcome"
+          },
+          "riskScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "riskBand": {
+            "$ref": "#/components/schemas/RiskBand"
+          },
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonResponse"
+            }
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "challenge": {
+            "$ref": "#/components/schemas/ChallengeResponse"
+          }
+        }
+      },
+      "ProblemCode": {
+        "type": "string",
+        "enum": [
+          "INVALID_PROTECTION_REQUEST",
+          "ACTIVE_POLICY_UNAVAILABLE",
+          "IDEMPOTENCY_CONFLICT",
+          "RATE_LIMIT_EXCEEDED",
+          "INVALID_DECISION_SEARCH",
+          "DECISION_SEARCH_UNAVAILABLE",
+          "INVALID_DECISION_INVESTIGATION",
+          "DECISION_INVESTIGATION_NOT_FOUND",
+          "DECISION_INVESTIGATION_UNAVAILABLE"
+        ]
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ProblemCode"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "retryAfter": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
