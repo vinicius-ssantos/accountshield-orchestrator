@@ -5,9 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationCriteria;
-import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationDetail;
 import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.DecisionInvestigationPage;
-import io.github.viniciusssantos.accountshield.audit.DecisionInvestigationQuery.SectionAvailability;
+import io.github.viniciusssantos.accountshield.investigation.DecisionTimelineQuery;
+import io.github.viniciusssantos.accountshield.investigation.DecisionTimelineQuery.DecisionTimeline;
+import io.github.viniciusssantos.accountshield.investigation.DecisionTimelineQuery.SectionAvailability;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
@@ -34,6 +35,7 @@ class DecisionInvestigationIntegrationTest {
 
     @Autowired private ProtectionDecisionService protectionDecisionService;
     @Autowired private DecisionInvestigationQuery investigationQuery;
+    @Autowired private DecisionTimelineQuery timelineQuery;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @AfterEach
@@ -94,23 +96,23 @@ class DecisionInvestigationIntegrationTest {
                 new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
                 rawAccountReference);
 
-        DecisionInvestigationDetail detail = investigationQuery
+        DecisionTimeline detail = timelineQuery
                 .investigate(result.decisionId().toString())
                 .orElseThrow();
 
-        assertThat(detail.decision().decisionReference()).isEqualTo(result.decisionId().toString());
-        assertThat(detail.decision().correlationId()).isEqualTo(correlationId);
-        assertThat(detail.maskedSubjectReference())
+        assertThat(detail.evidence().decision().decisionReference()).isEqualTo(result.decisionId().toString());
+        assertThat(detail.evidence().decision().correlationId()).isEqualTo(correlationId);
+        assertThat(detail.evidence().maskedSubjectReference())
                 .startsWith("••••")
                 .endsWith(rawAccountReference.substring(rawAccountReference.length() - 4))
                 .doesNotContain(rawAccountReference);
-        assertThat(detail.signalProvenance().state()).isEqualTo("SIMULATED");
-        assertThat(detail.signalProvenance().provider()).isEqualTo("CLIENT_SUPPLIED");
-        assertThat(detail.signalProvenance().schemaVersion()).isEqualTo(
+        assertThat(detail.evidence().signalProvenance().state()).isEqualTo("SIMULATED");
+        assertThat(detail.evidence().signalProvenance().provider()).isEqualTo("CLIENT_SUPPLIED");
+        assertThat(detail.evidence().signalProvenance().schemaVersion()).isEqualTo(
                 RiskSignalEnvelope.CURRENT_SCHEMA_VERSION);
-        assertThat(detail.policyProvenance().policyVersion()).isEqualTo(result.policyVersion());
-        assertThat(detail.executionProvenance().algorithmVersion()).isEqualTo(result.algorithmVersion());
-        assertThat(detail.executionProvenance().auditRecordHashAvailable()).isTrue();
+        assertThat(detail.evidence().policyProvenance().policyVersion()).isEqualTo(result.policyVersion());
+        assertThat(detail.evidence().executionProvenance().algorithmVersion()).isEqualTo(result.algorithmVersion());
+        assertThat(detail.evidence().executionProvenance().auditRecordHashAvailable()).isTrue();
         assertThat(detail.sections().challenge()).isEqualTo(SectionAvailability.NOT_APPLICABLE);
         assertThat(detail.sections().recovery()).isEqualTo(SectionAvailability.NOT_APPLICABLE);
         assertThat(detail.sections().outbox()).isEqualTo(SectionAvailability.AVAILABLE);
@@ -153,7 +155,7 @@ class DecisionInvestigationIntegrationTest {
                 null, null, null, null, "not-a-valid-cursor", 25)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("invalid decision search cursor");
-        assertThatThrownBy(() -> investigationQuery.investigate("not-a-decision-reference"))
+        assertThatThrownBy(() -> timelineQuery.investigate("not-a-decision-reference"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("decisionReference must be a valid UUID");
     }
