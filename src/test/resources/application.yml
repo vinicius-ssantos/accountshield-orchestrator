@@ -1,4 +1,19 @@
 spring:
+  datasource:
+    hikari:
+      connection-timeout: 5000
+      validation-timeout: 3000
+      # This test-scoped application.yml occupies the same classpath location as (and shadows)
+      # src/main/resources/application.yml, so DatabaseLatencyResilienceTest's own comments
+      # asserting "HikariCP's configured connection-timeout (5s) + validation-timeout (3s) bound
+      # this" were describing values that were never actually active during tests -- HikariCP was
+      # silently running its own built-in defaults instead. connectTimeout/socketTimeout (seconds,
+      # pgjdbc-specific units) additionally bound the underlying driver's own socket operations,
+      # since HikariCP's connection-timeout alone does not reliably bound a native socket connect()
+      # against a true network black hole (issue #146 / F-20).
+      data-source-properties:
+        connectTimeout: 5
+        socketTimeout: 10
   jpa:
     open-in-view: false
     hibernate:
