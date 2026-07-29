@@ -508,4 +508,259 @@
           "rolloutCandidateVersion": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "rolloutCandidateSelected": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "ExecutionProvenanceEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "algorithmVersion",
+          "normalizedInputSchemaVersion",
+          "reasonCatalogVersion",
+          "decisionEngineVersion",
+          "applicationCommitSha",
+          "canonicalInputHashAvailable",
+          "auditRecordHashAvailable"
+        ],
+        "properties": {
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "normalizedInputSchemaVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasonCatalogVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decisionEngineVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "applicationCommitSha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "canonicalInputHashAvailable": {
+            "type": "boolean"
+          },
+          "auditRecordHashAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChallengeSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "challengeType",
+          "purpose",
+          "status",
+          "createdAt",
+          "expiresAt",
+          "consumedAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "challengeType": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "RecoverySummary": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "directive",
+          "status",
+          "issuedAt",
+          "expiresAt",
+          "consumedAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "directive": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "OutboxSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "eventType",
+          "status",
+          "occurredAt",
+          "publishedAt",
+          "deadLetteredAt",
+          "attemptCount"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deadLetteredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TimelineEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "kind",
+          "status",
+          "occurredAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InvestigationSections": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "challenge",
+          "recovery",
+          "outbox"
+        ],
+        "properties": {
+          "challenge": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          },
+          "recovery": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          },
+          "outbox": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          }
+        }
+      },
+      "DecisionTimelineResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decision",
+          "maskedSubjectReference",
+          "reasons",
+          "signalProvenance",
+          "policyProvenance",
+          "executionProvenance",
+          "challenges",
+          "recovery",
+          "outboxEvents",
+          "timeline",
+          "sections",
+          "partial"
+        ],
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/DecisionSummaryResponse"
+          },
+          "maskedSubjectReference": {
 __ACCOUNT_SHIELD_CONTRACT_CONTINUE__
