@@ -122,7 +122,7 @@ describe("DecisionTimelinePanel", () => {
     expect(screen.getByRole("region", { name: "Policy provenance" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Execution provenance" })).toBeVisible();
     expect(screen.getByRole("list", { name: "Decision event timeline" })).toBeVisible();
-    expect(screen.getAllByLabelText("Masked event reference")).toHaveLength(2);
+    expect(screen.getAllByLabelText(/^Masked event reference:/)).toHaveLength(2);
     expect(container.textContent).not.toContain(DECISION_REFERENCE);
     expect(container.innerHTML).not.toContain(DECISION_REFERENCE);
 
