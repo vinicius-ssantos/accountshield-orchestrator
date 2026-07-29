@@ -64,6 +64,11 @@ public class AuditChainIntegrityCheckJob {
     @Scheduled(fixedDelayString = "${accountshield.audit.chain.verification.fixed-delay:1h}")
     @Transactional
     public void verifyNextBatch() {
+        // Serializes concurrent ticks (issue #150 / F-22) so a second instance's read of
+        // lastVerifiedSequence() cannot observe a stale value while this one is still between its
+        // own read and advanceTo() -- without this, two ticks can compute overlapping verification
+        // ranges from the same starting point, duplicating work and duplicating alerts.
+        checkpointStore.acquireVerificationLock();
         long lastVerified = checkpointStore.lastVerifiedSequence();
         long tipSequence = verificationService.currentRootHash().map(AuditChainRootHash::chainSequence).orElse(0L);
         if (tipSequence <= lastVerified) {
