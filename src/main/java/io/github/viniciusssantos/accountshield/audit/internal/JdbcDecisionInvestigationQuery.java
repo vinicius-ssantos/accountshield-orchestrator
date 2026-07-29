@@ -367,7 +367,7 @@ public class JdbcDecisionInvestigationQuery implements DecisionInvestigationQuer
             entries.add(new DecisionTimelineEntry(
                     challenge.reference(),
                     "CHALLENGE_CREATED",
-                    challenge.status(),
+                    "CREATED",
                     challenge.createdAt()));
             if (challenge.consumedAt() != null) {
                 entries.add(new DecisionTimelineEntry(
@@ -382,7 +382,7 @@ public class JdbcDecisionInvestigationQuery implements DecisionInvestigationQuer
             entries.add(new DecisionTimelineEntry(
                     recovery.reference(),
                     "RECOVERY_AUTHORIZATION_ISSUED",
-                    recovery.status(),
+                    "ISSUED",
                     recovery.issuedAt()));
             if (recovery.consumedAt() != null) {
                 entries.add(new DecisionTimelineEntry(
@@ -397,7 +397,7 @@ public class JdbcDecisionInvestigationQuery implements DecisionInvestigationQuer
             entries.add(new DecisionTimelineEntry(
                     event.reference(),
                     "OUTBOX_EVENT_RECORDED",
-                    event.status(),
+                    "RECORDED",
                     event.occurredAt()));
             if (event.publishedAt() != null) {
                 entries.add(new DecisionTimelineEntry(
@@ -471,7 +471,7 @@ public class JdbcDecisionInvestigationQuery implements DecisionInvestigationQuer
                 }
             });
             return Map.copyOf(result);
-        } catch (RuntimeException exception) {
+        } catch (Exception exception) {
             return Map.of();
         }
     }
