@@ -62,8 +62,9 @@ test("degraded investigation distinguishes stale and unavailable evidence", asyn
   await page.getByRole("button", { name: "Investigate decision" }).click();
 
   await expect(page.getByText("Partial or degraded evidence", { exact: true })).toBeVisible();
-  await expect(page.getByText("STALE", { exact: true })).toBeVisible();
-  await expect(page.getByText("LOW", { exact: true })).toBeVisible();
-  await expect(page.getByText("integrity unavailable", { exact: true })).toBeVisible();
+  const signalProvenance = page.getByRole("region", { name: "Signal provenance" });
+  await expect(signalProvenance.getByText("STALE", { exact: true })).toBeVisible();
+  await expect(signalProvenance.getByText("LOW", { exact: true })).toBeVisible();
+  await expect(signalProvenance.getByText("integrity unavailable", { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/decisions$/);
 });
