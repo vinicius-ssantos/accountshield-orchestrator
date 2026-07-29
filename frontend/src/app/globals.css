@@ -975,6 +975,14 @@ textarea {
   .showcaseGrid {
     grid-template-columns: 1fr;
   }
+
+  .investigationSummary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .investigationProvenanceGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 56.25rem) {
@@ -1032,6 +1040,17 @@ textarea {
 
   .pagination {
     justify-content: center;
+  }
+
+  .investigationSummary,
+  .investigationAvailabilityGrid,
+  .investigationEvidenceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .investigationRecord {
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 }
 
