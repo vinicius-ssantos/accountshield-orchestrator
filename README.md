@@ -221,14 +221,22 @@ docker compose up -d postgres
 ./mvnw spring-boot:run
 ```
 
-`./mvnw verify` is self-sufficient on a clean clone: the core build does not depend on the
-standalone `sdk/`/`cli/` modules (the CLI end-to-end test skips when its jar is absent). To
-exercise the CLI end-to-end test and the SDK contract test as well, build the standalone modules
-first:
+The root build's test scope depends on `accountshield-sdk` (issue #55, ADR 0037), so `./mvnw
+verify` on a genuinely clean clone (an empty local Maven repository) fails at dependency
+resolution unless the SDK is installed locally first -- this is not yet published to a public
+repository (issue #148 / F-04 tracks closing that gap). Install it, then the CLI, before running
+the root build:
 
 ```bash
 cd sdk && mvn install && cd ../cli && mvn package && cd ..
+./mvnw verify
 ```
+
+Skipping this bootstrap and running `./mvnw verify` directly fails with an unresolved
+`accountshield-sdk` dependency, not a passing build with skipped tests. The CLI half is the only
+genuinely optional part: `CliEndToEndTest` skips (rather than fails) if `cli/target/accountshield-cli.jar`
+specifically is absent, but the SDK itself must still be installed for the root build's own
+`test-compile` to succeed at all.
 
 No production credentials are required. All external challenge providers are simulated locally.
 

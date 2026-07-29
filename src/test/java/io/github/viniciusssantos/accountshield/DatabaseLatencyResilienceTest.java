@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.TransactionException;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.ToxiproxyContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -89,8 +90,15 @@ class DatabaseLatencyResilienceTest {
         proxy.setConnectionCut(true);
 
         long start = System.nanoTime();
+        // A cut connection can fail at either of two distinct Spring layers depending on timing:
+        // DataAccessException if the failure surfaces during already-in-flight JDBC/DAO work, or
+        // TransactionException (concretely CannotCreateTransactionException) if HikariCP cannot
+        // even acquire a connection to open the transaction in the first place -- both are the
+        // "controlled failure" this test asserts on; a raw SQLException, NPE, or hang would not be
+        // (issue #146 / F-20: this previously asserted DataAccessException only, which is not a
+        // supertype of CannotCreateTransactionException, so this test was failing outright).
         assertThatThrownBy(() -> protectionDecisionService.decide(decisionCommand()))
-                .isInstanceOf(DataAccessException.class);
+                .isInstanceOfAny(DataAccessException.class, TransactionException.class);
         Duration elapsed = Duration.ofNanos(System.nanoTime() - start);
 
         // HikariCP's configured connection-timeout (5s) + validation-timeout (3s) bound this --
@@ -114,7 +122,7 @@ class DatabaseLatencyResilienceTest {
     void aRestoredConnectionRecoversAndSubsequentDecisionsSucceed() {
         proxy.setConnectionCut(true);
         assertThatThrownBy(() -> protectionDecisionService.decide(decisionCommand()))
-                .isInstanceOf(DataAccessException.class);
+                .isInstanceOfAny(DataAccessException.class, TransactionException.class);
 
         proxy.setConnectionCut(false);
 

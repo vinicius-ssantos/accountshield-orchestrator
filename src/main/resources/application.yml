@@ -10,6 +10,17 @@ spring:
       minimum-idle: ${DATABASE_MIN_IDLE:1}
       connection-timeout: 5000
       validation-timeout: 3000
+      # HikariCP's own connection-timeout only bounds how long it waits for a connection to
+      # become available; it does not reliably bound the underlying pgjdbc driver's native socket
+      # connect() call against a true network black hole (a cut connection that never resets or
+      # refuses, as opposed to one that fails fast) -- that call can block on OS-level TCP
+      # defaults far longer than 5s regardless of this setting. Bind the driver's own timeouts
+      # (seconds, not ms -- pgjdbc-specific units) so a genuine network partition surfaces as a
+      # controlled failure within the documented bound instead of an effectively unbounded hang
+      # (issue #146 / F-20, caught by DatabaseLatencyResilienceTest's Toxiproxy connection-cut).
+      data-source-properties:
+        connectTimeout: 5
+        socketTimeout: 10
   flyway:
     enabled: true
     validate-migration-naming: true
