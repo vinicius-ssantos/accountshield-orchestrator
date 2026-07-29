@@ -71,7 +71,18 @@ class DisasterRecoveryDrillTest {
 
     @Test
     void restoreDrillValidatesDomainInvariantsAfterBackupAndRestore() throws Exception {
-        seedDecisions(PRE_BACKUP_DECISIONS);
+        // Other test classes sharing this Testcontainers instance (e.g. CapacityBenchmarkTest)
+        // leave their own PENDING outbox rows behind. Left alone, those rows would (a) get backed
+        // up into this drill's own pg_dump snapshot and legitimately published by the restored
+        // relay, inflating the "unchanged after restart" invariant below, and (b) starve
+        // outboxRelay.dispatchPending()'s bounded batch below of room for this test's own rows,
+        // since the relay claims the oldest pending rows first (issue #164). Scoping the outbox
+        // counts to this drill's own decision IDs (see countOutboxPublished) only solves (a); this
+        // purge is what actually solves (b), giving this test the clean, fully-owned outbox
+        // baseline a disaster-recovery drill should reason about in the first place.
+        sourceJdbc.update("DELETE FROM outbox.outbox_event");
+
+        List<UUID> preBackupDecisionIds = seedDecisions(PRE_BACKUP_DECISIONS);
         outboxRelay.dispatchPending();
         int preBackupDecisionCount = countRows(sourceJdbc, "audit.decision_trace");
         // Precondition: the chain must already be valid on the live source before backup is even
@@ -81,8 +92,15 @@ class DisasterRecoveryDrillTest {
         assertThat(sourceChainResult.valid())
                 .as("source chain must verify cleanly before backup is attempted: %s", sourceChainResult.breaks())
                 .isTrue();
-        int preBackupPublishedOutbox = countOutboxPublished(sourceJdbc);
-        assertThat(preBackupPublishedOutbox).as("seed must produce at least one published outbox event").isPositive();
+        // Scoped to only the events this test itself created (issue #164): the unscoped
+        // "count(*) where status = 'PUBLISHED'" this replaced also counted other test classes'
+        // leftover PENDING outbox rows once they got swept into this drill's own pg_dump backup
+        // and published by the restored relay below, inflating the "must be unchanged after
+        // restart" assertion far past what this drill actually seeded.
+        int preBackupPublishedOutbox = countOutboxPublished(sourceJdbc, preBackupDecisionIds);
+        assertThat(preBackupPublishedOutbox)
+                .as("every seeded decision must produce exactly one published outbox event")
+                .isEqualTo(PRE_BACKUP_DECISIONS);
 
         Path dumpFile = Files.createTempFile("accountshield-dr-drill-backup", ".sql");
         Instant backupStart = Instant.now();
@@ -163,13 +181,13 @@ class DisasterRecoveryDrillTest {
                         .as("restored data must reflect exactly the backup point, not the post-backup activity")
                         .isEqualTo(preBackupDecisionCount);
 
-                int restoredPublishedOutbox = countOutboxPublished(restoredJdbc);
+                int restoredPublishedOutbox = countOutboxPublished(restoredJdbc, preBackupDecisionIds);
                 assertThat(restoredPublishedOutbox)
                         .as("previously published outbox events must remain published after restore")
                         .isEqualTo(preBackupPublishedOutbox);
                 OutboxRelay restoredRelay = restoredContext.getBean(OutboxRelay.class);
                 restoredRelay.dispatchPending();
-                assertThat(countOutboxPublished(restoredJdbc))
+                assertThat(countOutboxPublished(restoredJdbc, preBackupDecisionIds))
                         .as("restarting the relay against restored data must not re-publish already-published events")
                         .isEqualTo(preBackupPublishedOutbox);
 
@@ -194,7 +212,7 @@ class DisasterRecoveryDrillTest {
 
     private List<UUID> seedDecisions(int count) {
         return java.util.stream.IntStream.range(0, count)
-                .mapToObj(i -> protectionDecisionService.decide(decisionCommand("seed", i)).protectionRequestId())
+                .mapToObj(i -> protectionDecisionService.decide(decisionCommand("seed", i)).decisionId())
                 .toList();
     }
 
@@ -214,9 +232,22 @@ class DisasterRecoveryDrillTest {
         return count == null ? 0 : count;
     }
 
-    private int countOutboxPublished(JdbcTemplate jdbcTemplate) {
-        Integer count = jdbcTemplate.queryForObject(
-                "select count(*) from outbox.outbox_event where status = 'PUBLISHED'", Integer.class);
+    /**
+     * Scoped to the given decision IDs' own outbox events (issue #164) -- {@code aggregate_id} for
+     * a {@code PROTECTION_DECISION_MADE} event is the decision ID, set by {@code
+     * OutboxEventRecorder.onProtectionDecisionMade} -- rather than counting the whole shared
+     * {@code outbox.outbox_event} table, which other test classes sharing this Testcontainers
+     * instance also write to.
+     */
+    private int countOutboxPublished(JdbcTemplate jdbcTemplate, List<UUID> decisionIds) {
+        if (decisionIds.isEmpty()) {
+            return 0;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(decisionIds.size(), "?"));
+        String sql = "select count(*) from outbox.outbox_event where status = 'PUBLISHED' "
+                + "and aggregate_type = 'ProtectionDecision' and aggregate_id in (" + placeholders + ")";
+        Object[] args = decisionIds.stream().map(UUID::toString).toArray();
+        Integer count = jdbcTemplate.queryForObject(sql, args, Integer.class);
         return count == null ? 0 : count;
     }
 
