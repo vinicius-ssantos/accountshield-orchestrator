@@ -31,3 +31,6 @@ target/
 
 # IDE
 .idea/
+
+# Local-only self-review notes (findings are tracked as GitHub issues instead)
+docs/reviews/
