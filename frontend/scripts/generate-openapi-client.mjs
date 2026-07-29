@@ -300,8 +300,21 @@ if ("servers" in document) {
 }
 
 const sourceHash = createHash("sha256").update(source).digest("hex");
-await writeOrCheck(TYPES_PATH, generateTypes(document, sourceHash));
-await writeOrCheck(CLIENT_PATH, generateClient(document, sourceHash));
+const generatedTypes = generateTypes(document, sourceHash);
+const generatedClient = generateClient(document, sourceHash);
+
+if (CHECK_MODE) {
+  console.log(`SOURCE_HASH=${sourceHash}`);
+  console.log("BEGIN_GENERATED_TYPES");
+  console.log(generatedTypes);
+  console.log("END_GENERATED_TYPES");
+  console.log("BEGIN_GENERATED_CLIENT");
+  console.log(generatedClient);
+  console.log("END_GENERATED_CLIENT");
+}
+
+await writeOrCheck(TYPES_PATH, generatedTypes);
+await writeOrCheck(CLIENT_PATH, generatedClient);
 
 if (CHECK_MODE) {
   console.log(
