@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Exercises the real {@link WebhookEventPublisher} against the real demo receiver over an actual
@@ -26,9 +27,14 @@ import org.springframework.context.annotation.Import;
  * type -- otherwise an earlier test's subscription (especially a null/match-everything filter,
  * or one deliberately configured with a wrong secret) would leak into a later test's delivery
  * attempt and fail it for the wrong reason.
+ *
+ * <p>{@code @ActiveProfiles("local")}: {@code DemoWebhookReceiverController} is now
+ * {@code @Profile("local")}-gated (issue #144 / F-17), so this test activates that profile to
+ * keep exercising the real endpoint rather than a mock.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(PostgreSqlTestConfiguration.class)
+@ActiveProfiles("local")
 class WebhookDeliveryIntegrationTest {
 
     @Autowired

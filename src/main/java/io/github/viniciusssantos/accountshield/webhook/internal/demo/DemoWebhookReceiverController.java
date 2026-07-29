@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,9 +32,14 @@ import org.springframework.web.bind.annotation.RestController;
  * X-Webhook-Delivery-Id} -- the receiver-side replay protection this issue's acceptance criteria
  * describe. Runs in-process rather than as a second deployable, matching this codebase's existing
  * "simulated provider" pattern (ADR 0004) rather than introducing a new service.
+ *
+ * <p>{@code @Profile("local")}, matching {@code DevTokenController}: this is a demo-only
+ * unauthenticated endpoint (see {@code SecurityConfig}'s {@code permitAll()} on its route), so it
+ * must not register under {@code production} or any other profile (issue #144 / F-17).
  */
 @RestController
 @RequestMapping("/demo/webhook-receiver")
+@Profile("local")
 class DemoWebhookReceiverController {
 
     private static final Logger log = LoggerFactory.getLogger(DemoWebhookReceiverController.class);

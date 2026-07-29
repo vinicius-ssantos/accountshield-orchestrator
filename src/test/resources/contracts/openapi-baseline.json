@@ -20,55 +20,6 @@
     }
   ],
   "paths": {
-    "/demo/webhook-receiver": {
-      "post": {
-        "tags": [
-          "demo-webhook-receiver-controller"
-        ],
-        "operationId": "receive",
-        "parameters": [
-          {
-            "name": "X-Webhook-Signature",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "X-Webhook-Timestamp",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "X-Webhook-Delivery-Id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/webhooks": {
       "get": {
         "tags": [
