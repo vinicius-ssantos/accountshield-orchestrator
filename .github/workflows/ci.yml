@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Java 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: temurin
           java-version: "25"
@@ -75,7 +75,7 @@ jobs:
 
       - name: Upload generated contracts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: contracts
           path: target/contracts/**
@@ -86,7 +86,7 @@ jobs:
       # here so a real number can be established, then thresholds phased in as a follow-up.
       - name: Upload JaCoCo coverage report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: jacoco-coverage-report
           path: target/site/jacoco/**
@@ -96,7 +96,7 @@ jobs:
       # report -- "results can feed demo dashboards".
       - name: Upload scenario lab report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: scenario-lab-report
           path: target/scenario-reports/**
@@ -107,7 +107,7 @@ jobs:
       # directory) only exist on the nightly workflow, where the "benchmark"-tagged suite runs.
       - name: Upload benchmark report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: benchmark-report
           path: target/benchmark-reports/**
@@ -117,7 +117,7 @@ jobs:
       # (ADR 0031, mirrors ADR 0029's identical bootstrap reasoning for contract baselines).
       - name: Upload CycloneDX SBOM
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: sbom
           path: |
@@ -136,7 +136,7 @@ jobs:
 
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: surefire-reports
           path: target/surefire-reports/**
@@ -153,13 +153,13 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Issue #55 (ADR 0037): this job runs on a fresh runner (no local Maven repo carried over
       # from the verify job), so accountshield-sdk and accountshield-demo are rebuilt here purely
       # to produce the demo's runnable jar, used below for the real end-to-end flow check.
       - name: Set up Java 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "25"
@@ -171,10 +171,10 @@ jobs:
           cd ../demo && mvn --batch-mode --no-transfer-progress package
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Build image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: false
@@ -187,7 +187,7 @@ jobs:
       # images this Dockerfile uses, so this does not fail the build yet -- results still appear
       # in the repository's code scanning tab. Revisit once a baseline is established.
       - name: Scan image for known vulnerabilities (advisory)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
           image-ref: accountshield-orchestrator:ci
@@ -197,7 +197,7 @@ jobs:
 
       - name: Upload image scan results
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
         with:
           sarif_file: trivy-image-results.sarif
           category: trivy-image
