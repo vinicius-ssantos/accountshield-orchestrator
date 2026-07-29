@@ -53,14 +53,14 @@ State is held in a `ConcurrentHashMap` with `ConcurrentLinkedDeque` per account.
 ### Negative
 
 - rate limit state does not survive restarts;
-- in a multi-instance deployment, each instance maintains its own counter, so the effective limit is multiplied by the instance count;
-- the in-memory map grows with unique accounts until entries are lazily evicted by the sliding window.
+- in a multi-instance deployment, each instance maintains its own counter, so the effective limit is multiplied by the instance count.
 
 ## Guardrails
 
 - the rate limiter uses a `Clock`-independent `Instant` parameter, keeping it testable with fixed timestamps;
 - rejected requests return a `429 Too Many Requests` Problem Detail with `RATE_LIMIT_EXCEEDED` code;
-- the error response does not reveal the configured limit or the account reference.
+- the error response does not reveal the configured limit or the account reference;
+- a `RateLimitWindowEvictionJob` periodically removes map entries for keys with no non-expired timestamps left (`accountshield.protection.rate-limit.eviction-interval`, default `5m`), bounding the in-memory map's growth as distinct account references are seen (issue #149 / F-21). `checkLimit` alone cannot do this: a completed call always leaves at least one timestamp in the window it just touched, so an abandoned key's entry is never emptied by access, only by this periodic sweep. The tracked window count is exposed as the `accountshield.protection.rate-limit.tracked-windows` gauge.
 
 ## Revisit criteria
 
