@@ -10,7 +10,40 @@ history instead.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+**Post-v1.0.0 self-review, first pass (#141)**
+- Production boot now fails fast if any operator-managed secret (challenge HMAC, pseudonym,
+  webhook encryption key, KEK, subject-id) is still at its repository-published default; KEK and
+  webhook secret-encryption keys must be real base64-encoded 32-byte key material, not a
+  passphrase run through a bare hash.
+- `/dev/tokens` scoped to its exact path instead of a `/dev/**` wildcard.
+- All four Maven modules (root, sdk, cli, demo) versioned to match the tagged release; the release
+  workflow uses a glob for the SDK jar instead of a hardcoded snapshot filename.
+- `CliEndToEndTest` skips instead of hard-failing when the standalone CLI jar hasn't been built,
+  keeping a clean-clone `./mvnw verify` self-sufficient for the parts that don't need it.
+- A committed, JaCoCo-enforced 80% instruction-coverage floor.
+- `GET /api/v1/outbox` now paginated with a hard cap, closing an unbounded-load vector.
+- The OpenAPI compatibility baseline is committed and pinned instead of self-bootstrapping.
+- Dead `MONITOR` value removed from the decision-outcome database constraint.
+- Crypto-shredding's "irrecoverable" guarantee documented against backups, WAL, and pre-VACUUM
+  tuples; the audit hash chain's `normalized_context` exclusion documented as a boundary.
+
+**Post-v1.0.0 self-review, second pass**
+- (#144) `/demo/webhook-receiver` scoped to the `local` profile, matching `/dev/tokens`; its secret
+  added to the production fail-fast guard as a backstop.
+- (#143) `SubjectKeyRewrapJob` can no longer resurrect an already crypto-shredded subject key by
+  racing a concurrent shred; its batch claim now uses `FOR UPDATE SKIP LOCKED`.
+- (#145) Outbox acknowledgements (publish/backoff/dead-letter) now fenced by a per-claim token, so
+  a stale claim owner reclaimed by a newer worker can no longer overwrite state the new owner
+  already wrote.
+- (#147) The SDK's `RetryPolicy` backoff exponent is actually capped now -- the earlier claimed fix
+  never touched the overflow-prone code path.
+- (#149) The in-memory rate limiter evicts stale, empty windows on a schedule instead of growing
+  without bound for the life of the process.
+- (#150) The audit chain integrity checkpoint is monotonic (`GREATEST`) and its read-verify-advance
+  cycle is now serialized with an advisory lock, closing a checkpoint-regression race between
+  concurrent scheduled ticks.
 
 ## [1.0.0] - 2026-07-28
 

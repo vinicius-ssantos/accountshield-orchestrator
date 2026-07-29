@@ -5,6 +5,7 @@ import io.github.viniciusssantos.accountshield.outbox.OutboxEventSummary;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,7 +32,9 @@ class OutboxAdminController {
     }
 
     @GetMapping
-    public List<OutboxEventSummary> list(@RequestParam(required = false) String status, Pageable pageable) {
+    public List<OutboxEventSummary> list(
+            @RequestParam(required = false) String status,
+            @PageableDefault(size = 50) Pageable pageable) {
         return outboxAdminService.list(status, pageable);
     }
 }
