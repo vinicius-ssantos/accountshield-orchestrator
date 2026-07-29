@@ -16,6 +16,7 @@ import {
   parseDecisionSearchInput,
   type DecisionSearchInput,
   type DecisionSearchResult,
+  type DecisionSearchService,
 } from "./decision-search-core";
 
 const CACHE_CONTROL = "private, no-store, max-age=0, must-revalidate";
@@ -78,7 +79,7 @@ export async function searchLiveDecisions(
 
 export async function handleDecisionSearchRequest(
   request: Request,
-  client?: AccountShieldDecisionSearchClient,
+  service?: DecisionSearchService,
   telemetrySink?: BffTelemetrySink,
 ): Promise<Response> {
   const correlationId = resolveCorrelationId(request.headers.get("x-correlation-id"));
@@ -96,7 +97,7 @@ export async function handleDecisionSearchRequest(
     });
     const body = await readJsonObject(request, MAX_REQUEST_BYTES);
     const input = parseDecisionSearchInput(body);
-    const result = await (client ?? createDecisionSearchClient()).search(
+    const result = await (service ?? createDecisionSearchClient()).search(
       input,
       correlationId,
       request.signal,

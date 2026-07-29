@@ -43,12 +43,21 @@ describe("generated OpenAPI artifacts", () => {
     }
   });
 
+  it("generates the exact authorized decision-search operation", () => {
+    const client = readFileSync(generatedPaths[1], "utf8");
+    expect(client).toContain("export function searchDecisionInvestigations(");
+    expect(client).toContain('method: "POST"');
+    expect(client).toContain('path: "/api/v1/operator/decisions/search"');
+    expect(client).toContain("expectedStatus: 200");
+  });
+
   it("contains no environment host, credential or browser-storage value", () => {
     const forbiddenPatterns = [
       /https?:\/\//i,
       /localhost/i,
       /127\.0\.0\.1/,
       /ACCOUNTSHIELD_API_URL/,
+      /ACCOUNTSHIELD_OPERATOR_TOKEN/,
       /NEXT_PUBLIC_/,
       /Bearer\s+/i,
       /localStorage/,

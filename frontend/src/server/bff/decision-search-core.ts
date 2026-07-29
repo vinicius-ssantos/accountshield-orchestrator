@@ -1,4 +1,12 @@
-import "server-only";
+import {
+  searchDecisionInvestigations,
+  type AccountShieldGeneratedTransport,
+  type GeneratedTransportRequest,
+} from "@/generated/accountshield/openapi-client";
+import type {
+  DecisionSearchRequest,
+  DecisionSearchResponse,
+} from "@/generated/accountshield/openapi-types";
 
 import { BffError } from "./foundation";
 
@@ -19,17 +27,7 @@ const OUTCOMES = new Set([
 const RISK_BANDS = new Set(["LOW", "MEDIUM", "HIGH"]);
 const CORRELATION_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
 
-export interface DecisionSearchInput {
-  correlationId?: string;
-  eventType?: string;
-  outcome?: string;
-  riskBand?: string;
-  policyVersion?: string;
-  decidedFrom?: string;
-  decidedTo?: string;
-  cursor?: string;
-  pageSize?: number;
-}
+export type DecisionSearchInput = DecisionSearchRequest;
 
 export interface DecisionSearchItem {
   decisionReference: string;
@@ -51,8 +49,16 @@ export interface DecisionSearchResult {
   nextCursor?: string;
   pageSize: number;
   hasMore: boolean;
-  source: "live";
+  source: "fixtures" | "live";
   partial: boolean;
+}
+
+export interface DecisionSearchService {
+  search(
+    input: DecisionSearchInput,
+    correlationId: string,
+    signal?: AbortSignal,
+  ): Promise<DecisionSearchResult>;
 }
 
 function optionalString(value: unknown, maximum: number): string | undefined {
@@ -144,7 +150,12 @@ function parseDecision(value: unknown): DecisionSearchItem {
   const outcome = requiredString(record, "outcome", 64);
   const riskBand = requiredString(record, "riskBand", 32);
   const decidedAt = requiredString(record, "decidedAt", 40);
-  if (!EVENT_TYPES.has(eventType) || !OUTCOMES.has(outcome) || !RISK_BANDS.has(riskBand) || Number.isNaN(Date.parse(decidedAt))) {
+  if (
+    !EVENT_TYPES.has(eventType) ||
+    !OUTCOMES.has(outcome) ||
+    !RISK_BANDS.has(riskBand) ||
+    Number.isNaN(Date.parse(decidedAt))
+  ) {
     throw new BffError("UPSTREAM_MALFORMED_RESPONSE", 502, "The upstream response is invalid.");
   }
 
@@ -169,11 +180,19 @@ function parseResponse(value: unknown): DecisionSearchResult {
     throw new BffError("UPSTREAM_MALFORMED_RESPONSE", 502, "The upstream response is invalid.");
   }
   const record = value as Record<string, unknown>;
-  if (!Array.isArray(record.decisions) || !Number.isInteger(record.pageSize) || typeof record.hasMore !== "boolean") {
+  if (
+    !Array.isArray(record.decisions) ||
+    !Number.isInteger(record.pageSize) ||
+    typeof record.hasMore !== "boolean"
+  ) {
     throw new BffError("UPSTREAM_MALFORMED_RESPONSE", 502, "The upstream response is invalid.");
   }
   const nextCursor = record.nextCursor;
-  if (nextCursor !== null && nextCursor !== undefined && (typeof nextCursor !== "string" || nextCursor.length > 256)) {
+  if (
+    nextCursor !== null &&
+    nextCursor !== undefined &&
+    (typeof nextCursor !== "string" || nextCursor.length > 256)
+  ) {
     throw new BffError("UPSTREAM_MALFORMED_RESPONSE", 502, "The upstream response is invalid.");
   }
 
@@ -187,7 +206,7 @@ function parseResponse(value: unknown): DecisionSearchResult {
   };
 }
 
-export class AccountShieldDecisionSearchClient {
+export class AccountShieldDecisionSearchClient implements DecisionSearchService {
   constructor(
     private readonly configuration: {
       origin: string;
@@ -198,48 +217,127 @@ export class AccountShieldDecisionSearchClient {
     },
   ) {}
 
-  async search(input: DecisionSearchInput, correlationId: string, signal?: AbortSignal): Promise<DecisionSearchResult> {
+  async search(
+    input: DecisionSearchInput,
+    correlationId: string,
+    signal?: AbortSignal,
+  ): Promise<DecisionSearchResult> {
+    const transport: AccountShieldGeneratedTransport = {
+      request: <TResponse>(request: GeneratedTransportRequest) =>
+        this.execute<TResponse>(request, correlationId),
+    };
+    const response: DecisionSearchResponse = await searchDecisionInvestigations(
+      transport,
+      input,
+      signal,
+    );
+    return parseResponse(response);
+  }
+
+  private async execute<TResponse>(
+    request: GeneratedTransportRequest,
+    correlationId: string,
+  ): Promise<TResponse> {
     const fetchImplementation = this.configuration.fetchImplementation ?? fetch;
     const timeoutSignal = AbortSignal.timeout(this.configuration.timeoutMs);
-    const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+    const requestSignal = request.signal
+      ? AbortSignal.any([request.signal, timeoutSignal])
+      : timeoutSignal;
 
     let response: Response;
     try {
-      response = await fetchImplementation(new URL("/api/v1/operator/decisions/search", this.configuration.origin), {
-        method: "POST",
+      response = await fetchImplementation(new URL(request.path, this.configuration.origin), {
+        method: request.method,
         headers: {
           accept: "application/json",
           authorization: `Bearer ${this.configuration.operatorToken}`,
           "content-type": "application/json",
           "x-correlation-id": correlationId,
         },
-        body: JSON.stringify(input),
+        body: request.body === undefined ? undefined : JSON.stringify(request.body),
         cache: "no-store",
         signal: requestSignal,
       });
     } catch (error) {
       if (requestSignal.aborted) {
-        throw new BffError("UPSTREAM_TIMEOUT", 504, "The decision service timed out.", true, { cause: error });
+        throw new BffError("UPSTREAM_TIMEOUT", 504, "The decision service timed out.", true, {
+          cause: error,
+        });
       }
-      throw new BffError("UPSTREAM_UNAVAILABLE", 503, "The decision service is unavailable.", true, { cause: error });
+      throw new BffError(
+        "UPSTREAM_UNAVAILABLE",
+        503,
+        "The decision service is unavailable.",
+        true,
+        { cause: error },
+      );
     }
 
-    if (response.status === 401) throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-    if (response.status === 403) throw new BffError("FORBIDDEN", 403, "Operator access is not permitted.");
-    if (response.status === 400) throw new BffError("INVALID_REQUEST", 400, "The search request is invalid.");
-    if (response.status === 429) throw new BffError("RATE_LIMITED", 429, "The decision service is temporarily rate limited.", true);
-    if (!response.ok) throw new BffError("UPSTREAM_UNAVAILABLE", 503, "The decision service is unavailable.", true);
+    if (response.status === 401) {
+      throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
+    }
+    if (response.status === 403) {
+      throw new BffError("FORBIDDEN", 403, "Operator access is not permitted.");
+    }
+    if (response.status === 400) {
+      throw new BffError("INVALID_REQUEST", 400, "The search request is invalid.");
+    }
+    if (response.status === 429) {
+      throw new BffError(
+        "RATE_LIMITED",
+        429,
+        "The decision service is temporarily rate limited.",
+        true,
+      );
+    }
+    if (response.status !== request.expectedStatus) {
+      throw new BffError(
+        "UPSTREAM_UNAVAILABLE",
+        503,
+        "The decision service is unavailable.",
+        true,
+      );
+    }
+
+    const declaredLength = Number.parseInt(response.headers.get("content-length") ?? "", 10);
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength > this.configuration.maxResponseBytes
+    ) {
+      throw new BffError(
+        "UPSTREAM_MALFORMED_RESPONSE",
+        502,
+        "The upstream response is invalid.",
+      );
+    }
+    const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
+    if (contentType !== "application/json") {
+      throw new BffError(
+        "UPSTREAM_MALFORMED_RESPONSE",
+        502,
+        "The upstream response is invalid.",
+      );
+    }
 
     const body = new Uint8Array(await response.arrayBuffer());
     if (body.byteLength > this.configuration.maxResponseBytes) {
-      throw new BffError("UPSTREAM_MALFORMED_RESPONSE", 502, "The upstream response is invalid.");
+      throw new BffError(
+        "UPSTREAM_MALFORMED_RESPONSE",
+        502,
+        "The upstream response is invalid.",
+      );
     }
 
     try {
-      return parseResponse(JSON.parse(new TextDecoder().decode(body)));
+      return JSON.parse(new TextDecoder().decode(body)) as TResponse;
     } catch (error) {
-      if (error instanceof BffError) throw error;
-      throw new BffError("UPSTREAM_MALFORMED_RESPONSE", 502, "The upstream response is invalid.", false, { cause: error });
+      throw new BffError(
+        "UPSTREAM_MALFORMED_RESPONSE",
+        502,
+        "The upstream response is invalid.",
+        false,
+        { cause: error },
+      );
     }
   }
 }
