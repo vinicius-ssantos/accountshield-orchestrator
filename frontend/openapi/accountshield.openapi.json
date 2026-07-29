@@ -6,6 +6,54 @@
     "description": "Versioned frontend contract snapshot generated from the published Springdoc API."
   },
   "paths": {
+    "/api/v1/operator/decisions/investigate": {
+      "post": {
+        "operationId": "investigateDecision",
+        "summary": "Retrieve one authorized privacy-minimized decision timeline and provenance view",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionTimelineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision investigation timeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionTimelineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/v1/operator/decisions/search": {
       "post": {
         "operationId": "searchDecisionInvestigations",
@@ -196,339 +244,13 @@
           "HIGH"
         ]
       },
-      "DecisionSearchRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "correlationId": {
-            "type": "string",
-            "maxLength": 128,
-            "pattern": "^[A-Za-z0-9._-]{1,128}$"
-          },
-          "eventType": {
-            "$ref": "#/components/schemas/DecisionSearchEventType"
-          },
-          "outcome": {
-            "$ref": "#/components/schemas/DecisionSearchOutcome"
-          },
-          "riskBand": {
-            "$ref": "#/components/schemas/DecisionSearchRiskBand"
-          },
-          "policyVersion": {
-            "type": "string",
-            "maxLength": 40
-          },
-          "decidedFrom": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "decidedTo": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "cursor": {
-            "type": "string",
-            "maxLength": 256
-          },
-          "pageSize": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100,
-            "default": 25
-          }
-        }
-      },
-      "DecisionSummaryResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "decisionReference",
-          "correlationId",
-          "eventType",
-          "outcome",
-          "riskScore",
-          "riskBand",
-          "policyKey",
-          "policyVersion",
-          "decidedAt",
-          "degraded",
-          "simulated",
-          "provenanceAvailable"
-        ],
-        "properties": {
-          "decisionReference": {
-            "type": "string"
-          },
-          "correlationId": {
-            "type": "string"
-          },
-          "eventType": {
-            "type": "string"
-          },
-          "outcome": {
-            "type": "string"
-          },
-          "riskScore": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "riskBand": {
-            "type": "string"
-          },
-          "policyKey": {
-            "type": "string"
-          },
-          "policyVersion": {
-            "type": "string"
-          },
-          "decidedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "degraded": {
-            "type": "boolean"
-          },
-          "simulated": {
-            "type": "boolean"
-          },
-          "provenanceAvailable": {
-            "type": "boolean"
-          }
-        }
-      },
-      "DecisionSearchResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "decisions",
-          "pageSize",
-          "hasMore"
-        ],
-        "properties": {
-          "decisions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DecisionSummaryResponse"
-            }
-          },
-          "nextCursor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "pageSize": {
-            "type": "integer"
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ProtectionDecisionRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "accountReference",
-          "eventType"
-        ],
-        "properties": {
-          "accountReference": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          },
-          "eventType": {
-            "$ref": "#/components/schemas/ProtectionEventType"
-          },
-          "failedAttempts": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 20,
-            "default": 0
-          },
-          "newDevice": {
-            "type": "boolean",
-            "default": false
-          },
-          "impossibleTravel": {
-            "type": "boolean",
-            "default": false
-          },
-          "compromisedCredential": {
-            "type": "boolean",
-            "default": false
-          },
-          "networkRiskLevel": {
-            "$ref": "#/components/schemas/NetworkRiskLevel"
-          },
-          "idempotencyKey": {
-            "type": "string",
-            "maxLength": 128
-          }
-        }
-      },
-      "ReasonResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "code",
-          "contribution"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "contribution": {
-            "type": "integer"
-          }
-        }
-      },
-      "ChallengeResponse": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "additionalProperties": false,
-        "required": [
-          "challengeId",
-          "challengeType",
-          "expiresAt"
-        ],
-        "properties": {
-          "challengeId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "challengeType": {
-            "$ref": "#/components/schemas/ChallengeType"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "ProtectionDecisionResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "decisionId",
-          "outcome",
-          "riskScore",
-          "riskBand",
-          "algorithmVersion",
-          "policyKey",
-          "policyVersion",
-          "reasons",
-          "decidedAt"
-        ],
-        "properties": {
-          "decisionId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "protectionRequestId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "recoveryAuthorizationId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "outcome": {
-            "$ref": "#/components/schemas/ProtectionOutcome"
-          },
-          "riskScore": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "riskBand": {
-            "$ref": "#/components/schemas/RiskBand"
-          },
-          "algorithmVersion": {
-            "type": "string"
-          },
-          "policyKey": {
-            "type": "string"
-          },
-          "policyVersion": {
-            "type": "string"
-          },
-          "reasons": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReasonResponse"
-            }
-          },
-          "decidedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "challenge": {
-            "$ref": "#/components/schemas/ChallengeResponse"
-          }
-        }
-      },
-      "ProblemDetails": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": [
-          "type",
-          "title",
-          "status"
-        ],
-        "properties": {
-          "type": {
-            "type": "string",
-            "format": "uri"
-          },
-          "title": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer"
-          },
-          "detail": {
-            "type": "string"
-          },
-          "instance": {
-            "type": "string",
-            "format": "uri"
-          },
-          "code": {
-            "$ref": "#/components/schemas/ProblemCode"
-          },
-          "correlationId": {
-            "type": "string"
-          },
-          "retryAfter": {
-            "type": "string"
-          },
-          "retryable": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ProblemCode": {
+      "SectionAvailability": {
         "type": "string",
         "enum": [
-          "INVALID_PROTECTION_REQUEST",
-          "ACTIVE_POLICY_UNAVAILABLE",
-          "IDEMPOTENCY_CONFLICT",
-          "RATE_LIMIT_EXCEEDED",
-          "INVALID_DECISION_SEARCH",
-          "DECISION_SEARCH_UNAVAILABLE"
+          "AVAILABLE",
+          "NOT_APPLICABLE",
+          "UNAVAILABLE"
         ]
-      }
-    }
-  }
-}
+      },
+      "SignalProvenanceState": {
+__ACCOUNT_SHIELD_CONTRACT_CONTINUE__
