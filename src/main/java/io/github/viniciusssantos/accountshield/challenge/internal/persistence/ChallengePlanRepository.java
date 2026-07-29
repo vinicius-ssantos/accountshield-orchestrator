@@ -7,5 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ChallengePlanRepository extends JpaRepository<ChallengePlanEntity, UUID> {
 
+    List<ChallengePlanEntity> findByContextIdOrderByCreatedAtAscIdAsc(UUID contextId);
+
     int deleteByStatusInAndExpiresAtBefore(List<String> statuses, Instant cutoff);
 }
