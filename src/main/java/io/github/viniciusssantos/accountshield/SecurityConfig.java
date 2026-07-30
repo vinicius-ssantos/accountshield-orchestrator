@@ -45,6 +45,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/webhooks/**").hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/audit/**").hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/operator/decisions/**").hasRole("SECURITY_OPERATOR")
+                        .requestMatchers("/api/v1/operator/recoveries/**").hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/evidence/**").hasRole("SECURITY_OPERATOR")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt

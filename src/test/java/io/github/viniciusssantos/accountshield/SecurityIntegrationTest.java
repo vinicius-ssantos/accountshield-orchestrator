@@ -168,6 +168,65 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void recoveryInvestigationSearchRejectsWrongRole() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/recoveries/search")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("client-1", "PROTECTION_CLIENT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_PRIVILEGES"));
+    }
+
+    @Test
+    void recoveryInvestigationSearchSucceedsForSecurityOperator() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/recoveries/search")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("operator-1", "SECURITY_OPERATOR"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recoveries").isArray());
+    }
+
+    @Test
+    void recoveryInvestigationDetailRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/recoveries/investigate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "recoveryReference": "86e7e5fd-7137-4704-abee-4d9ea496970d" }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+    }
+
+    @Test
+    void recoveryInvestigationDetailRejectsWrongRole() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/recoveries/investigate")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("client-1", "PROTECTION_CLIENT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "recoveryReference": "86e7e5fd-7137-4704-abee-4d9ea496970d" }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_PRIVILEGES"));
+    }
+
+    @Test
+    void recoveryInvestigationDetailPassesAuthorizationForSecurityOperator() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/recoveries/investigate")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("operator-1", "SECURITY_OPERATOR"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "recoveryReference": "86e7e5fd-7137-4704-abee-4d9ea496970d" }
+                                """))
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    if (status == 401 || status == 403) {
+                        throw new AssertionError("expected authorization to pass, got status " + status);
+                    }
+                });
+    }
+
+    @Test
     void prometheusRequiresObservabilityReaderRole() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isUnauthorized());
