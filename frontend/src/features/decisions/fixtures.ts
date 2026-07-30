@@ -1,4 +1,5 @@
 import type { DecisionsDataSource } from "./data-source";
+import { buildFixtureDecisionReplay } from "./replay-fixtures";
 import { buildFixtureDecisionTimeline } from "./timeline-fixtures";
 import type {
   DecisionSearchCriteria,
@@ -141,6 +142,11 @@ export const fixtureDecisionsDataSource: DecisionsDataSource = {
     const decision = decisions.find((item) => item.decisionReference === decisionReference);
     if (!decision) throw new Error("Decision fixture was not found.");
     return buildFixtureDecisionTimeline(decision);
+  },
+  async replay(decisionReference) {
+    const decision = decisions.find((item) => item.decisionReference === decisionReference);
+    if (!decision) throw new Error("Decision fixture was not found.");
+    return buildFixtureDecisionReplay(decision);
   },
   async listRecent() {
     return decisions.slice(0, 4);

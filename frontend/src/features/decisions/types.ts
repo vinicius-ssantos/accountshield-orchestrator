@@ -165,6 +165,34 @@ export interface DecisionInvestigationDetail {
   source: "fixtures" | "live";
 }
 
+export interface DecisionReplayReason {
+  code: string;
+  contribution: number;
+}
+
+export interface DecisionReplaySide {
+  outcome: string;
+  riskScore: number;
+  riskBand: string;
+  reasons: readonly DecisionReplayReason[];
+}
+
+export interface DecisionReplayComparison {
+  decisionReference: string;
+  maskedSubjectReference: string;
+  matches: boolean;
+  original: DecisionReplaySide;
+  replayed: DecisionReplaySide;
+  policyKey: string;
+  policyVersion: string;
+  algorithmVersion: string;
+  normalizedInputSchemaVersion: string | null;
+  reasonCatalogVersion: string;
+  decisionEngineVersion: string;
+  mismatches: readonly string[];
+  source: "fixtures" | "live";
+}
+
 export interface OperationsMetric {
   label: string;
   value: string;
