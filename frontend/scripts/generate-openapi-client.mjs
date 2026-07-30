@@ -274,7 +274,21 @@ async function writeOrCheck(path, expected) {
     }
 
     if (current !== expected) {
-      fail(`generated output is stale: ${path}. Run npm run openapi:generate`);
+      let divergedAt = 0;
+      while (
+        divergedAt < current.length &&
+        divergedAt < expected.length &&
+        current[divergedAt] === expected[divergedAt]
+      ) {
+        divergedAt += 1;
+      }
+      const context = (value) =>
+        JSON.stringify(value.slice(Math.max(0, divergedAt - 20), divergedAt + 20));
+      fail(
+        `generated output is stale: ${path}. Run npm run openapi:generate ` +
+          `(current.length=${current.length}, expected.length=${expected.length}, ` +
+          `diverged at index ${divergedAt}; current: ${context(current)}; expected: ${context(expected)})`,
+      );
     }
     return;
   }
