@@ -29,3 +29,42 @@ test("decision investigation supports keyboard-visible form submission", async (
   await expect(page).toHaveURL(/\/decisions$/);
   await expect(page.getByText("2 decisions", { exact: true })).toBeVisible();
 });
+
+test("authorized operator can explain a decision without exposing its reference", async ({
+  page,
+}) => {
+  const decisionReference = "00000000-0000-4000-8000-000000000001";
+  await page.goto("/decisions");
+  await expect(page.getByRole("table", { name: "Decision investigation results" })).toBeVisible();
+
+  const investigate = page.getByRole("button", { name: "Investigate decision" }).first();
+  await investigate.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Decision explanation" }),
+  ).toBeVisible();
+  await expect(page.getByRole("list", { name: "Decision event timeline" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Risk reasons" })).toBeVisible();
+  await expect(page.getByText("risk-score-v3", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/decisions$/);
+  await expect(page.locator("body")).not.toContainText(decisionReference);
+});
+
+test("degraded investigation distinguishes stale and unavailable evidence", async ({ page }) => {
+  await page.goto("/decisions");
+  await expect(page.getByRole("table", { name: "Decision investigation results" })).toBeVisible();
+
+  await page
+    .getByRole("searchbox", { name: "Correlation ID" })
+    .fill("corr_demo_password_a921");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.getByRole("button", { name: "Investigate decision" }).click();
+
+  await expect(page.getByText("Partial or degraded evidence", { exact: true })).toBeVisible();
+  const signalProvenance = page.getByRole("region", { name: "Signal provenance" });
+  await expect(signalProvenance.getByText("STALE", { exact: true })).toBeVisible();
+  await expect(signalProvenance.getByText("LOW", { exact: true })).toBeVisible();
+  await expect(signalProvenance.getByText("integrity unavailable", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/decisions$/);
+});

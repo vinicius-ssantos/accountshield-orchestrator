@@ -21,6 +21,7 @@ import {
   DecisionSearchBrowserError,
   searchDecisionsThroughBff,
 } from "./decision-search-browser";
+import { DecisionTimelinePanel } from "./decision-timeline-panel";
 import {
   DecisionEventTypeValues,
   DecisionOutcomeValues,
@@ -106,12 +107,14 @@ export function DecisionInvestigationConsole() {
   const [result, setResult] = useState<DecisionSearchPage>();
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
+  const [selectedDecisionReference, setSelectedDecisionReference] = useState<string>();
   const requestSequence = useRef(0);
 
   const runSearch = useCallback(async (next: DecisionSearchCriteria) => {
     const sequence = ++requestSequence.current;
     setLoading(true);
     setError(undefined);
+    setSelectedDecisionReference(undefined);
     try {
       const page = await searchDecisionsThroughBff(next);
       if (sequence === requestSequence.current) {
@@ -176,6 +179,16 @@ export function DecisionInvestigationConsole() {
             <StatusBadge label="complete" tone="positive" />
           ) : null}
         </span>
+      ),
+      action: (
+        <button
+          aria-pressed={selectedDecisionReference === decision.decisionReference}
+          className="actionLink decisionInvestigateAction"
+          onClick={() => setSelectedDecisionReference(decision.decisionReference)}
+          type="button"
+        >
+          Investigate decision
+        </button>
       ),
     },
   }));
@@ -328,6 +341,7 @@ export function DecisionInvestigationConsole() {
                 { key: "outcome", label: "Outcome" },
                 { key: "policy", label: "Policy" },
                 { key: "evidence", label: "Evidence" },
+                { key: "action", label: "Investigation" },
               ]}
               rows={rows}
             />
@@ -355,6 +369,13 @@ export function DecisionInvestigationConsole() {
           </Panel>
         ) : null}
       </div>
+
+      {selectedDecisionReference ? (
+        <DecisionTimelinePanel
+          decisionReference={selectedDecisionReference}
+          onClose={() => setSelectedDecisionReference(undefined)}
+        />
+      ) : null}
     </>
   );
 }

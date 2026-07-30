@@ -6,6 +6,54 @@
     "description": "Versioned frontend contract snapshot generated from the published Springdoc API."
   },
   "paths": {
+    "/api/v1/operator/decisions/investigate": {
+      "post": {
+        "operationId": "investigateDecision",
+        "summary": "Retrieve one authorized privacy-minimized decision timeline and provenance view",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionTimelineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision investigation timeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionTimelineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/v1/operator/decisions/search": {
       "post": {
         "operationId": "searchDecisionInvestigations",
@@ -196,6 +244,23 @@
           "HIGH"
         ]
       },
+      "SectionAvailability": {
+        "type": "string",
+        "enum": [
+          "AVAILABLE",
+          "NOT_APPLICABLE",
+          "UNAVAILABLE"
+        ]
+      },
+      "SignalProvenanceState": {
+        "type": "string",
+        "enum": [
+          "RECORDED",
+          "SIMULATED",
+          "STALE",
+          "UNAVAILABLE"
+        ]
+      },
       "DecisionSearchRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -322,6 +387,424 @@
             "type": "integer"
           },
           "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DecisionTimelineRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisionReference"
+        ],
+        "properties": {
+          "decisionReference": {
+            "type": "string",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36
+          }
+        }
+      },
+      "ReasonEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "contribution",
+          "ordinal"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SignalProvenanceEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "observedAt",
+          "confidence",
+          "schemaVersion",
+          "state",
+          "simulated",
+          "integrityAvailable"
+        ],
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "confidence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schemaVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/SignalProvenanceState"
+          },
+          "simulated": {
+            "type": "boolean"
+          },
+          "integrityAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PolicyProvenanceEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyKey",
+          "policyVersion",
+          "routingReason",
+          "rolloutCohortBucket",
+          "rolloutCandidateVersion",
+          "rolloutCandidateSelected"
+        ],
+        "properties": {
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "routingReason": {
+            "type": "string"
+          },
+          "rolloutCohortBucket": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rolloutCandidateVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rolloutCandidateSelected": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "ExecutionProvenanceEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "algorithmVersion",
+          "normalizedInputSchemaVersion",
+          "reasonCatalogVersion",
+          "decisionEngineVersion",
+          "applicationCommitSha",
+          "canonicalInputHashAvailable",
+          "auditRecordHashAvailable"
+        ],
+        "properties": {
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "normalizedInputSchemaVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasonCatalogVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decisionEngineVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "applicationCommitSha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "canonicalInputHashAvailable": {
+            "type": "boolean"
+          },
+          "auditRecordHashAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChallengeSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "challengeType",
+          "purpose",
+          "status",
+          "createdAt",
+          "expiresAt",
+          "consumedAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "challengeType": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "RecoverySummary": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "directive",
+          "status",
+          "issuedAt",
+          "expiresAt",
+          "consumedAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "directive": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "OutboxSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "eventType",
+          "status",
+          "occurredAt",
+          "publishedAt",
+          "deadLetteredAt",
+          "attemptCount"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deadLetteredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TimelineEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "kind",
+          "status",
+          "occurredAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InvestigationSections": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "challenge",
+          "recovery",
+          "outbox"
+        ],
+        "properties": {
+          "challenge": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          },
+          "recovery": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          },
+          "outbox": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          }
+        }
+      },
+      "DecisionTimelineResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decision",
+          "maskedSubjectReference",
+          "reasons",
+          "signalProvenance",
+          "policyProvenance",
+          "executionProvenance",
+          "challenges",
+          "recovery",
+          "outboxEvents",
+          "timeline",
+          "sections",
+          "partial"
+        ],
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/DecisionSummaryResponse"
+          },
+          "maskedSubjectReference": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonEvidence"
+            }
+          },
+          "signalProvenance": {
+            "$ref": "#/components/schemas/SignalProvenanceEvidence"
+          },
+          "policyProvenance": {
+            "$ref": "#/components/schemas/PolicyProvenanceEvidence"
+          },
+          "executionProvenance": {
+            "$ref": "#/components/schemas/ExecutionProvenanceEvidence"
+          },
+          "challenges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChallengeSummary"
+            }
+          },
+          "recovery": {
+            "$ref": "#/components/schemas/RecoverySummary"
+          },
+          "outboxEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutboxSummary"
+            }
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            }
+          },
+          "sections": {
+            "$ref": "#/components/schemas/InvestigationSections"
+          },
+          "partial": {
             "type": "boolean"
           }
         }
@@ -478,6 +961,20 @@
           }
         }
       },
+      "ProblemCode": {
+        "type": "string",
+        "enum": [
+          "INVALID_PROTECTION_REQUEST",
+          "ACTIVE_POLICY_UNAVAILABLE",
+          "IDEMPOTENCY_CONFLICT",
+          "RATE_LIMIT_EXCEEDED",
+          "INVALID_DECISION_SEARCH",
+          "DECISION_SEARCH_UNAVAILABLE",
+          "INVALID_DECISION_INVESTIGATION",
+          "DECISION_INVESTIGATION_NOT_FOUND",
+          "DECISION_INVESTIGATION_UNAVAILABLE"
+        ]
+      },
       "ProblemDetails": {
         "type": "object",
         "additionalProperties": true,
@@ -517,17 +1014,6 @@
             "type": "boolean"
           }
         }
-      },
-      "ProblemCode": {
-        "type": "string",
-        "enum": [
-          "INVALID_PROTECTION_REQUEST",
-          "ACTIVE_POLICY_UNAVAILABLE",
-          "IDEMPOTENCY_CONFLICT",
-          "RATE_LIMIT_EXCEEDED",
-          "INVALID_DECISION_SEARCH",
-          "DECISION_SEARCH_UNAVAILABLE"
-        ]
       }
     }
   }

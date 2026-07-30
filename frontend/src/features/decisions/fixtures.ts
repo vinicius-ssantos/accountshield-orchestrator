@@ -1,4 +1,5 @@
 import type { DecisionsDataSource } from "./data-source";
+import { buildFixtureDecisionTimeline } from "./timeline-fixtures";
 import type {
   DecisionSearchCriteria,
   DecisionSummary,
@@ -14,7 +15,7 @@ const metrics: readonly OperationsMetric[] = [
 
 const decisions: readonly DecisionSummary[] = [
   {
-    decisionReference: "dec_fixture_01",
+    decisionReference: "00000000-0000-4000-8000-000000000001",
     correlationId: "corr_demo_login_8f12",
     eventType: "LOGIN_ATTEMPT",
     riskScore: 82,
@@ -28,7 +29,7 @@ const decisions: readonly DecisionSummary[] = [
     provenanceAvailable: true,
   },
   {
-    decisionReference: "dec_fixture_02",
+    decisionReference: "00000000-0000-4000-8000-000000000002",
     correlationId: "corr_demo_password_a921",
     eventType: "CREDENTIAL_CHANGE_ATTEMPT",
     riskScore: 64,
@@ -42,7 +43,7 @@ const decisions: readonly DecisionSummary[] = [
     provenanceAvailable: true,
   },
   {
-    decisionReference: "dec_fixture_03",
+    decisionReference: "00000000-0000-4000-8000-000000000003",
     correlationId: "corr_demo_travel_120c",
     eventType: "LOGIN_ATTEMPT",
     riskScore: 41,
@@ -56,7 +57,7 @@ const decisions: readonly DecisionSummary[] = [
     provenanceAvailable: false,
   },
   {
-    decisionReference: "dec_fixture_04",
+    decisionReference: "00000000-0000-4000-8000-000000000004",
     correlationId: "corr_demo_action_77bd",
     eventType: "SENSITIVE_ACTION",
     riskScore: 18,
@@ -70,7 +71,7 @@ const decisions: readonly DecisionSummary[] = [
     provenanceAvailable: true,
   },
   {
-    decisionReference: "dec_fixture_05",
+    decisionReference: "00000000-0000-4000-8000-000000000005",
     correlationId: "corr_demo_recovery_ef31",
     eventType: "LOGIN_RECOVERY_ATTEMPT",
     riskScore: 71,
@@ -84,7 +85,7 @@ const decisions: readonly DecisionSummary[] = [
     provenanceAvailable: true,
   },
   {
-    decisionReference: "dec_fixture_06",
+    decisionReference: "00000000-0000-4000-8000-000000000006",
     correlationId: "corr_demo_device_b139",
     eventType: "DEVICE_TRUST_RESET_ATTEMPT",
     riskScore: 53,
@@ -135,6 +136,11 @@ export const fixtureDecisionsDataSource: DecisionsDataSource = {
       source: "fixtures",
       partial: false,
     };
+  },
+  async investigate(decisionReference) {
+    const decision = decisions.find((item) => item.decisionReference === decisionReference);
+    if (!decision) throw new Error("Decision fixture was not found.");
+    return buildFixtureDecisionTimeline(decision);
   },
   async listRecent() {
     return decisions.slice(0, 4);

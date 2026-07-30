@@ -16,6 +16,15 @@ const architectureConfig = {
       issue: "#69",
       revisitOn: "2026-10-29",
     },
+    {
+      ruleId: "ARCH007",
+      path: "src/features/decisions/decision-timeline-browser.ts",
+      rationale:
+        "Decision investigation is read-only but sends the opaque decision reference in a same-origin POST body so it never appears in the browser URL, history, referrer, or access logs.",
+      owner: "vinicius-ssantos",
+      issue: "#70",
+      revisitOn: "2026-10-29",
+    },
   ],
 };
 
