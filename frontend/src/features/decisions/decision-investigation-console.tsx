@@ -17,6 +17,7 @@ import {
   type StatusTone,
 } from "@/design-system/components";
 
+import { DecisionReplayPanel } from "./decision-replay-panel";
 import {
   DecisionSearchBrowserError,
   searchDecisionsThroughBff,
@@ -108,6 +109,7 @@ export function DecisionInvestigationConsole() {
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
   const [selectedDecisionReference, setSelectedDecisionReference] = useState<string>();
+  const [selectedReplayReference, setSelectedReplayReference] = useState<string>();
   const requestSequence = useRef(0);
 
   const runSearch = useCallback(async (next: DecisionSearchCriteria) => {
@@ -115,6 +117,7 @@ export function DecisionInvestigationConsole() {
     setLoading(true);
     setError(undefined);
     setSelectedDecisionReference(undefined);
+    setSelectedReplayReference(undefined);
     try {
       const page = await searchDecisionsThroughBff(next);
       if (sequence === requestSequence.current) {
@@ -181,14 +184,24 @@ export function DecisionInvestigationConsole() {
         </span>
       ),
       action: (
-        <button
-          aria-pressed={selectedDecisionReference === decision.decisionReference}
-          className="actionLink decisionInvestigateAction"
-          onClick={() => setSelectedDecisionReference(decision.decisionReference)}
-          type="button"
-        >
-          Investigate decision
-        </button>
+        <span className="decisionActionGroup">
+          <button
+            aria-pressed={selectedDecisionReference === decision.decisionReference}
+            className="actionLink decisionInvestigateAction"
+            onClick={() => setSelectedDecisionReference(decision.decisionReference)}
+            type="button"
+          >
+            Investigate decision
+          </button>
+          <button
+            aria-pressed={selectedReplayReference === decision.decisionReference}
+            className="actionLink decisionReplayAction"
+            onClick={() => setSelectedReplayReference(decision.decisionReference)}
+            type="button"
+          >
+            Compare replay
+          </button>
+        </span>
       ),
     },
   }));
@@ -374,6 +387,13 @@ export function DecisionInvestigationConsole() {
         <DecisionTimelinePanel
           decisionReference={selectedDecisionReference}
           onClose={() => setSelectedDecisionReference(undefined)}
+        />
+      ) : null}
+
+      {selectedReplayReference ? (
+        <DecisionReplayPanel
+          decisionReference={selectedReplayReference}
+          onClose={() => setSelectedReplayReference(undefined)}
         />
       ) : null}
     </>

@@ -44,6 +44,15 @@ const architectureConfig = {
       issue: "#71",
       revisitOn: "2026-10-29",
     },
+    {
+      ruleId: "ARCH007",
+      path: "src/features/decisions/decision-replay-browser.ts",
+      rationale:
+        "Decision replay is read-only and side-effect-free but sends the opaque decision reference in a same-origin POST body so it never appears in the browser URL, history, referrer, or access logs.",
+      owner: "vinicius-ssantos",
+      issue: "#72",
+      revisitOn: "2026-10-29",
+    },
   ],
 };
 
