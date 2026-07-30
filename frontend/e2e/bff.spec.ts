@@ -109,6 +109,57 @@ test("fixture decision search uses a POST body and keyset cursor", async ({ requ
   );
 });
 
+test("fixture recovery search uses a POST body and keyset cursor", async ({ request }) => {
+  const first = await request.post("/api/bff/recovery-search", {
+    headers: { "x-correlation-id": VALID_CORRELATION_ID },
+    data: { pageSize: 1 },
+  });
+
+  expect(first.ok()).toBe(true);
+  expect(first.headers()["cache-control"]).toContain("no-store");
+  expect(first.headers()["x-correlation-id"]).toBe(VALID_CORRELATION_ID);
+  const firstPage = await first.json();
+  expect(firstPage).toMatchObject({
+    pageSize: 1,
+    hasMore: true,
+    source: "fixtures",
+    partial: false,
+  });
+  expect(firstPage.recoveries).toHaveLength(1);
+  expect(firstPage.nextCursor).toBe("fixture-1");
+
+  const second = await request.post("/api/bff/recovery-search", {
+    data: { pageSize: 1, cursor: firstPage.nextCursor },
+  });
+  expect(second.ok()).toBe(true);
+  const secondPage = await second.json();
+  expect(secondPage.recoveries).toHaveLength(1);
+  expect(secondPage.recoveries[0].recoveryReference).not.toBe(
+    firstPage.recoveries[0].recoveryReference,
+  );
+});
+
+test("recovery investigation is accepted only in a JSON body", async ({ request }) => {
+  const recoveryReference = "00000000-0000-4000-9000-000000000001";
+  const response = await request.post("/api/bff/recovery-detail", {
+    data: { recoveryReference },
+  });
+
+  expect(response.ok()).toBe(true);
+  const body = await response.json();
+  expect(body.recovery.recoveryReference).toBe(recoveryReference);
+  expect(JSON.stringify(body)).not.toContain("sensitive-account");
+
+  const unsupported = await request.get(
+    `/api/bff/recovery-detail?recoveryReference=${encodeURIComponent(recoveryReference)}`,
+  );
+  expect(unsupported.status()).toBe(405);
+  expect(unsupported.headers()["allow"]).toBe("POST");
+  const problem = (await unsupported.json()) as Record<string, unknown>;
+  expectSafeProblem(problem);
+  expect(JSON.stringify(problem)).not.toContain(recoveryReference);
+});
+
 test("decision correlation search is accepted only in a JSON body", async ({ request }) => {
   const correlationId = "corr_demo_login_8f12";
   const response = await request.post("/api/bff/decision-search", {
