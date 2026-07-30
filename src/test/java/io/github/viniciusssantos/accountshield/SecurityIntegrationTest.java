@@ -227,6 +227,45 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void decisionReplayRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/decisions/replay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "decisionReference": "86e7e5fd-7137-4704-abee-4d9ea496970d" }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+    }
+
+    @Test
+    void decisionReplayRejectsWrongRole() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/decisions/replay")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("client-1", "PROTECTION_CLIENT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "decisionReference": "86e7e5fd-7137-4704-abee-4d9ea496970d" }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_PRIVILEGES"));
+    }
+
+    @Test
+    void decisionReplayPassesAuthorizationForSecurityOperator() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/decisions/replay")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("operator-1", "SECURITY_OPERATOR"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "decisionReference": "86e7e5fd-7137-4704-abee-4d9ea496970d" }
+                                """))
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    if (status == 401 || status == 403) {
+                        throw new AssertionError("expected authorization to pass, got status " + status);
+                    }
+                });
+    }
+
+    @Test
     void prometheusRequiresObservabilityReaderRole() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isUnauthorized());
