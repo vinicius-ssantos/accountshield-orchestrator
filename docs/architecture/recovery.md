@@ -112,6 +112,21 @@ A unique foreign key binds one flow to one authorization. The flow no longer has
 
 The recovery module never reads audit or challenge persistence directly.
 
+## Operator investigation read model
+
+The module exposes two read-only operator contracts under `/api/v1/operator/recoveries`:
+
+- `POST /search` returns a keyset-paginated queue ordered by `updatedAt DESC, recoveryReference DESC`;
+- `POST /investigate` returns one privacy-minimized recovery detail by an opaque UUID supplied in the request body.
+
+Both endpoints require `SECURITY_OPERATOR`, return `Cache-Control: no-store`, and are independent from recovery command services. Search filters are limited to persisted status, classification, event type, derived review state, bounded time windows and risk-score ranges. Operational references and filters are kept out of URLs.
+
+The projection may expose masked subject information, persisted state/classification/version/timestamps, opaque correlation references, a derived review state, reviewer presence, and minimized challenge metadata through the challenge module's public read port. It never exposes the raw account reference, reviewer identity, authorization ID, challenge code/hash, provider payload or persistence entities.
+
+When a persisted challenge is expected but the authorized challenge projection cannot be resolved, the response reports `challengeAvailability = UNAVAILABLE` and `partial = true`; it does not interpret missing evidence as success or absence.
+
+See ADR 0042 and migration V28.
+
 ## Tests
 
 `RecoveryIntegrationTest` exercises:
@@ -133,12 +148,14 @@ The suite also proves:
 - authorization fields cannot be mutated;
 - boundary scores `30`, `31`, `60`, and `61` preserve their gates.
 
+`RecoveryOperationsIntegrationTest`, the recovery controller tests, and `SecurityIntegrationTest` additionally prove deterministic cursor pagination, supported filters, privacy minimization, generic failures and `SECURITY_OPERATOR`-only access for the operator queue/detail.
+
 ## Deferred hardening
 
 The following concerns remain separate:
 
 - recovery row versioning and broader initiation idempotency controls;
-- authenticated operator identity and RBAC;
+- secure browser operator sessions and identity propagation beyond the current JWT role boundary;
 - authorization retention and cleanup;
 - policy-specific authorization TTL;
 - automated delayed-flow scheduling;
