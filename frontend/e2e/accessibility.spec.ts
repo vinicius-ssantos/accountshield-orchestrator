@@ -13,6 +13,11 @@ const scenarios = [
     heading: "Decision investigation",
   },
   {
+    name: "recovery investigation",
+    path: "/recoveries",
+    heading: "Recovery investigation",
+  },
+  {
     name: "design-system showcase",
     path: "/design-system",
     heading: "AccountShield console design system",
@@ -34,6 +39,12 @@ for (const scenario of scenarios) {
     if (scenario.path === "/decisions") {
       await expect(
         page.getByRole("table", { name: "Decision investigation results" }),
+      ).toBeVisible();
+    }
+
+    if (scenario.path === "/recoveries") {
+      await expect(
+        page.getByRole("table", { name: "Recovery investigation results" }),
       ).toBeVisible();
     }
 
