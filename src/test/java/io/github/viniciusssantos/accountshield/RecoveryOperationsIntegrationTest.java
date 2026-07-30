@@ -112,7 +112,7 @@ class RecoveryOperationsIntegrationTest {
         assertThat(detail.challenges()).singleElement().satisfies(challenge -> {
             assertThat(challenge.reference()).isEqualTo(delayed.identityChallengeId().toString());
             assertThat(challenge.purpose()).isEqualTo("RECOVERY_IDENTITY");
-            assertThat(challenge.status()).isEqualTo("ISSUED");
+            assertThat(challenge.status()).isEqualTo("CHALLENGED");
         });
         assertThat(detail.partial()).isFalse();
     }
