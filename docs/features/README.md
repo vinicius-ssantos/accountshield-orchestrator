@@ -75,6 +75,7 @@ This catalog distinguishes executable behavior from planned hardening. A feature
 | Recovery optimistic locking | **Planned** | `RecoveryFlowEntity` does not yet expose controlled stale-update conflicts | [#18](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/18), [#37](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/37) |
 | Versioned recovery classification provenance | **Planned** | Authorization stores directive and risk, but classification-rule version is not yet frozen explicitly | [#31](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/31) |
 | Recovery retention policy | **Implemented** | Terminal recovery flows and expired recovery authorizations are both purged in bounded batches | `RecoveryFlowRetentionCleanup`, `RecoveryAuthorizationRetentionCleanup` (`recovery/internal`); ADR 0024 |
+| Authorized recovery investigation read API | **Implemented** | `SECURITY_OPERATOR` can search a keyset-paginated recovery queue with status/classification/event/time/risk filters, or submit an opaque recovery reference and receive masked subject context, classification and rule version, lifecycle timestamps, a minimized challenge summary, and explicit challenge-section availability, all `no-store` | ADR 0042; [#174](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/174); frontend consumer [#71](https://github.com/vinicius-ssantos/accountshield-orchestrator/issues/71) |
 
 ## Transactional events and outbox
 
