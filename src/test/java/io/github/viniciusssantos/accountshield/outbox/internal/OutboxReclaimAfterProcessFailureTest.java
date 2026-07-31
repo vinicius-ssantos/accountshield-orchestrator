@@ -119,7 +119,8 @@ class OutboxReclaimAfterProcessFailureTest {
         assertThat(newOwnerAcked).isTrue();
 
         boolean staleWorkerAcked = claimStore.markFailedWithBackoff(
-                id, staleClaimToken, 1, "worker-a resumed too late", Instant.now().plusSeconds(60));
+                id, staleClaimToken, 1, "worker-a resumed too late", "RuntimeException",
+                Instant.now().plusSeconds(60));
         assertThat(staleWorkerAcked).isFalse();
 
         String finalStatus = jdbcTemplate.queryForObject(

@@ -48,14 +48,15 @@ class OutboxClaimStore {
 
     private static final String MARK_FAILED_WITH_BACKOFF = """
             UPDATE outbox.outbox_event
-               SET status = 'PENDING', attempt_count = ?, last_error = ?, next_attempt_at = ?,
-                   claimed_at = NULL, claimed_by = NULL, claim_token = NULL
+               SET status = 'PENDING', attempt_count = ?, last_error = ?, last_error_category = ?,
+                   next_attempt_at = ?, claimed_at = NULL, claimed_by = NULL, claim_token = NULL
              WHERE id = ? AND status = 'IN_PROGRESS' AND claim_token = ?
             """;
 
     private static final String MARK_DEAD_LETTERED = """
             UPDATE outbox.outbox_event
-               SET status = 'DEAD_LETTERED', attempt_count = ?, last_error = ?, dead_lettered_at = ?
+               SET status = 'DEAD_LETTERED', attempt_count = ?, last_error = ?, last_error_category = ?,
+                   dead_lettered_at = ?
              WHERE id = ? AND status = 'IN_PROGRESS' AND claim_token = ?
             """;
 
@@ -87,16 +88,18 @@ class OutboxClaimStore {
     }
 
     /** @return {@code true} if this was still the current claim owner, {@code false} if the ack was stale (a no-op). */
-    boolean markFailedWithBackoff(UUID id, UUID claimToken, int newAttemptCount, String error, Instant nextAttemptAt) {
+    boolean markFailedWithBackoff(
+            UUID id, UUID claimToken, int newAttemptCount, String error, String errorCategory, Instant nextAttemptAt) {
         int rowsAffected = jdbcTemplate.update(
-                MARK_FAILED_WITH_BACKOFF, newAttemptCount, error, Timestamp.from(nextAttemptAt), id, claimToken);
+                MARK_FAILED_WITH_BACKOFF, newAttemptCount, error, errorCategory,
+                Timestamp.from(nextAttemptAt), id, claimToken);
         return rowsAffected > 0;
     }
 
     /** @return {@code true} if this was still the current claim owner, {@code false} if the ack was stale (a no-op). */
-    boolean markDeadLettered(UUID id, UUID claimToken, int newAttemptCount, String error, Instant now) {
-        int rowsAffected =
-                jdbcTemplate.update(MARK_DEAD_LETTERED, newAttemptCount, error, Timestamp.from(now), id, claimToken);
+    boolean markDeadLettered(UUID id, UUID claimToken, int newAttemptCount, String error, String errorCategory, Instant now) {
+        int rowsAffected = jdbcTemplate.update(
+                MARK_DEAD_LETTERED, newAttemptCount, error, errorCategory, Timestamp.from(now), id, claimToken);
         return rowsAffected > 0;
     }
 }

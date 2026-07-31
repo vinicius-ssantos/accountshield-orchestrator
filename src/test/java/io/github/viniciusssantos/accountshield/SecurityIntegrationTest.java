@@ -321,6 +321,36 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void outboxOperatorSearchRejectsWrongRole() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/outbox/search")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("client-1", "PROTECTION_CLIENT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_PRIVILEGES"));
+    }
+
+    @Test
+    void outboxOperatorSearchRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/outbox/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+    }
+
+    @Test
+    void outboxOperatorSearchSucceedsForSecurityOperator() throws Exception {
+        mockMvc.perform(post("/api/v1/operator/outbox/search")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("operator-1", "SECURITY_OPERATOR"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.health").exists())
+                .andExpect(jsonPath("$.events.records").isArray());
+    }
+
+    @Test
     void prometheusRequiresObservabilityReaderRole() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isUnauthorized());
