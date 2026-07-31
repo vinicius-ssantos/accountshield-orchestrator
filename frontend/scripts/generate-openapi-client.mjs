@@ -93,12 +93,25 @@ function enumDeclaration(name, schema) {
 
 function objectDeclaration(name, schema) {
   const properties = assertObject(schema.properties ?? {}, `${name} properties must be an object`);
+  const propertyNames = Object.keys(properties).sort();
   const required = new Set(Array.isArray(schema.required) ? schema.required : []);
   const nullable = Array.isArray(schema.type) && schema.type.includes("null");
   const interfaceName = nullable ? `${name}Value` : name;
+
+  if (propertyNames.length === 0) {
+    // An empty `interface X {}` allows any non-nullish value (including primitives), which
+    // @typescript-eslint/no-empty-object-type rejects. Record<string, never> is the lint-clean
+    // equivalent of "an object with no properties" for a genuinely filter-less request schema.
+    const lines = [`export type ${interfaceName} = Record<string, never>;`];
+    if (nullable) {
+      lines.push("", `export type ${name} = ${interfaceName} | null;`);
+    }
+    return lines.join("\n");
+  }
+
   const lines = [`export interface ${interfaceName} {`];
 
-  for (const propertyName of Object.keys(properties).sort()) {
+  for (const propertyName of propertyNames) {
     const propertySchema = assertObject(
       properties[propertyName],
       `${name}.${propertyName} must be a schema`,
