@@ -58,6 +58,25 @@ logging:
     level: "%5p [${spring.application.name:},%X{correlationId:-},%X{traceId:-},%X{spanId:-}]"
 
 accountshield:
+  auth:
+    demo-credentials:
+      # Fixed, portfolio-scoped demo personas -- not real user accounts (ADR 0046). The bcrypt
+      # hashes below are of publicly documented demo passwords, safe to commit; set this flag to
+      # false to disable operator login entirely without removing the persona list.
+      enabled: ${ACCOUNTSHIELD_DEMO_CREDENTIALS_ENABLED:true}
+      personas:
+        - username: operator-1
+          bcrypt-hash: "$2a$10$AqEjye4mg4kqddaNF8Eq3e5lFIqUiW90JotbWpDy1dI6s/7BaEx1K"
+          roles: [SECURITY_OPERATOR]
+        - username: analyst-1
+          bcrypt-hash: "$2a$10$YlF5usjQ5BJKvWPqqYOj3.fPyvZVWfur3qk/3ZpI3hgKIip/OWwWG"
+          roles: [SIMULATION_ANALYST]
+        - username: admin-1
+          bcrypt-hash: "$2a$10$GeUVdpW91DB6VHo7qHOrP..nYByIt2AoGADwci2/SMYhbO2XlAywO"
+          roles: [POLICY_ADMIN]
+        - username: reader-1
+          bcrypt-hash: "$2a$10$tUrlrmDL0DiuWs6/MGM00eV2yhoucAee./9Os58lWh/dCaykKRsK6"
+          roles: [OBSERVABILITY_READER]
   challenge:
     hmac-secret: ${CHALLENGE_HMAC_SECRET:accountshield-local-only-challenge-secret}
     simulation-enabled: ${CHALLENGE_SIMULATION_ENABLED:true}

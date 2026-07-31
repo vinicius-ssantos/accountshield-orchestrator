@@ -5,6 +5,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -29,6 +31,12 @@ public class SecurityConfig {
                         .requestMatchers("/dev/tokens").permitAll()
                         // simulates an external, unauthenticated receiver verifying its own HMAC signature
                         .requestMatchers("/demo/webhook-receiver").permitAll()
+                        // demo/portfolio-scoped operator login (ADR 0046); not a real identity provider
+                        .requestMatchers("/auth/session-tokens").permitAll()
+                        // refresh presents the caller's still-valid JWT as a normal bearer credential and
+                        // is validated by the same oauth2 resource server filter chain as any other
+                        // authenticated endpoint, so it needs no special-cased matcher beyond authentication
+                        .requestMatchers("/auth/session-tokens/refresh").authenticated()
                         .requestMatchers("/actuator/**").hasRole("OBSERVABILITY_READER")
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").authenticated()
                         .requestMatchers("/api/v1/protection-decisions").hasRole("PROTECTION_CLIENT")
@@ -50,12 +58,23 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/operator/outbox/**").hasRole("SECURITY_OPERATOR")
                         .requestMatchers("/api/v1/evidence/**").hasRole("SECURITY_OPERATOR")
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
-                        .jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                        // Without this, a malformed/expired/tampered bearer token fails inside the
+                        // resource-server filter itself and gets Spring's bare default 401 (a
+                        // WWW-Authenticate header, no body) instead of the app's stable Problem Details
+                        // shape -- only a missing token reached the shared exceptionHandling() entry
+                        // point below without this explicit wiring.
+                        .authenticationEntryPoint(entryPoint))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(deniedHandler));
         return http.build();
+    }
+
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
