@@ -160,6 +160,45 @@ test("recovery investigation is accepted only in a JSON body", async ({ request 
   expect(JSON.stringify(problem)).not.toContain(recoveryReference);
 });
 
+test("fixture policy directory search is a POST-only, body-based operation", async ({ request }) => {
+  const response = await request.post("/api/bff/policy-directory", {
+    headers: { "x-correlation-id": VALID_CORRELATION_ID },
+    data: {},
+  });
+
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  expect(response.headers()["x-correlation-id"]).toBe(VALID_CORRELATION_ID);
+  const body = await response.json();
+  expect(body.source).toBe("fixtures");
+  expect(Array.isArray(body.policies)).toBe(true);
+  expect(body.policies.length).toBeGreaterThan(0);
+
+  const unsupported = await request.get("/api/bff/policy-directory");
+  expect(unsupported.status()).toBe(405);
+  expect(unsupported.headers()["allow"]).toBe("POST");
+});
+
+test("policy investigation is accepted only in a JSON body", async ({ request }) => {
+  const policyKey = "account-protection-default";
+  const response = await request.post("/api/bff/policy-investigation", {
+    data: { policyKey },
+  });
+
+  expect(response.ok()).toBe(true);
+  const body = await response.json();
+  expect(body.policyKey).toBe(policyKey);
+  expect(JSON.stringify(body)).not.toContain("sensitive-account");
+
+  const unsupported = await request.get(
+    `/api/bff/policy-investigation?policyKey=${encodeURIComponent(policyKey)}`,
+  );
+  expect(unsupported.status()).toBe(405);
+  expect(unsupported.headers()["allow"]).toBe("POST");
+  const problem = (await unsupported.json()) as Record<string, unknown>;
+  expectSafeProblem(problem);
+});
+
 test("decision correlation search is accepted only in a JSON body", async ({ request }) => {
   const correlationId = "corr_demo_login_8f12";
   const response = await request.post("/api/bff/decision-search", {

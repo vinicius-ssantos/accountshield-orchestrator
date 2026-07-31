@@ -6,6 +6,7 @@ const architectureConfig = {
     "src/server/bff/runtime-status",
     "src/features/decisions/",
     "src/features/recoveries/",
+    "src/features/policies/",
   ],
   exceptions: [
     {
@@ -51,6 +52,24 @@ const architectureConfig = {
         "Decision replay is read-only and side-effect-free but sends the opaque decision reference in a same-origin POST body so it never appears in the browser URL, history, referrer, or access logs.",
       owner: "vinicius-ssantos",
       issue: "#72",
+      revisitOn: "2026-10-29",
+    },
+    {
+      ruleId: "ARCH007",
+      path: "src/features/policies/policy-directory-browser.ts",
+      rationale:
+        "Policy directory search is read-only but uses a same-origin POST body for consistency with the other operator read surfaces, even though it currently sends no filters.",
+      owner: "vinicius-ssantos",
+      issue: "#73",
+      revisitOn: "2026-10-29",
+    },
+    {
+      ruleId: "ARCH007",
+      path: "src/features/policies/policy-investigation-browser.ts",
+      rationale:
+        "Policy investigation is read-only but sends the policy key in a same-origin POST body instead of a query string, so it never appears in the browser URL, history, referrer, or access logs.",
+      owner: "vinicius-ssantos",
+      issue: "#73",
       revisitOn: "2026-10-29",
     },
   ],

@@ -54,6 +54,96 @@
         }
       }
     },
+    "/api/v1/operator/policies/investigate": {
+      "post": {
+        "operationId": "investigatePolicy",
+        "summary": "Retrieve one authorized privacy-minimized policy lifecycle and impact investigation",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyInvestigationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Policy investigation detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyInvestigationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/operator/policies/search": {
+      "post": {
+        "operationId": "searchPolicyDirectory",
+        "summary": "Search the authorized privacy-minimized policy directory read model",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicySearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Policy directory page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDirectorySearchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/v1/operator/decisions/replay": {
       "post": {
         "operationId": "replayDecision",
@@ -1513,8 +1603,479 @@
           "RECOVERY_INVESTIGATION_UNAVAILABLE",
           "INVALID_DECISION_REPLAY",
           "DECISION_REPLAY_NOT_FOUND",
-          "DECISION_REPLAY_UNAVAILABLE"
+          "DECISION_REPLAY_UNAVAILABLE",
+          "INVALID_POLICY_DIRECTORY_SEARCH",
+          "POLICY_DIRECTORY_SEARCH_UNAVAILABLE",
+          "INVALID_POLICY_INVESTIGATION",
+          "POLICY_INVESTIGATION_NOT_FOUND",
+          "POLICY_INVESTIGATION_UNAVAILABLE"
         ]
+      },
+      "PolicySearchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "PolicyDirectorySummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyKey",
+          "totalVersions",
+          "hasActiveRollout"
+        ],
+        "properties": {
+          "policyKey": {
+            "type": "string"
+          },
+          "totalVersions": {
+            "type": "integer"
+          },
+          "activeVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activeVersionActivatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "hasActiveRollout": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PolicyDirectorySearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policies"
+        ],
+        "properties": {
+          "policies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDirectorySummaryResponse"
+            }
+          }
+        }
+      },
+      "PolicyInvestigationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyKey"
+        ],
+        "properties": {
+          "policyKey": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      },
+      "PolicyLifecycleStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "VALIDATED",
+          "APPROVED",
+          "ACTIVE",
+          "RETIRED",
+          "REJECTED"
+        ]
+      },
+      "PolicyDiagnosticSeverity": {
+        "type": "string",
+        "enum": [
+          "ERROR",
+          "WARNING"
+        ]
+      },
+      "PolicyDiagnosticResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "severity",
+          "path",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/PolicyDiagnosticSeverity"
+          },
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyAnalysisResultResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "analyzerVersion",
+          "diagnostics"
+        ],
+        "properties": {
+          "analyzerVersion": {
+            "type": "string"
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDiagnosticResponse"
+            }
+          }
+        }
+      },
+      "PolicyGovernanceResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "createdBy",
+          "validatedBy",
+          "validatedAt",
+          "approvedBy",
+          "approvedAt",
+          "approvalReason"
+        ],
+        "properties": {
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "validatedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "validatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approvalReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PolicyVersionSummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "policyKey",
+          "version",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PolicyLifecycleStatus"
+          },
+          "allowMaxScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stepUpMaxScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "recoveryMaxScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "activatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/PolicyAnalysisResultResponse"
+          },
+          "governance": {
+            "$ref": "#/components/schemas/PolicyGovernanceResponse"
+          }
+        }
+      },
+      "PolicyRoutingScopeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientId",
+          "eventType"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyRolloutLifecycleStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "ROLLED_BACK"
+        ]
+      },
+      "PolicyRolloutSummaryResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "candidateVersion",
+          "rolloutPercentage",
+          "status",
+          "startedAt",
+          "startedBy",
+          "updatedAt"
+        ],
+        "properties": {
+          "candidateVersion": {
+            "type": "string"
+          },
+          "rolloutPercentage": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PolicyRolloutLifecycleStatus"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rolledBackAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "rolledBackBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PolicyImpactAvailability": {
+        "type": "string",
+        "enum": [
+          "AVAILABLE",
+          "NOT_APPLICABLE",
+          "UNAVAILABLE"
+        ]
+      },
+      "PolicyDivergentDecisionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "maskedProtectionRequestReference",
+          "redactedAccountReference",
+          "originalOutcome",
+          "candidateOutcome",
+          "riskScore",
+          "originalReasons"
+        ],
+        "properties": {
+          "maskedProtectionRequestReference": {
+            "type": "string"
+          },
+          "redactedAccountReference": {
+            "type": "string"
+          },
+          "originalOutcome": {
+            "type": "string"
+          },
+          "candidateOutcome": {
+            "type": "string"
+          },
+          "riskScore": {
+            "type": "integer"
+          },
+          "originalReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonResponse"
+            }
+          }
+        }
+      },
+      "PolicyImpactSummaryResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "candidatePolicyVersion",
+          "originalPolicyVersionsObserved",
+          "algorithmVersionsObserved",
+          "totalDecisions",
+          "divergentDecisionsCount",
+          "divergencePercentage",
+          "maxDivergencePercentageThreshold",
+          "exceedsDivergenceThreshold",
+          "transitionMatrix",
+          "impactByEventType",
+          "impactByRiskBand",
+          "divergentDecisions"
+        ],
+        "properties": {
+          "candidatePolicyVersion": {
+            "type": "string"
+          },
+          "originalPolicyVersionsObserved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "algorithmVersionsObserved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalDecisions": {
+            "type": "integer"
+          },
+          "divergentDecisionsCount": {
+            "type": "integer"
+          },
+          "divergencePercentage": {
+            "type": "number"
+          },
+          "maxDivergencePercentageThreshold": {
+            "type": "number"
+          },
+          "exceedsDivergenceThreshold": {
+            "type": "boolean"
+          },
+          "transitionMatrix": {
+            "type": "object"
+          },
+          "impactByEventType": {
+            "type": "object"
+          },
+          "impactByRiskBand": {
+            "type": "object"
+          },
+          "divergentDecisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDivergentDecisionResponse"
+            }
+          }
+        }
+      },
+      "PolicyInvestigationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyKey",
+          "versions",
+          "routingScope",
+          "impactAvailability"
+        ],
+        "properties": {
+          "policyKey": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyVersionSummaryResponse"
+            }
+          },
+          "routingScope": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyRoutingScopeResponse"
+            }
+          },
+          "activeRollout": {
+            "$ref": "#/components/schemas/PolicyRolloutSummaryResponse"
+          },
+          "impactAnalysis": {
+            "$ref": "#/components/schemas/PolicyImpactSummaryResponse"
+          },
+          "impactAvailability": {
+            "$ref": "#/components/schemas/PolicyImpactAvailability"
+          }
+        }
       },
       "ProblemDetails": {
         "type": "object",
