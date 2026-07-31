@@ -11,6 +11,7 @@ import {
 } from "./foundation";
 import type { BffTelemetrySink } from "./observability";
 import { startBffTelemetry } from "./observability";
+import { resolveOperatorToken } from "./session/require-session";
 import {
   AccountShieldOutboxSearchClient,
   parseOutboxSearchInput,
@@ -37,6 +38,7 @@ function boundedInteger(
 }
 
 export function createOutboxSearchClient(
+  request: Request,
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): AccountShieldOutboxSearchClient {
   const environment = readFrontendEnvironment(source, "runtime");
@@ -44,10 +46,7 @@ export function createOutboxSearchClient(
     throw new BffError("UPSTREAM_UNAVAILABLE", 503, "Live outbox search is not configured.", true);
   }
 
-  const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
-  if (!operatorToken) {
-    throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-  }
+  const operatorToken = resolveOperatorToken(request, source);
 
   return new AccountShieldOutboxSearchClient({
     origin: environment.apiUrl,
@@ -70,11 +69,12 @@ export function createOutboxSearchClient(
 }
 
 export async function searchLiveOutbox(
+  request: Request,
   input: OutboxSearchInput,
   correlationId = resolveCorrelationId(undefined),
   signal?: AbortSignal,
 ): Promise<OutboxSearchResult> {
-  return createOutboxSearchClient().search(input, correlationId, signal);
+  return createOutboxSearchClient(request).search(input, correlationId, signal);
 }
 
 export async function handleOutboxSearchRequest(
@@ -97,7 +97,7 @@ export async function handleOutboxSearchRequest(
     });
     const body = await readJsonObject(request, MAX_REQUEST_BYTES);
     const input = parseOutboxSearchInput(body);
-    const result = await (service ?? createOutboxSearchClient()).search(
+    const result = await (service ?? createOutboxSearchClient(request)).search(
       input,
       correlationId,
       request.signal,

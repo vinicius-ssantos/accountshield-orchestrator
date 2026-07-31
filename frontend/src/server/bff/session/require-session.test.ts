@@ -5,7 +5,7 @@ import { CSRF_HEADER_NAME, csrfCookieValue } from "./csrf";
 import { buildSessionCookieValue } from "./session-crypto";
 import type { SessionRecord } from "./session-model";
 import { clearSessionStoreForTesting, createSession, revokeSession } from "./session-store";
-import { canFallBackToEnvToken, requireOperatorSession } from "./require-session";
+import { canFallBackToEnvToken, requireOperatorSession, resolveOperatorToken } from "./require-session";
 
 const ENV = { NEXT_PUBLIC_APP_ENV: "test" };
 const SECRET = "accountshield-local-only-session-secret";
@@ -157,5 +157,70 @@ describe("canFallBackToEnvToken", () => {
         ACCOUNTSHIELD_ALLOW_ENV_TOKEN_FALLBACK: "true",
       }),
     ).toBe(false);
+  });
+});
+
+describe("resolveOperatorToken", () => {
+  it("uses the authenticated session's stored backend token when a valid session exists", () => {
+    const { record, cookieValue } = storedRecordWithCookies({ backendToken: "session-backend-token" });
+    const token = resolveOperatorToken(
+      new Request(`${ORIGIN}/api/bff/decision-search`, { headers: { cookie: `as_session=${cookieValue}` } }),
+      ENV,
+    );
+    expect(token).toBe(record.backendToken);
+  });
+
+  it("prefers the session token over the env fallback even when the fallback is allowed", () => {
+    const { cookieValue } = storedRecordWithCookies({ backendToken: "session-backend-token" });
+    const token = resolveOperatorToken(
+      new Request(`${ORIGIN}/api/bff/decision-search`, { headers: { cookie: `as_session=${cookieValue}` } }),
+      { ...ENV, ACCOUNTSHIELD_ALLOW_ENV_TOKEN_FALLBACK: "true", ACCOUNTSHIELD_OPERATOR_TOKEN: "env-token" },
+    );
+    expect(token).toBe("session-backend-token");
+  });
+
+  it("falls back to ACCOUNTSHIELD_OPERATOR_TOKEN when no session exists and the fallback is explicitly allowed", () => {
+    const token = resolveOperatorToken(new Request(`${ORIGIN}/api/bff/decision-search`), {
+      ...ENV,
+      ACCOUNTSHIELD_ALLOW_ENV_TOKEN_FALLBACK: "true",
+      ACCOUNTSHIELD_OPERATOR_TOKEN: "env-token",
+    });
+    expect(token).toBe("env-token");
+  });
+
+  it("rejects with the original UNAUTHORIZED error when no session exists and the fallback is not allowed", () => {
+    expect(
+      expectBffError(() => resolveOperatorToken(new Request(`${ORIGIN}/api/bff/decision-search`), ENV)),
+    ).toMatchObject({ code: "UNAUTHORIZED", status: 401 });
+  });
+
+  it("rejects when no session exists, the fallback is allowed, but no env token is configured", () => {
+    expect(
+      expectBffError(() =>
+        resolveOperatorToken(new Request(`${ORIGIN}/api/bff/decision-search`), {
+          ...ENV,
+          ACCOUNTSHIELD_ALLOW_ENV_TOKEN_FALLBACK: "true",
+        }),
+      ),
+    ).toMatchObject({ code: "UNAUTHORIZED", status: 401 });
+  });
+
+  it("never falls back to the env token on a CSRF/origin failure -- only on a missing session", () => {
+    const { cookieValue, csrfToken } = storedRecordWithCookies();
+    expect(
+      expectBffError(() =>
+        resolveOperatorToken(
+          new Request(`${ORIGIN}/api/bff/decision-search`, {
+            method: "POST",
+            headers: {
+              cookie: `as_session=${cookieValue}`,
+              "sec-fetch-site": "cross-site",
+              [CSRF_HEADER_NAME]: csrfToken,
+            },
+          }),
+          { ...ENV, ACCOUNTSHIELD_ALLOW_ENV_TOKEN_FALLBACK: "true", ACCOUNTSHIELD_OPERATOR_TOKEN: "env-token" },
+        ),
+      ),
+    ).toMatchObject({ code: "FORBIDDEN", status: 403 });
   });
 });

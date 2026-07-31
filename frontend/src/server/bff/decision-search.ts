@@ -11,6 +11,7 @@ import {
 } from "./foundation";
 import type { BffTelemetrySink } from "./observability";
 import { startBffTelemetry } from "./observability";
+import { resolveOperatorToken } from "./session/require-session";
 import {
   AccountShieldDecisionSearchClient,
   parseDecisionSearchInput,
@@ -37,6 +38,7 @@ function boundedInteger(
 }
 
 export function createDecisionSearchClient(
+  request: Request,
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): AccountShieldDecisionSearchClient {
   const environment = readFrontendEnvironment(source, "runtime");
@@ -44,10 +46,7 @@ export function createDecisionSearchClient(
     throw new BffError("UPSTREAM_UNAVAILABLE", 503, "Live decision search is not configured.", true);
   }
 
-  const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
-  if (!operatorToken) {
-    throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-  }
+  const operatorToken = resolveOperatorToken(request, source);
 
   return new AccountShieldDecisionSearchClient({
     origin: environment.apiUrl,
@@ -70,11 +69,12 @@ export function createDecisionSearchClient(
 }
 
 export async function searchLiveDecisions(
+  request: Request,
   input: DecisionSearchInput,
   correlationId = resolveCorrelationId(undefined),
   signal?: AbortSignal,
 ): Promise<DecisionSearchResult> {
-  return createDecisionSearchClient().search(input, correlationId, signal);
+  return createDecisionSearchClient(request).search(input, correlationId, signal);
 }
 
 export async function handleDecisionSearchRequest(
@@ -97,7 +97,7 @@ export async function handleDecisionSearchRequest(
     });
     const body = await readJsonObject(request, MAX_REQUEST_BYTES);
     const input = parseDecisionSearchInput(body);
-    const result = await (service ?? createDecisionSearchClient()).search(
+    const result = await (service ?? createDecisionSearchClient(request)).search(
       input,
       correlationId,
       request.signal,

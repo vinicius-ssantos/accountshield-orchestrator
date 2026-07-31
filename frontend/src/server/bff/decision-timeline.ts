@@ -11,6 +11,7 @@ import {
 } from "./foundation";
 import type { BffTelemetrySink } from "./observability";
 import { startBffTelemetry } from "./observability";
+import { resolveOperatorToken } from "./session/require-session";
 import {
   AccountShieldDecisionTimelineClient,
   parseDecisionTimelineInput,
@@ -37,6 +38,7 @@ function boundedInteger(
 }
 
 export function createDecisionTimelineClient(
+  request: Request,
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): AccountShieldDecisionTimelineClient {
   const environment = readFrontendEnvironment(source, "runtime");
@@ -49,10 +51,7 @@ export function createDecisionTimelineClient(
     );
   }
 
-  const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
-  if (!operatorToken) {
-    throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-  }
+  const operatorToken = resolveOperatorToken(request, source);
 
   return new AccountShieldDecisionTimelineClient({
     origin: environment.apiUrl,
@@ -75,11 +74,12 @@ export function createDecisionTimelineClient(
 }
 
 export async function investigateLiveDecision(
+  request: Request,
   input: DecisionTimelineInput,
   correlationId = resolveCorrelationId(undefined),
   signal?: AbortSignal,
 ): Promise<DecisionTimelineResult> {
-  return createDecisionTimelineClient().investigate(input, correlationId, signal);
+  return createDecisionTimelineClient(request).investigate(input, correlationId, signal);
 }
 
 export async function handleDecisionTimelineRequest(
@@ -102,7 +102,7 @@ export async function handleDecisionTimelineRequest(
     });
     const body = await readJsonObject(request, MAX_REQUEST_BYTES);
     const input = parseDecisionTimelineInput(body);
-    const result = await (service ?? createDecisionTimelineClient()).investigate(
+    const result = await (service ?? createDecisionTimelineClient(request)).investigate(
       input,
       correlationId,
       request.signal,
