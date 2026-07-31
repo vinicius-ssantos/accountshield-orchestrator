@@ -49,6 +49,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0041](0041-privacy-minimized-decision-investigation-timeline.md) | Accepted | Aggregate audit, challenge, recovery and payload-free outbox projections through module-owned read ports into one authorized, body-based, deterministic and explicitly partial decision timeline | Issues #70 and #171 |
 | [0042](0042-privacy-minimized-recovery-investigation-read-api.md) | Accepted | Expose recovery queue and detail through a module-owned, body-based, keyset-paginated, privacy-minimized read model restricted to security operators | Issues #71 and #174 |
 | [0043](0043-privacy-minimized-decision-replay-comparison-api.md) | Accepted | Expose the existing side-effect-free replay engine to `SECURITY_OPERATOR` through a body-based, decision-reference-keyed comparison endpoint that composes the audit evidence port and the simulation replay service, without duplicating engine logic or fabricating unavailable divergence fields | Issues #72 and #178 |
+| [0044](0044-privacy-minimized-policy-directory-and-investigation-read-api.md) | Accepted | Split an authorized `SECURITY_OPERATOR` policy read surface across two modules: a bounded directory listing owned by `policy`, and a composed lifecycle/rollout/impact-analysis investigation owned by `investigation`, reusing the existing rollout and impact-analysis engines unchanged and masking cross-module divergent-decision references | Issues #73 and #181 |
 
 ## ADR lifecycle
 
