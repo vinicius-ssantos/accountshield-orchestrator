@@ -7,6 +7,7 @@ const architectureConfig = {
     "src/features/decisions/",
     "src/features/recoveries/",
     "src/features/policies/",
+    "src/features/outbox/",
   ],
   exceptions: [
     {
@@ -70,6 +71,15 @@ const architectureConfig = {
         "Policy investigation is read-only but sends the policy key in a same-origin POST body instead of a query string, so it never appears in the browser URL, history, referrer, or access logs.",
       owner: "vinicius-ssantos",
       issue: "#73",
+      revisitOn: "2026-10-29",
+    },
+    {
+      ruleId: "ARCH007",
+      path: "src/features/outbox/outbox-browser.ts",
+      rationale:
+        "Outbox search is read-only but sends status/event-type/time-window/attempt-count filters and the keyset cursor in a same-origin POST body instead of a query string, so operational identifiers are never placed in the URL.",
+      owner: "vinicius-ssantos",
+      issue: "#74",
       revisitOn: "2026-10-29",
     },
   ],

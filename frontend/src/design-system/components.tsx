@@ -19,6 +19,7 @@ const DEFAULT_NAVIGATION_ITEMS: readonly NavigationItem[] = [
   { label: "Decisions", href: "/decisions" },
   { label: "Recoveries", href: "/recoveries" },
   { label: "Policies", href: "/policies" },
+  { label: "Outbox", href: "/outbox" },
   { label: "Replay", href: "/replay" },
   { label: "Operations", href: "/operations" },
 ];
