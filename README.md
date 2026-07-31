@@ -240,6 +240,8 @@ specifically is absent, but the SDK itself must still be installed for the root 
 
 No production credentials are required. All external challenge providers are simulated locally.
 
+A [`justfile`](justfile) collects these and other common commands (`just backend`, `just frontend`, `just dev` to run both, `just verify`, `just frontend-verify`, ...); run `just --list` for the full set.
+
 Simulated providers are controlled by `accountshield.challenge.simulation-enabled` (default `true`) and are refused outright if the Spring `production` profile is ever active while that flag is still `true` — the application fails to start rather than silently issuing simulated TOTP/e-mail/WebAuthn proof in a production-like environment. Deploying with real challenge providers means implementing real provider adapters and setting `accountshield.challenge.simulation-enabled=false`. The active mode is visible, without secrets, at `GET /actuator/info` under `challengeProviders.simulated`.
 
 ## Security notice
