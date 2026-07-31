@@ -23,6 +23,11 @@ const scenarios = [
     heading: "Policy lifecycle",
   },
   {
+    name: "outbox delivery",
+    path: "/outbox",
+    heading: "Outbox delivery",
+  },
+  {
     name: "design-system showcase",
     path: "/design-system",
     heading: "AccountShield console design system",
@@ -56,6 +61,12 @@ for (const scenario of scenarios) {
     if (scenario.path === "/policies") {
       await expect(
         page.getByRole("table", { name: "Policy directory results" }),
+      ).toBeVisible();
+    }
+
+    if (scenario.path === "/outbox") {
+      await expect(
+        page.getByRole("table", { name: "Outbox delivery records" }),
       ).toBeVisible();
     }
 

@@ -93,6 +93,8 @@ test("degraded investigation distinguishes stale and unavailable evidence", asyn
     .getByRole("searchbox", { name: "Correlation ID" })
     .fill("corr_demo_password_a921");
   await page.getByRole("button", { name: "Apply filters" }).click();
+
+  await expect(page.getByText("1 decision", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Investigate decision" }).click();
 
   await expect(page.getByText("Partial or degraded evidence", { exact: true })).toBeVisible();

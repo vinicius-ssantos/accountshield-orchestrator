@@ -144,6 +144,51 @@
         }
       }
     },
+    "/api/v1/operator/outbox/search": {
+      "post": {
+        "operationId": "searchOutboxOperations",
+        "summary": "Search the authorized privacy-minimized outbox delivery health and event read model",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboxSearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Outbox health and event page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/v1/operator/decisions/replay": {
       "post": {
         "operationId": "replayDecision",
@@ -1661,6 +1706,237 @@
             "items": {
               "$ref": "#/components/schemas/PolicyDirectorySummaryResponse"
             }
+          }
+        }
+      },
+      "OutboxSearchStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "IN_PROGRESS",
+          "PUBLISHED",
+          "DEAD_LETTERED"
+        ]
+      },
+      "OutboxSearchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "statuses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutboxSearchStatus"
+            }
+          },
+          "eventType": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "occurredFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "occurredTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "minAttemptCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "maxAttemptCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          }
+        }
+      },
+      "OutboxHealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pendingCount",
+          "retryingCount",
+          "inProgressCount",
+          "deadLetteredCount",
+          "recentlyDeadLetteredCount",
+          "recentlyPublishedCount",
+          "windowMinutes",
+          "asOf"
+        ],
+        "properties": {
+          "pendingCount": {
+            "type": "integer"
+          },
+          "retryingCount": {
+            "type": "integer"
+          },
+          "inProgressCount": {
+            "type": "integer"
+          },
+          "deadLetteredCount": {
+            "type": "integer"
+          },
+          "oldestPendingAgeSeconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "recentlyDeadLetteredCount": {
+            "type": "integer"
+          },
+          "recentlyPublishedCount": {
+            "type": "integer"
+          },
+          "windowMinutes": {
+            "type": "integer"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OutboxEventRecordResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "aggregateType",
+          "eventType",
+          "status",
+          "attemptCount",
+          "occurredAt",
+          "claimed",
+          "maskedCorrelationReference",
+          "deadLetterReasonAvailable"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OutboxSearchStatus"
+          },
+          "attemptCount": {
+            "type": "integer"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deadLetteredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "nextAttemptAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "claimed": {
+            "type": "boolean"
+          },
+          "claimedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "schemaVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maskedCorrelationReference": {
+            "type": "string"
+          },
+          "deadLetterReasonAvailable": {
+            "type": "boolean"
+          },
+          "deadLetterFailureCategory": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OutboxEventPageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "records",
+          "pageSize",
+          "hasMore"
+        ],
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutboxEventRecordResponse"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OutboxSearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "health",
+          "events"
+        ],
+        "properties": {
+          "health": {
+            "$ref": "#/components/schemas/OutboxHealthResponse"
+          },
+          "events": {
+            "$ref": "#/components/schemas/OutboxEventPageResponse"
           }
         }
       },
