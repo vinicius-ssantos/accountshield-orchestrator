@@ -31,6 +31,23 @@ target/
 
 # IDE
 .idea/
+*.iml
 
 # Local-only self-review notes (findings are tracked as GitHub issues instead)
 docs/reviews/
+
+# Frontend (tracked source lives on integration/frontend-console; these are local
+# dependency/build artifacts left on disk when switching to a branch that doesn't track them)
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts
+frontend/out/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+frontend/tsconfig.tsbuildinfo
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local

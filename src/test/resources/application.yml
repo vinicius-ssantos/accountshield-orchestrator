@@ -33,6 +33,22 @@ management:
         enabled: false
 
 accountshield:
+  auth:
+    demo-credentials:
+      enabled: true
+      personas:
+        - username: operator-1
+          bcrypt-hash: "$2a$10$AqEjye4mg4kqddaNF8Eq3e5lFIqUiW90JotbWpDy1dI6s/7BaEx1K"
+          roles: [SECURITY_OPERATOR]
+        - username: analyst-1
+          bcrypt-hash: "$2a$10$YlF5usjQ5BJKvWPqqYOj3.fPyvZVWfur3qk/3ZpI3hgKIip/OWwWG"
+          roles: [SIMULATION_ANALYST]
+        - username: admin-1
+          bcrypt-hash: "$2a$10$GeUVdpW91DB6VHo7qHOrP..nYByIt2AoGADwci2/SMYhbO2XlAywO"
+          roles: [POLICY_ADMIN]
+        - username: reader-1
+          bcrypt-hash: "$2a$10$tUrlrmDL0DiuWs6/MGM00eV2yhoucAee./9Os58lWh/dCaykKRsK6"
+          roles: [OBSERVABILITY_READER]
   outbox:
     relay:
       fixed-delay: 9999s
