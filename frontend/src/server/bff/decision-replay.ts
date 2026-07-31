@@ -11,6 +11,7 @@ import {
 } from "./foundation";
 import type { BffTelemetrySink } from "./observability";
 import { startBffTelemetry } from "./observability";
+import { resolveOperatorToken } from "./session/require-session";
 import {
   AccountShieldDecisionReplayClient,
   parseDecisionReplayInput,
@@ -37,6 +38,7 @@ function boundedInteger(
 }
 
 export function createDecisionReplayClient(
+  request: Request,
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): AccountShieldDecisionReplayClient {
   const environment = readFrontendEnvironment(source, "runtime");
@@ -44,10 +46,7 @@ export function createDecisionReplayClient(
     throw new BffError("UPSTREAM_UNAVAILABLE", 503, "Live decision replay is not configured.", true);
   }
 
-  const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
-  if (!operatorToken) {
-    throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-  }
+  const operatorToken = resolveOperatorToken(request, source);
 
   return new AccountShieldDecisionReplayClient({
     origin: environment.apiUrl,
@@ -70,11 +69,12 @@ export function createDecisionReplayClient(
 }
 
 export async function replayLiveDecision(
+  request: Request,
   input: DecisionReplayInput,
   correlationId = resolveCorrelationId(undefined),
   signal?: AbortSignal,
 ): Promise<DecisionReplayResult> {
-  return createDecisionReplayClient().replay(input, correlationId, signal);
+  return createDecisionReplayClient(request).replay(input, correlationId, signal);
 }
 
 export async function handleDecisionReplayRequest(
@@ -97,7 +97,7 @@ export async function handleDecisionReplayRequest(
     });
     const body = await readJsonObject(request, MAX_REQUEST_BYTES);
     const input = parseDecisionReplayInput(body);
-    const result = await (service ?? createDecisionReplayClient()).replay(
+    const result = await (service ?? createDecisionReplayClient(request)).replay(
       input,
       correlationId,
       request.signal,

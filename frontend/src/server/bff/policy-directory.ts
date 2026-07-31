@@ -10,6 +10,7 @@ import {
 } from "./foundation";
 import type { BffTelemetrySink } from "./observability";
 import { startBffTelemetry } from "./observability";
+import { resolveOperatorToken } from "./session/require-session";
 import {
   AccountShieldPolicyDirectoryClient,
   type PolicyDirectoryResult,
@@ -34,6 +35,7 @@ function boundedInteger(
 }
 
 export function createPolicyDirectoryClient(
+  request: Request,
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): AccountShieldPolicyDirectoryClient {
   const environment = readFrontendEnvironment(source, "runtime");
@@ -41,10 +43,7 @@ export function createPolicyDirectoryClient(
     throw new BffError("UPSTREAM_UNAVAILABLE", 503, "Live policy directory is not configured.", true);
   }
 
-  const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
-  if (!operatorToken) {
-    throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-  }
+  const operatorToken = resolveOperatorToken(request, source);
 
   return new AccountShieldPolicyDirectoryClient({
     origin: environment.apiUrl,
@@ -67,10 +66,11 @@ export function createPolicyDirectoryClient(
 }
 
 export async function searchLivePolicies(
+  request: Request,
   correlationId = resolveCorrelationId(undefined),
   signal?: AbortSignal,
 ): Promise<PolicyDirectoryResult> {
-  return createPolicyDirectoryClient().search(correlationId, signal);
+  return createPolicyDirectoryClient(request).search(correlationId, signal);
 }
 
 export async function handlePolicyDirectoryRequest(
@@ -91,7 +91,7 @@ export async function handlePolicyDirectoryRequest(
       allowedContentTypes: ["application/json"],
       maxBodyBytes: MAX_REQUEST_BYTES,
     });
-    const result = await (service ?? createPolicyDirectoryClient()).search(correlationId, request.signal);
+    const result = await (service ?? createPolicyDirectoryClient(request)).search(correlationId, request.signal);
     telemetry.succeed(200);
 
     return Response.json(result, {

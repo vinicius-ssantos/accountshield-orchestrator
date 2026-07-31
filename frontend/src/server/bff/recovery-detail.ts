@@ -11,6 +11,7 @@ import {
 } from "./foundation";
 import type { BffTelemetrySink } from "./observability";
 import { startBffTelemetry } from "./observability";
+import { resolveOperatorToken } from "./session/require-session";
 import {
   AccountShieldRecoveryDetailClient,
   parseRecoveryDetailInput,
@@ -37,6 +38,7 @@ function boundedInteger(
 }
 
 export function createRecoveryDetailClient(
+  request: Request,
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): AccountShieldRecoveryDetailClient {
   const environment = readFrontendEnvironment(source, "runtime");
@@ -49,10 +51,7 @@ export function createRecoveryDetailClient(
     );
   }
 
-  const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
-  if (!operatorToken) {
-    throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-  }
+  const operatorToken = resolveOperatorToken(request, source);
 
   return new AccountShieldRecoveryDetailClient({
     origin: environment.apiUrl,
@@ -75,11 +74,12 @@ export function createRecoveryDetailClient(
 }
 
 export async function investigateLiveRecovery(
+  request: Request,
   input: RecoveryDetailInput,
   correlationId = resolveCorrelationId(undefined),
   signal?: AbortSignal,
 ): Promise<RecoveryDetailResult> {
-  return createRecoveryDetailClient().investigate(input, correlationId, signal);
+  return createRecoveryDetailClient(request).investigate(input, correlationId, signal);
 }
 
 export async function handleRecoveryDetailRequest(
@@ -102,7 +102,7 @@ export async function handleRecoveryDetailRequest(
     });
     const body = await readJsonObject(request, MAX_REQUEST_BYTES);
     const input = parseRecoveryDetailInput(body);
-    const result = await (service ?? createRecoveryDetailClient()).investigate(
+    const result = await (service ?? createRecoveryDetailClient(request)).investigate(
       input,
       correlationId,
       request.signal,

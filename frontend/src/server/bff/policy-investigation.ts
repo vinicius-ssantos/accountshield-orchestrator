@@ -11,6 +11,7 @@ import {
 } from "./foundation";
 import type { BffTelemetrySink } from "./observability";
 import { startBffTelemetry } from "./observability";
+import { resolveOperatorToken } from "./session/require-session";
 import {
   AccountShieldPolicyInvestigationClient,
   parsePolicyInvestigationInput,
@@ -37,6 +38,7 @@ function boundedInteger(
 }
 
 export function createPolicyInvestigationClient(
+  request: Request,
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): AccountShieldPolicyInvestigationClient {
   const environment = readFrontendEnvironment(source, "runtime");
@@ -49,10 +51,7 @@ export function createPolicyInvestigationClient(
     );
   }
 
-  const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
-  if (!operatorToken) {
-    throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-  }
+  const operatorToken = resolveOperatorToken(request, source);
 
   return new AccountShieldPolicyInvestigationClient({
     origin: environment.apiUrl,
@@ -75,11 +74,12 @@ export function createPolicyInvestigationClient(
 }
 
 export async function investigateLivePolicy(
+  request: Request,
   input: PolicyInvestigationInput,
   correlationId = resolveCorrelationId(undefined),
   signal?: AbortSignal,
 ): Promise<PolicyInvestigationResult> {
-  return createPolicyInvestigationClient().investigate(input, correlationId, signal);
+  return createPolicyInvestigationClient(request).investigate(input, correlationId, signal);
 }
 
 export async function handlePolicyInvestigationRequest(
@@ -102,7 +102,7 @@ export async function handlePolicyInvestigationRequest(
     });
     const body = await readJsonObject(request, MAX_REQUEST_BYTES);
     const input = parsePolicyInvestigationInput(body);
-    const result = await (service ?? createPolicyInvestigationClient()).investigate(
+    const result = await (service ?? createPolicyInvestigationClient(request)).investigate(
       input,
       correlationId,
       request.signal,

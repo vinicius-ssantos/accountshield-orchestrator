@@ -11,6 +11,7 @@ import {
 } from "./foundation";
 import type { BffTelemetrySink } from "./observability";
 import { startBffTelemetry } from "./observability";
+import { resolveOperatorToken } from "./session/require-session";
 import {
   AccountShieldRecoverySearchClient,
   parseRecoverySearchInput,
@@ -37,6 +38,7 @@ function boundedInteger(
 }
 
 export function createRecoverySearchClient(
+  request: Request,
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): AccountShieldRecoverySearchClient {
   const environment = readFrontendEnvironment(source, "runtime");
@@ -44,10 +46,7 @@ export function createRecoverySearchClient(
     throw new BffError("UPSTREAM_UNAVAILABLE", 503, "Live recovery search is not configured.", true);
   }
 
-  const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
-  if (!operatorToken) {
-    throw new BffError("UNAUTHORIZED", 401, "Operator authentication is required.");
-  }
+  const operatorToken = resolveOperatorToken(request, source);
 
   return new AccountShieldRecoverySearchClient({
     origin: environment.apiUrl,
@@ -70,11 +69,12 @@ export function createRecoverySearchClient(
 }
 
 export async function searchLiveRecoveries(
+  request: Request,
   input: RecoverySearchInput,
   correlationId = resolveCorrelationId(undefined),
   signal?: AbortSignal,
 ): Promise<RecoverySearchResult> {
-  return createRecoverySearchClient().search(input, correlationId, signal);
+  return createRecoverySearchClient(request).search(input, correlationId, signal);
 }
 
 export async function handleRecoverySearchRequest(
@@ -97,7 +97,7 @@ export async function handleRecoverySearchRequest(
     });
     const body = await readJsonObject(request, MAX_REQUEST_BYTES);
     const input = parseRecoverySearchInput(body);
-    const result = await (service ?? createRecoverySearchClient()).search(
+    const result = await (service ?? createRecoverySearchClient(request)).search(
       input,
       correlationId,
       request.signal,

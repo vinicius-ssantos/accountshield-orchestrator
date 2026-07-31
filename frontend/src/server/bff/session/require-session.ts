@@ -68,3 +68,24 @@ export function canFallBackToEnvToken(source: Readonly<Record<string, string | u
   const environment = readFrontendEnvironment(source, "runtime");
   return allowEnvTokenFallback(source, environment.productionLike);
 }
+
+/**
+ * Resolves the backend Bearer token a live BFF client should use: the authenticated session's
+ * stored token when one exists, otherwise ACCOUNTSHIELD_OPERATOR_TOKEN when explicitly allowed
+ * (see canFallBackToEnvToken). Backend role checks remain authoritative either way -- this only
+ * decides whether the BFF attempts the upstream call at all.
+ */
+export function resolveOperatorToken(
+  request: Request,
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  try {
+    return requireOperatorSession(request, source).backendToken;
+  } catch (error) {
+    if (error instanceof BffError && error.code === "UNAUTHORIZED" && canFallBackToEnvToken(source)) {
+      const operatorToken = source.ACCOUNTSHIELD_OPERATOR_TOKEN?.trim();
+      if (operatorToken) return operatorToken;
+    }
+    throw error;
+  }
+}
