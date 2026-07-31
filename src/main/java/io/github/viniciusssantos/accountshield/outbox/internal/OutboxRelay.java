@@ -81,8 +81,10 @@ public class OutboxRelay {
         } catch (Exception ex) {
             int newAttemptCount = event.attemptCount() + 1;
             String error = boundError(ex);
+            String errorCategory = ex.getClass().getSimpleName();
             if (newAttemptCount >= maxAttempts) {
-                boolean acked = claimStore.markDeadLettered(event.id(), event.claimToken(), newAttemptCount, error, clock.instant());
+                boolean acked = claimStore.markDeadLettered(
+                        event.id(), event.claimToken(), newAttemptCount, error, errorCategory, clock.instant());
                 recordAckOutcome(event.id(), "dead_lettered", acked);
                 if (acked) {
                     log.warn(
@@ -92,7 +94,7 @@ public class OutboxRelay {
             } else {
                 Instant nextAttemptAt = backoffCalculator.nextAttemptAt(clock.instant(), newAttemptCount);
                 boolean acked = claimStore.markFailedWithBackoff(
-                        event.id(), event.claimToken(), newAttemptCount, error, nextAttemptAt);
+                        event.id(), event.claimToken(), newAttemptCount, error, errorCategory, nextAttemptAt);
                 recordAckOutcome(event.id(), "failed", acked);
                 if (acked) {
                     log.warn(

@@ -44,6 +44,9 @@ public class OutboxEventEntity {
     @Column(name = "last_error", length = 1000)
     private String lastError;
 
+    @Column(name = "last_error_category", length = 200)
+    private String lastErrorCategory;
+
     @Column(nullable = false, length = 20)
     private String status;
 
@@ -121,6 +124,10 @@ public class OutboxEventEntity {
         return lastError;
     }
 
+    public String getLastErrorCategory() {
+        return lastErrorCategory;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -165,6 +172,7 @@ public class OutboxEventEntity {
         this.nextAttemptAt = Objects.requireNonNull(now, "now must not be null");
         this.attemptCount = 0;
         this.lastError = null;
+        this.lastErrorCategory = null;
         this.claimedAt = null;
         this.claimedBy = null;
         this.deadLetteredAt = null;

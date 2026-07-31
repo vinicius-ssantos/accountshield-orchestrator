@@ -59,7 +59,7 @@ class OutboxRelayTest {
     void recordsBackoffAndIncrementsAttemptOnFailureBelowMaxAttempts() {
         ClaimedOutboxEvent event = claimedEvent(0);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
-        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any())).thenReturn(true);
+        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any(), any())).thenReturn(true);
         doThrow(new RuntimeException("connection refused")).when(publisher).publish(any());
         OutboxRelay relay = newRelay(5);
 
@@ -67,30 +67,32 @@ class OutboxRelayTest {
 
         ArgumentCaptor<Instant> nextAttemptCaptor = ArgumentCaptor.forClass(Instant.class);
         verify(claimStore).markFailedWithBackoff(
-                eq(event.id()), eq(event.claimToken()), eq(1), eq("connection refused"), nextAttemptCaptor.capture());
+                eq(event.id()), eq(event.claimToken()), eq(1), eq("connection refused"), eq("RuntimeException"),
+                nextAttemptCaptor.capture());
         assertThat(nextAttemptCaptor.getValue()).isAfter(FIXED_INSTANT);
-        verify(claimStore, never()).markDeadLettered(any(), any(), anyInt(), any(), any());
+        verify(claimStore, never()).markDeadLettered(any(), any(), anyInt(), any(), any(), any());
     }
 
     @Test
     void deadLettersEventWhenAttemptCountReachesMaxAttempts() {
         ClaimedOutboxEvent event = claimedEvent(4);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
-        when(claimStore.markDeadLettered(any(), any(), anyInt(), any(), any())).thenReturn(true);
+        when(claimStore.markDeadLettered(any(), any(), anyInt(), any(), any(), any())).thenReturn(true);
         doThrow(new RuntimeException("still failing")).when(publisher).publish(any());
         OutboxRelay relay = newRelay(5);
 
         relay.dispatchPending();
 
-        verify(claimStore).markDeadLettered(event.id(), event.claimToken(), 5, "still failing", FIXED_INSTANT);
-        verify(claimStore, never()).markFailedWithBackoff(any(), any(), anyInt(), any(), any());
+        verify(claimStore).markDeadLettered(
+                event.id(), event.claimToken(), 5, "still failing", "RuntimeException", FIXED_INSTANT);
+        verify(claimStore, never()).markFailedWithBackoff(any(), any(), anyInt(), any(), any(), any());
     }
 
     @Test
     void boundsErrorMessageLength() {
         ClaimedOutboxEvent event = claimedEvent(0);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
-        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any())).thenReturn(true);
+        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any(), any())).thenReturn(true);
         String longError = "x".repeat(2000);
         doThrow(new RuntimeException(longError)).when(publisher).publish(any());
         OutboxRelay relay = newRelay(5);
@@ -98,7 +100,7 @@ class OutboxRelayTest {
         relay.dispatchPending();
 
         ArgumentCaptor<String> errorCaptor = ArgumentCaptor.forClass(String.class);
-        verify(claimStore).markFailedWithBackoff(any(), any(), anyInt(), errorCaptor.capture(), any());
+        verify(claimStore).markFailedWithBackoff(any(), any(), anyInt(), errorCaptor.capture(), any(), any());
         assertThat(errorCaptor.getValue()).hasSize(1000);
     }
 
@@ -106,15 +108,19 @@ class OutboxRelayTest {
     void usesExceptionClassNameWhenMessageIsNull() {
         ClaimedOutboxEvent event = claimedEvent(0);
         when(claimStore.claimBatch(any(), any(), anyString(), anyInt())).thenReturn(List.of(event));
-        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any())).thenReturn(true);
+        when(claimStore.markFailedWithBackoff(any(), any(), anyInt(), any(), any(), any())).thenReturn(true);
         doThrow(new NullPointerException()).when(publisher).publish(any());
         OutboxRelay relay = newRelay(5);
 
         relay.dispatchPending();
 
         ArgumentCaptor<String> errorCaptor = ArgumentCaptor.forClass(String.class);
-        verify(claimStore).markFailedWithBackoff(any(), any(), anyInt(), errorCaptor.capture(), any());
+        verify(claimStore).markFailedWithBackoff(any(), any(), anyInt(), errorCaptor.capture(), any(), any());
         assertThat(errorCaptor.getValue()).isEqualTo("NullPointerException");
+
+        ArgumentCaptor<String> categoryCaptor = ArgumentCaptor.forClass(String.class);
+        verify(claimStore).markFailedWithBackoff(any(), any(), anyInt(), any(), categoryCaptor.capture(), any());
+        assertThat(categoryCaptor.getValue()).isEqualTo("NullPointerException");
     }
 
     /**
