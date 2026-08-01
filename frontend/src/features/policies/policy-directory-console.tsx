@@ -45,7 +45,7 @@ function failureState(error: unknown): {
   };
 }
 
-export function PolicyDirectoryConsole() {
+export function PolicyDirectoryConsole({ currentSubject }: { currentSubject?: string } = {}) {
   const [result, setResult] = useState<PolicyDirectoryPage>();
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
@@ -178,6 +178,7 @@ export function PolicyDirectoryConsole() {
         <PolicyInvestigationPanel
           onClose={() => setSelectedPolicyKey(undefined)}
           policyKey={selectedPolicyKey}
+          currentSubject={currentSubject}
         />
       ) : null}
     </>

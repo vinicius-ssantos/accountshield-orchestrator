@@ -14,6 +14,12 @@ export type BffErrorCode =
   | "PAYLOAD_TOO_LARGE"
   | "INVALID_REQUEST"
   | "CONFLICT"
+  // Distinct from CONFLICT because the UI explains and reacts to them differently (a specific,
+  // actionable message rather than a generic "state changed, retry" fallback) -- not policy
+  // lifecycle-specific vocabulary, reusable by any future mutation with the same shape of
+  // maker-checker or state-machine rejection.
+  | "SELF_APPROVAL_NOT_ALLOWED"
+  | "ILLEGAL_TRANSITION"
   | "RATE_LIMITED"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
