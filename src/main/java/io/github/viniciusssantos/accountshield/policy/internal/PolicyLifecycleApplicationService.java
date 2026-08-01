@@ -206,13 +206,14 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
     private StepUpChallenge issueStepUpChallenge(String policyKey, String version, String action, String actor) {
         validateKey(policyKey);
         validateVersion(version);
+        UUID contextId = stepUpContextId(policyKey, version, action);
         UUID challengeId = challengeService.create(new CreateChallengeCommand(
                 actor,
                 ChallengeType.TOTP_SIMULATED,
                 ChallengePurpose.PRIVILEGED_OPERATION,
-                stepUpContextId(policyKey, version, action))).challengeId();
+                contextId)).challengeId();
         String simulatedCode = simulationEnabled ? simulatedStepUpCodeCapture.consume(challengeId) : null;
-        return new StepUpChallenge(challengeId, simulatedCode);
+        return new StepUpChallenge(challengeId, simulatedCode, contextId);
     }
 
     private void consumeStepUp(

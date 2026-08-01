@@ -116,7 +116,7 @@ class PolicyLifecycleIntegrationTest {
 
     @Test
     @Transactional
-    void approvalStepUpDisclosesTheSimulatedCodeMatchingTheIssuedEvent() {
+    void approvalStepUpDisclosesEnoughForARealHttpClientToCompleteVerification() {
         String key = "disclose-approve-policy-" + java.util.UUID.randomUUID();
         String version = "1.0.0";
         lifecycleService.createDraft(
@@ -126,6 +126,14 @@ class PolicyLifecycleIntegrationTest {
         StepUpChallenge stepUp = lifecycleService.requestApprovalStepUp(key, version, APPROVER);
 
         assertThat(stepUp.simulatedCode()).isEqualTo(issuedCodeFor(stepUp.challengeId()));
+
+        // Proves the disclosed challengeId/simulatedCode/contextId triple is actually sufficient
+        // for a real caller to complete POST /challenges/{id}/verify -- not just that each value
+        // individually matches something only observable via @RecordApplicationEvents/direct DB
+        // access in this test.
+        challengeService.verify(new ChallengeVerificationCommand(
+                stepUp.challengeId(), stepUp.simulatedCode(), ChallengePurpose.PRIVILEGED_OPERATION,
+                stepUp.contextId()));
     }
 
     @Test

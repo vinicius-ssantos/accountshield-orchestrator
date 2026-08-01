@@ -164,10 +164,13 @@ class PolicyLifecycleController {
             @Schema(description = "Disclosed only because this deployment uses ADR 0004's simulated "
                     + "challenge providers; null when simulation is disabled. Never a real out-of-band "
                     + "delivery.")
-            String simulatedCode) {
+            String simulatedCode,
+            @Schema(description = "Required contextId for POST /api/v1/challenges/{id}/verify; null for "
+                    + "rollout/rollback step-up, which do not yet expose this field.")
+            UUID contextId) {
 
         static StepUpChallengeResponse from(StepUpChallenge challenge) {
-            return new StepUpChallengeResponse(challenge.challengeId(), challenge.simulatedCode());
+            return new StepUpChallengeResponse(challenge.challengeId(), challenge.simulatedCode(), challenge.contextId());
         }
     }
 }
