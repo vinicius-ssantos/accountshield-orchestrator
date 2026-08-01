@@ -93,7 +93,8 @@ class RecoveryConcurrencyTest {
                 new ConfirmIdentityCommand(initiated.recoveryId(), initiated.identityChallengeId()));
         assertThat(readyForReview.status()).isEqualTo(RecoveryStatus.MANUAL_REVIEW);
 
-        UUID stepUpChallengeId = recoveryService.requestReviewStepUp(initiated.recoveryId(), "operator-race");
+        UUID stepUpChallengeId =
+                recoveryService.requestReviewStepUp(initiated.recoveryId(), "operator-race").challengeId();
         String stepUpCode = events.stream(ChallengeIssued.class)
                 .filter(event -> event.challengeId().equals(stepUpChallengeId))
                 .reduce((first, second) -> second)
