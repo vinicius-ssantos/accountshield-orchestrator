@@ -6,6 +6,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
+import io.github.viniciusssantos.accountshield.recovery.StepUpChallenge;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -56,8 +57,8 @@ class RecoveryController {
     public ResponseEntity<StepUpChallengeResponse> requestReviewStepUp(
             @PathVariable UUID recoveryId,
             Authentication authentication) {
-        UUID challengeId = recoveryService.requestReviewStepUp(recoveryId, authentication.getName());
-        return ResponseEntity.ok(new StepUpChallengeResponse(challengeId));
+        StepUpChallenge challenge = recoveryService.requestReviewStepUp(recoveryId, authentication.getName());
+        return ResponseEntity.ok(new StepUpChallengeResponse(challenge.challengeId(), challenge.simulatedCode()));
     }
 
     @PostMapping("/{recoveryId}/review")
@@ -90,7 +91,14 @@ class RecoveryController {
             @NotNull UUID stepUpChallengeId) {
     }
 
-    record StepUpChallengeResponse(UUID challengeId) {
+    record StepUpChallengeResponse(
+            UUID challengeId,
+            @Schema(
+                    description = "The simulated challenge code, disclosed only because this deployment uses "
+                            + "ADR 0004's simulated challenge providers (no real out-of-band delivery channel "
+                            + "exists). Null when simulation is disabled.",
+                    example = "482913")
+            String simulatedCode) {
     }
 
     record RecoveryResponse(

@@ -23,6 +23,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
+import io.github.viniciusssantos.accountshield.recovery.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
 import io.github.viniciusssantos.accountshield.recovery.UnknownRecoveryClassificationRuleException;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
@@ -160,8 +161,18 @@ class RecoveryIntegrationTest {
         assertThat(approved.status()).isEqualTo(RecoveryStatus.COMPLETED);
     }
 
+    @Test
+    void reviewStepUpDisclosesTheSimulatedCodeMatchingTheIssuedEvent() {
+        RecoveryFlow initiated = initiateFlow(61, "CREDENTIAL_CHANGE");
+        verifyAndConfirmIdentity(initiated);
+
+        StepUpChallenge stepUp = recoveryService.requestReviewStepUp(initiated.recoveryId(), "operator-approver");
+
+        assertThat(stepUp.simulatedCode()).isEqualTo(issuedCodeFor(stepUp.challengeId()));
+    }
+
     private UUID reviewStepUpChallenge(UUID recoveryId, String actor) {
-        UUID challengeId = recoveryService.requestReviewStepUp(recoveryId, actor);
+        UUID challengeId = recoveryService.requestReviewStepUp(recoveryId, actor).challengeId();
         String issuedCode = issuedCodeFor(challengeId);
         challengeService.verify(new ChallengeVerificationCommand(
                 challengeId, issuedCode, ChallengePurpose.PRIVILEGED_OPERATION, recoveryId));

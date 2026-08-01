@@ -54,12 +54,14 @@ class RecoveryApplicationServiceTest {
             mock(RecoveryAuthorizationApplicationService.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final SimulatedStepUpCodeCapture simulatedStepUpCodeCapture = new SimulatedStepUpCodeCapture();
     private RecoveryApplicationService service;
 
     @BeforeEach
     void setUp() {
         service = new RecoveryApplicationService(
-                repository, challengeService, authorizationService, clock, eventPublisher);
+                repository, challengeService, authorizationService, clock, eventPublisher,
+                simulatedStepUpCodeCapture, true);
     }
 
     @Test
