@@ -17,6 +17,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0009](0009-outbox-relay-with-simulated-publisher.md) | Accepted | Persist publication intent transactionally and use a simulated relay | Outbox section in the [feature catalog](../features/README.md) |
 | [0010](0010-recovery-trust-boundaries.md) | Accepted | Use explicit `START_RECOVERY` and an immutable consumable recovery authorization; audit remains evidence | [Recovery](../architecture/recovery.md), [invariants](../architecture/invariants.md) |
 | [0011](0011-jwt-resource-server-with-local-issuer.md) | Accepted | Authorize sensitive APIs with a JWT resource server backed by a local, per-boot key pair | Issue #19 |
+| [0017](0017-bff-operator-session-cookie-and-csrf-design.md) | Accepted | BFF-managed opaque, HMAC-signed session cookie backed by an in-memory server-side store, with double-submit CSRF | Issue #78 |
 
 ## ADR lifecycle
 

@@ -18,6 +18,7 @@ import {
   maskIdentifier,
   type NavigationItem,
 } from "@/design-system/components";
+import { SessionStatusBadge } from "@/features/session/session-status-badge";
 
 const SHOWCASE_NAVIGATION: readonly NavigationItem[] = [
   { label: "Overview", href: "/" },
@@ -43,6 +44,7 @@ export default function DesignSystemPage() {
       environmentDetail="synthetic examples only"
       environmentLabel="Showcase mode"
       navigationItems={SHOWCASE_NAVIGATION}
+      sessionSlot={<SessionStatusBadge />}
     >
       <PageHeader
         action={

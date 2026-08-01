@@ -4,6 +4,7 @@ import {
   PageHeader,
 } from "@/design-system/components";
 import { PolicyDirectoryConsole } from "@/features/policies/policy-directory-console";
+import { SessionStatusBadge } from "@/features/session/session-status-badge";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -21,6 +22,7 @@ export default function PoliciesPage() {
       activeHref="/policies"
       environmentDetail={environmentDetail}
       environmentLabel={environmentLabel}
+      sessionSlot={<SessionStatusBadge />}
     >
       <PageHeader
         eyebrow="Security operations"

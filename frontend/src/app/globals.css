@@ -1100,3 +1100,44 @@ textarea {
     transition-duration: 0.001ms !important;
   }
 }
+
+.sessionSlot {
+  margin-top: 0;
+}
+
+.sessionStatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.sessionStatusLink {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  min-height: auto;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.loginPage {
+  display: grid;
+  gap: var(--space-6);
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: clamp(var(--space-5), 4vw, var(--space-10));
+}
+
+.loginForm {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.loginDemoCredentials table td,
+.loginDemoCredentials table th {
+  font-size: var(--font-size-xs);
+}
