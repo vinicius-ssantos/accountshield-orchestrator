@@ -18,6 +18,7 @@ import {
   PolicyInvestigationBrowserError,
   investigatePolicyThroughBff,
 } from "./policy-investigation-browser";
+import { PolicyLifecycleActions } from "./policy-lifecycle-actions";
 import type {
   PolicyImpactAvailability,
   PolicyInvestigationDetail,
@@ -112,9 +113,11 @@ function SegmentTable({
 
 export function PolicyInvestigationPanel({
   policyKey,
+  currentSubject,
   onClose,
 }: {
   policyKey: string;
+  currentSubject: string | undefined;
   onClose: () => void;
 }) {
   const [detail, setDetail] = useState<PolicyInvestigationDetail>();
@@ -186,7 +189,7 @@ export function PolicyInvestigationPanel({
       <SectionHeader
         eyebrow="Read-only policy lifecycle"
         title="Policy detail"
-        description="No approve, activate, rollback, retire, or rollout-percentage control is available on this read-only view."
+        description="Approve, activate, reject, and retire are available for eligible versions below. Rollback and rollout-percentage controls remain read-only."
         trailing={
           <button className="button button--secondary" onClick={onClose} type="button">
             Close investigation
@@ -247,6 +250,17 @@ export function PolicyInvestigationPanel({
                 ]}
                 rows={versionRows}
               />
+              {(detail?.versions ?? []).map((version) => (
+                <PolicyLifecycleActions
+                  key={version.id}
+                  policyKey={detail.policyKey}
+                  version={version.version}
+                  status={version.status}
+                  governance={version.governance}
+                  currentSubject={currentSubject}
+                  onChanged={() => void load()}
+                />
+              ))}
             </section>
 
             {detail.routingScope.length > 0 ? (

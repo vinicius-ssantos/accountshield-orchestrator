@@ -3,8 +3,9 @@ import {
   AppShell,
   PageHeader,
 } from "@/design-system/components";
-import { PolicyDirectoryConsole } from "@/features/policies/policy-directory-console";
 import { SessionStatusBadge } from "@/features/session/session-status-badge";
+
+import { PolicyDirectoryConsoleWithSession } from "./policy-directory-console-with-session";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -27,9 +28,9 @@ export default function PoliciesPage() {
       <PageHeader
         eyebrow="Security operations"
         title="Policy lifecycle"
-        description="Read-only visibility into policy versions, approval state, rollout status, and historical candidate impact. No authoring, approval, activation, or rollout control is exposed here."
+        description="Approve, activate, reject, and retire policy versions with fresh step-up. Rollout, rollback, and authoring remain out of scope."
       />
-      <PolicyDirectoryConsole />
+      <PolicyDirectoryConsoleWithSession />
     </AppShell>
   );
 }
