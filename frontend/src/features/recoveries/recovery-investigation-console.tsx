@@ -335,7 +335,7 @@ export function RecoveryInvestigationConsole() {
             <SectionHeader
               eyebrow="Investigation queue"
               title={`${result.recoveries.length} recover${result.recoveries.length === 1 ? "y" : "ies"}`}
-              description={`Source: ${result.source}. Subject and decision identifiers remain masked in the table. No approve, reject, retry, or complete control is exposed here.`}
+              description={`Source: ${result.source}. Subject and decision identifiers remain masked in the table. No retry or complete control is exposed here; review (approve/reject) is available from a manual-review recovery's detail view.`}
               trailing={
                 <StatusBadge
                   label={result.hasMore ? "more available" : "end of results"}
