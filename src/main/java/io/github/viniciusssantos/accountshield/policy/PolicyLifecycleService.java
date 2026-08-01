@@ -8,7 +8,7 @@ public interface PolicyLifecycleService {
 
     PolicyVersionSummary validate(String policyKey, String version, String actor);
 
-    UUID requestApprovalStepUp(String policyKey, String version, String actor);
+    StepUpChallenge requestApprovalStepUp(String policyKey, String version, String actor);
 
     PolicyVersionSummary approve(
             String policyKey, String version, UUID stepUpChallengeId, String actor, String reason);
@@ -19,7 +19,7 @@ public interface PolicyLifecycleService {
 
     PolicyVersionSummary retire(String policyKey, String version, UUID stepUpChallengeId, String actor);
 
-    UUID requestActivationStepUp(String policyKey, String version, String actor);
+    StepUpChallenge requestActivationStepUp(String policyKey, String version, String actor);
 
-    UUID requestRetirementStepUp(String policyKey, String version, String actor);
+    StepUpChallenge requestRetirementStepUp(String policyKey, String version, String actor);
 }

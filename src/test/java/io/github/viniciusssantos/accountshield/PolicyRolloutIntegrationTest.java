@@ -129,7 +129,7 @@ class PolicyRolloutIntegrationTest {
                 "policy-author");
         policyLifecycleService.validate(POLICY_KEY, candidateVersion, "policy-author");
         UUID approvalStepUp = verifiedStepUp(
-                policyLifecycleService.requestApprovalStepUp(POLICY_KEY, candidateVersion, "policy-approver"));
+                policyLifecycleService.requestApprovalStepUp(POLICY_KEY, candidateVersion, "policy-approver").challengeId());
         policyLifecycleService.approve(
                 POLICY_KEY, candidateVersion, approvalStepUp, "policy-approver", "approved for canary rollout");
         return candidateVersion;

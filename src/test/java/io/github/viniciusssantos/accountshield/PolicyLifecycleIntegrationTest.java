@@ -15,6 +15,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
 import io.github.viniciusssantos.accountshield.policy.SelfApprovalNotAllowedException;
+import io.github.viniciusssantos.accountshield.policy.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
 import jakarta.persistence.EntityManager;
 import java.util.UUID;
@@ -102,7 +103,7 @@ class PolicyLifecycleIntegrationTest {
                 new CreatePolicyCommand(key, version, (short) 25, (short) 65), AUTHOR);
         lifecycleService.validate(key, version, ACTOR);
 
-        UUID challengeId = verifiedStepUp(lifecycleService.requestApprovalStepUp(key, version, AUTHOR));
+        UUID challengeId = verifiedStepUp(lifecycleService.requestApprovalStepUp(key, version, AUTHOR).challengeId());
         assertThatThrownBy(() -> lifecycleService.approve(key, version, challengeId, AUTHOR, "self sign-off"))
                 .isInstanceOf(SelfApprovalNotAllowedException.class);
 
@@ -111,6 +112,20 @@ class PolicyLifecycleIntegrationTest {
                 "SELECT status FROM policy.policy_version WHERE policy_key = ? AND version = ?",
                 String.class, key, version);
         assertThat(dbStatus).isEqualTo("VALIDATED");
+    }
+
+    @Test
+    @Transactional
+    void approvalStepUpDisclosesTheSimulatedCodeMatchingTheIssuedEvent() {
+        String key = "disclose-approve-policy-" + java.util.UUID.randomUUID();
+        String version = "1.0.0";
+        lifecycleService.createDraft(
+                new CreatePolicyCommand(key, version, (short) 25, (short) 65), AUTHOR);
+        lifecycleService.validate(key, version, ACTOR);
+
+        StepUpChallenge stepUp = lifecycleService.requestApprovalStepUp(key, version, APPROVER);
+
+        assertThat(stepUp.simulatedCode()).isEqualTo(issuedCodeFor(stepUp.challengeId()));
     }
 
     @Test
@@ -264,30 +279,34 @@ class PolicyLifecycleIntegrationTest {
     }
 
     private PolicyVersionSummary approve(String key, String version) {
-        UUID challengeId = verifiedStepUp(lifecycleService.requestApprovalStepUp(key, version, APPROVER));
+        UUID challengeId = verifiedStepUp(lifecycleService.requestApprovalStepUp(key, version, APPROVER).challengeId());
         return lifecycleService.approve(key, version, challengeId, APPROVER, "integration test approval");
     }
 
     private PolicyVersionSummary activate(String key, String version) {
-        UUID challengeId = verifiedStepUp(lifecycleService.requestActivationStepUp(key, version, ACTOR));
+        UUID challengeId = verifiedStepUp(lifecycleService.requestActivationStepUp(key, version, ACTOR).challengeId());
         return lifecycleService.activate(key, version, challengeId, ACTOR);
     }
 
     private PolicyVersionSummary retire(String key, String version) {
-        UUID challengeId = verifiedStepUp(lifecycleService.requestRetirementStepUp(key, version, ACTOR));
+        UUID challengeId = verifiedStepUp(lifecycleService.requestRetirementStepUp(key, version, ACTOR).challengeId());
         return lifecycleService.retire(key, version, challengeId, ACTOR);
     }
 
     private UUID verifiedStepUp(UUID challengeId) {
-        String issuedCode = events.stream(ChallengeIssued.class)
-                .filter(event -> event.challengeId().equals(challengeId))
-                .reduce((first, second) -> second)
-                .orElseThrow()
-                .issuedCode();
+        String issuedCode = issuedCodeFor(challengeId);
         challengeService.verify(new ChallengeVerificationCommand(
                 challengeId, issuedCode, ChallengePurpose.PRIVILEGED_OPERATION,
                 lookUpContextId(challengeId)));
         return challengeId;
+    }
+
+    private String issuedCodeFor(UUID challengeId) {
+        return events.stream(ChallengeIssued.class)
+                .filter(event -> event.challengeId().equals(challengeId))
+                .reduce((first, second) -> second)
+                .orElseThrow()
+                .issuedCode();
     }
 
     private UUID lookUpContextId(UUID challengeId) {

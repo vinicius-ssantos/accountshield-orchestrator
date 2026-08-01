@@ -54,8 +54,10 @@ class PolicyLifecycleApplicationServiceTest {
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final PolicyAnalyzer policyAnalyzer = new PolicyAnalyzer();
+    private final PolicySimulatedStepUpCodeCapture simulatedStepUpCodeCapture = new PolicySimulatedStepUpCodeCapture();
     private final PolicyLifecycleApplicationService service = new PolicyLifecycleApplicationService(
-            repository, challengeService, clock, eventPublisher, policyAnalyzer, new ObjectMapper());
+            repository, challengeService, clock, eventPublisher, policyAnalyzer, new ObjectMapper(),
+            simulatedStepUpCodeCapture, true);
 
     private void stubSuccessfulStepUp() {
         when(challengeService.consume(any())).thenReturn(consumedChallengePlan());

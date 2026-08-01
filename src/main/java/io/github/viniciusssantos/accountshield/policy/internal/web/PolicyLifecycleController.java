@@ -6,6 +6,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyAnalyzer;
 import io.github.viniciusssantos.accountshield.policy.PolicyDefinition;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
+import io.github.viniciusssantos.accountshield.policy.StepUpChallenge;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -67,8 +68,8 @@ class PolicyLifecycleController {
             @PathVariable String policyKey,
             @PathVariable String version,
             Authentication authentication) {
-        UUID challengeId = lifecycleService.requestApprovalStepUp(policyKey, version, authentication.getName());
-        return ResponseEntity.ok(new StepUpChallengeResponse(challengeId));
+        StepUpChallenge challenge = lifecycleService.requestApprovalStepUp(policyKey, version, authentication.getName());
+        return ResponseEntity.ok(StepUpChallengeResponse.from(challenge));
     }
 
     @PostMapping("/{policyKey}/{version}/approve")
@@ -86,8 +87,8 @@ class PolicyLifecycleController {
             @PathVariable String policyKey,
             @PathVariable String version,
             Authentication authentication) {
-        UUID challengeId = lifecycleService.requestActivationStepUp(policyKey, version, authentication.getName());
-        return ResponseEntity.ok(new StepUpChallengeResponse(challengeId));
+        StepUpChallenge challenge = lifecycleService.requestActivationStepUp(policyKey, version, authentication.getName());
+        return ResponseEntity.ok(StepUpChallengeResponse.from(challenge));
     }
 
     @PostMapping("/{policyKey}/{version}/activate")
@@ -112,8 +113,8 @@ class PolicyLifecycleController {
             @PathVariable String policyKey,
             @PathVariable String version,
             Authentication authentication) {
-        UUID challengeId = lifecycleService.requestRetirementStepUp(policyKey, version, authentication.getName());
-        return ResponseEntity.ok(new StepUpChallengeResponse(challengeId));
+        StepUpChallenge challenge = lifecycleService.requestRetirementStepUp(policyKey, version, authentication.getName());
+        return ResponseEntity.ok(StepUpChallengeResponse.from(challenge));
     }
 
     @PostMapping("/{policyKey}/{version}/retire")
@@ -158,6 +159,15 @@ class PolicyLifecycleController {
             @NotNull UUID stepUpChallengeId) {
     }
 
-    record StepUpChallengeResponse(UUID challengeId) {
+    record StepUpChallengeResponse(
+            UUID challengeId,
+            @Schema(description = "Disclosed only because this deployment uses ADR 0004's simulated "
+                    + "challenge providers; null when simulation is disabled. Never a real out-of-band "
+                    + "delivery.")
+            String simulatedCode) {
+
+        static StepUpChallengeResponse from(StepUpChallenge challenge) {
+            return new StepUpChallengeResponse(challenge.challengeId(), challenge.simulatedCode());
+        }
     }
 }
