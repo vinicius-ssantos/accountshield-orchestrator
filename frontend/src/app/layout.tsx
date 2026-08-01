@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { SessionProvider } from "@/features/session/session-context";
 import { WebVitalsReporter } from "@/features/telemetry/web-vitals-reporter";
 
 import "./globals.css";
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body>
         <WebVitalsReporter />
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );

@@ -32,6 +32,11 @@ const scenarios = [
     path: "/design-system",
     heading: "AccountShield console design system",
   },
+  {
+    name: "operator sign in",
+    path: "/login",
+    heading: "Operator sign in",
+  },
 ] as const;
 
 for (const scenario of scenarios) {

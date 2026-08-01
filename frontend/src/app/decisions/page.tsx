@@ -4,6 +4,7 @@ import {
   PageHeader,
 } from "@/design-system/components";
 import { DecisionInvestigationConsole } from "@/features/decisions/decision-investigation-console";
+import { SessionStatusBadge } from "@/features/session/session-status-badge";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -21,6 +22,7 @@ export default function DecisionsPage() {
       activeHref="/decisions"
       environmentDetail={environmentDetail}
       environmentLabel={environmentLabel}
+      sessionSlot={<SessionStatusBadge />}
     >
       <PageHeader
         eyebrow="Security operations"

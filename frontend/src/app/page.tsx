@@ -11,6 +11,7 @@ import {
   type StatusTone,
 } from "@/design-system/components";
 import { getDecisionsDataSource } from "@/features/decisions/get-data-source";
+import { SessionStatusBadge } from "@/features/session/session-status-badge";
 
 function outcomeTone(outcome: string): StatusTone {
   const normalized = outcome.toLowerCase();
@@ -34,7 +35,7 @@ export default async function Home() {
   ]);
 
   return (
-    <AppShell activeHref="/">
+    <AppShell activeHref="/" sessionSlot={<SessionStatusBadge />}>
       <PageHeader
         action={
           <Link className="actionLink" href="/decisions">

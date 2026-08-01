@@ -34,12 +34,16 @@ export function AppShell({
   navigationItems = DEFAULT_NAVIGATION_ITEMS,
   environmentLabel = "Fixture mode",
   environmentDetail = "no administrative mutations",
+  sessionSlot,
 }: {
   activeHref: string;
   children: ReactNode;
   navigationItems?: readonly NavigationItem[];
   environmentLabel?: string;
   environmentDetail?: string;
+  /** Rendered below the environment notice. AppShell stays session-agnostic -- it renders
+   * whatever is passed here without knowing anything about authentication itself. */
+  sessionSlot?: ReactNode;
 }) {
   return (
     <div className="appShell">
@@ -73,6 +77,8 @@ export function AppShell({
           <StatusBadge label={environmentLabel} tone="attention" />
           <span>{environmentLabel} · {environmentDetail}</span>
         </div>
+
+        {sessionSlot ? <div className="sessionSlot">{sessionSlot}</div> : null}
       </aside>
 
       <main className="appContent" id="main-content" tabIndex={-1}>
@@ -448,7 +454,11 @@ export type ApplicationStateKind =
   | "degraded"
   | "unavailable"
   | "unauthorized"
-  | "forbidden";
+  | "forbidden"
+  | "expired"
+  | "revoked"
+  | "refresh-failed"
+  | "identity-provider-unavailable";
 
 const STATE_TONES: Record<ApplicationStateKind, StatusTone> = {
   loading: "info",
@@ -457,6 +467,10 @@ const STATE_TONES: Record<ApplicationStateKind, StatusTone> = {
   unavailable: "critical",
   unauthorized: "attention",
   forbidden: "critical",
+  expired: "attention",
+  revoked: "critical",
+  "refresh-failed": "attention",
+  "identity-provider-unavailable": "critical",
 };
 
 export function ApplicationState({
