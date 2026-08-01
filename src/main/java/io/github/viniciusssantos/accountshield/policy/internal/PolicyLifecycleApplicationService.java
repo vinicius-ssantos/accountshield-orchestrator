@@ -20,6 +20,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundExcep
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
 import io.github.viniciusssantos.accountshield.policy.PrivilegedPolicyActionAttempted;
 import io.github.viniciusssantos.accountshield.policy.SelfApprovalNotAllowedException;
+import io.github.viniciusssantos.accountshield.policy.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +54,8 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
     private final ApplicationEventPublisher eventPublisher;
     private final PolicyAnalyzer policyAnalyzer;
     private final ObjectMapper objectMapper;
+    private final PolicySimulatedStepUpCodeCapture simulatedStepUpCodeCapture;
+    private final boolean simulationEnabled;
 
     public PolicyLifecycleApplicationService(
             PolicyVersionRepository repository,
@@ -59,13 +63,17 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
             @Qualifier("decisionClock") Clock clock,
             ApplicationEventPublisher eventPublisher,
             PolicyAnalyzer policyAnalyzer,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            PolicySimulatedStepUpCodeCapture simulatedStepUpCodeCapture,
+            @Value("${accountshield.challenge.simulation-enabled:true}") boolean simulationEnabled) {
         this.repository = repository;
         this.challengeService = challengeService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
         this.policyAnalyzer = policyAnalyzer;
         this.objectMapper = objectMapper;
+        this.simulatedStepUpCodeCapture = simulatedStepUpCodeCapture;
+        this.simulationEnabled = simulationEnabled;
     }
 
     @Override
@@ -125,7 +133,7 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
 
     @Override
     @Transactional
-    public UUID requestApprovalStepUp(String policyKey, String version, String actor) {
+    public StepUpChallenge requestApprovalStepUp(String policyKey, String version, String actor) {
         return issueStepUpChallenge(policyKey, version, ACTION_APPROVE, actor);
     }
 
@@ -185,24 +193,27 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
 
     @Override
     @Transactional
-    public UUID requestActivationStepUp(String policyKey, String version, String actor) {
+    public StepUpChallenge requestActivationStepUp(String policyKey, String version, String actor) {
         return issueStepUpChallenge(policyKey, version, ACTION_ACTIVATE, actor);
     }
 
     @Override
     @Transactional
-    public UUID requestRetirementStepUp(String policyKey, String version, String actor) {
+    public StepUpChallenge requestRetirementStepUp(String policyKey, String version, String actor) {
         return issueStepUpChallenge(policyKey, version, ACTION_RETIRE, actor);
     }
 
-    private UUID issueStepUpChallenge(String policyKey, String version, String action, String actor) {
+    private StepUpChallenge issueStepUpChallenge(String policyKey, String version, String action, String actor) {
         validateKey(policyKey);
         validateVersion(version);
-        return challengeService.create(new CreateChallengeCommand(
+        UUID contextId = stepUpContextId(policyKey, version, action);
+        UUID challengeId = challengeService.create(new CreateChallengeCommand(
                 actor,
                 ChallengeType.TOTP_SIMULATED,
                 ChallengePurpose.PRIVILEGED_OPERATION,
-                stepUpContextId(policyKey, version, action))).challengeId();
+                contextId)).challengeId();
+        String simulatedCode = simulationEnabled ? simulatedStepUpCodeCapture.consume(challengeId) : null;
+        return new StepUpChallenge(challengeId, simulatedCode, contextId);
     }
 
     private void consumeStepUp(

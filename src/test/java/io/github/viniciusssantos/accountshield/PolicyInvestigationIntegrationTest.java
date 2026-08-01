@@ -175,20 +175,20 @@ class PolicyInvestigationIntegrationTest {
     private String approvedCandidate(String key, String version) {
         draftAndValidate(key, version);
         UUID approvalStepUp = verifiedStepUp(
-                lifecycleService.requestApprovalStepUp(key, version, APPROVER));
+                lifecycleService.requestApprovalStepUp(key, version, APPROVER).challengeId());
         lifecycleService.approve(key, version, approvalStepUp, APPROVER, "investigation test approval");
         return version;
     }
 
     private void approve(String key, String version) {
         UUID approvalStepUp = verifiedStepUp(
-                lifecycleService.requestApprovalStepUp(key, version, APPROVER));
+                lifecycleService.requestApprovalStepUp(key, version, APPROVER).challengeId());
         lifecycleService.approve(key, version, approvalStepUp, APPROVER, "investigation test approval");
     }
 
     private void activate(String key, String version) {
         UUID activationStepUp = verifiedStepUp(
-                lifecycleService.requestActivationStepUp(key, version, APPROVER));
+                lifecycleService.requestActivationStepUp(key, version, APPROVER).challengeId());
         lifecycleService.activate(key, version, activationStepUp, APPROVER);
     }
 

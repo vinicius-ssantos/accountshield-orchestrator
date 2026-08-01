@@ -56,8 +56,8 @@ class PolicyActivationConcurrencyTest {
         insertApprovedVersion(key, "1.0.0", (short) 20, (short) 60);
         insertApprovedVersion(key, "2.0.0", (short) 25, (short) 65);
 
-        UUID challengeForV1 = verifiedStepUp(lifecycleService.requestActivationStepUp(key, "1.0.0", ACTOR));
-        UUID challengeForV2 = verifiedStepUp(lifecycleService.requestActivationStepUp(key, "2.0.0", ACTOR));
+        UUID challengeForV1 = verifiedStepUp(lifecycleService.requestActivationStepUp(key, "1.0.0", ACTOR).challengeId());
+        UUID challengeForV2 = verifiedStepUp(lifecycleService.requestActivationStepUp(key, "2.0.0", ACTOR).challengeId());
 
         List<Callable<Boolean>> contenders = List.of(
                 () -> tryActivate(key, "1.0.0", challengeForV1),

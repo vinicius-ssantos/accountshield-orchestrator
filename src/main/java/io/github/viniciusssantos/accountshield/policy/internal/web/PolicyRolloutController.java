@@ -36,7 +36,7 @@ class PolicyRolloutController {
             Authentication authentication) {
         UUID challengeId = rolloutService.requestRolloutStepUp(
                 policyKey, request.candidateVersion(), authentication.getName());
-        return ResponseEntity.ok(new PolicyLifecycleController.StepUpChallengeResponse(challengeId));
+        return ResponseEntity.ok(new PolicyLifecycleController.StepUpChallengeResponse(challengeId, null, null));
     }
 
     @PostMapping("/{policyKey}/rollout")
@@ -57,7 +57,7 @@ class PolicyRolloutController {
             @PathVariable String policyKey,
             Authentication authentication) {
         UUID challengeId = rolloutService.requestPercentageUpdateStepUp(policyKey, authentication.getName());
-        return ResponseEntity.ok(new PolicyLifecycleController.StepUpChallengeResponse(challengeId));
+        return ResponseEntity.ok(new PolicyLifecycleController.StepUpChallengeResponse(challengeId, null, null));
     }
 
     @PatchMapping("/{policyKey}/rollout")
