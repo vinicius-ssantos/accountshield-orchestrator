@@ -27,7 +27,7 @@ export default function RecoveriesPage() {
       <PageHeader
         eyebrow="Security operations"
         title="Recovery investigation"
-        description="Locate and triage recovery flows without placing subject or recovery references in the URL. No Approve, Reject, Retry, or Complete control is exposed here."
+        description="Locate and triage recovery flows without placing subject or recovery references in the URL. Review (approve/reject) requires fresh step-up and is available only for recoveries in manual review; no Retry or Complete control is exposed here."
       />
       <RecoveryInvestigationConsole />
     </AppShell>

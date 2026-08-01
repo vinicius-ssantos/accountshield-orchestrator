@@ -18,6 +18,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0010](0010-recovery-trust-boundaries.md) | Accepted | Use explicit `START_RECOVERY` and an immutable consumable recovery authorization; audit remains evidence | [Recovery](../architecture/recovery.md), [invariants](../architecture/invariants.md) |
 | [0011](0011-jwt-resource-server-with-local-issuer.md) | Accepted | Authorize sensitive APIs with a JWT resource server backed by a local, per-boot key pair | Issue #19 |
 | [0017](0017-bff-operator-session-cookie-and-csrf-design.md) | Accepted | BFF-managed opaque, HMAC-signed session cookie backed by an in-memory server-side store, with double-submit CSRF | Issue #78 |
+| [0018](0018-operator-recovery-review-mutation.md) | Accepted | First console mutation: operator recovery review through the BFF, gated by the #78 session guard with no env-token fallback, removing `recoveries` from the read-only architecture scope | Issue #194 |
 
 ## ADR lifecycle
 

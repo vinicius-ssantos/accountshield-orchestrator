@@ -17,6 +17,7 @@ import {
   RecoveryDetailBrowserError,
   investigateRecoveryThroughBff,
 } from "./recovery-detail-browser";
+import { RecoveryReviewPanel } from "./recovery-review-panel";
 import type { RecoveryInvestigationDetail, RecoverySectionAvailability } from "./types";
 
 function statusTone(status: string): StatusTone {
@@ -117,9 +118,9 @@ export function RecoveryDetailPanel({
   return (
     <Panel className="investigationDetailPanel">
       <SectionHeader
-        eyebrow="Read-only recovery triage"
+        eyebrow="Recovery triage"
         title="Recovery detail"
-        description="No Approve, Reject, Retry Challenge, or Complete control is available on this read-only view. Evidence is masked, UTC-ordered, and never added to the page URL."
+        description="No Retry Challenge or Complete control is available on this view. Evidence is masked, UTC-ordered, and never added to the page URL. Review (approve/reject) is available only while a recovery is in manual review, gated by fresh step-up."
         trailing={
           <button className="button button--secondary" onClick={onClose} type="button">
             Close investigation
@@ -252,11 +253,14 @@ export function RecoveryDetailPanel({
                 <StatusBadge label={`source ${detail.source}`} tone="info" />
               </div>
               <p className="muted">
-                This view is read-only. Reviewing, approving, rejecting, or completing this recovery
-                requires the authenticated operator session and maker-checker workflow planned by a
-                future issue.
+                Retry Challenge and Complete are not available from this console. Completing
+                identity verification and eligibility-window transitions remain client-driven.
               </p>
             </section>
+
+            {detail.recovery.status === "MANUAL_REVIEW" ? (
+              <RecoveryReviewPanel recoveryReference={recoveryReference} onReviewed={() => void load()} />
+            ) : null}
           </div>
         ) : null}
       </div>
