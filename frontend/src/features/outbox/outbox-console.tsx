@@ -18,8 +18,75 @@ import {
 } from "@/design-system/components";
 
 import { OutboxBrowserError, searchOutboxThroughBff } from "./outbox-browser";
+import { OutboxRequeueBrowserError, requeueOutboxEvent } from "./outbox-requeue-browser";
 import { OutboxStatusValues } from "./types";
 import type { OutboxSearchFilters, OutboxSearchResult, OutboxStatus } from "./types";
+
+type RequeueState =
+  | { name: "idle" }
+  | { name: "confirm" }
+  | { name: "submitting" }
+  | { name: "done" }
+  | { name: "error"; message: string };
+
+function requeueErrorMessage(error: unknown): string {
+  if (error instanceof OutboxRequeueBrowserError) {
+    if (error.status === 401) return "Your operator session is no longer valid. Sign in again to continue.";
+    if (error.status === 403) return "Requeuing outbox events is not permitted for the authenticated operator.";
+    if (error.code === "NOT_FOUND") return "This outbox event could not be found.";
+    if (error.code === "OUTBOX_EVENT_NOT_DEAD_LETTERED") {
+      return "This event is no longer dead-lettered -- it may already have been requeued or delivered.";
+    }
+  }
+  return "This action is temporarily unavailable. No sensitive detail was exposed.";
+}
+
+function RequeueControl({ eventId, onRequeued }: { eventId: string; onRequeued: () => void }) {
+  const [state, setState] = useState<RequeueState>({ name: "idle" });
+
+  async function submit() {
+    setState({ name: "submitting" });
+    try {
+      await requeueOutboxEvent(eventId);
+      setState({ name: "done" });
+      onRequeued();
+    } catch (error) {
+      setState({ name: "error", message: requeueErrorMessage(error) });
+    }
+  }
+
+  if (state.name === "idle") {
+    return (
+      <button className="actionLink" type="button" onClick={() => setState({ name: "confirm" })}>
+        Requeue
+      </button>
+    );
+  }
+  if (state.name === "confirm") {
+    return (
+      <span className="decisionFlags">
+        <span>Requeue this event now?</span>
+        <button className="actionLink" type="button" onClick={() => void submit()}>
+          Confirm
+        </button>
+        <button className="actionLink" type="button" onClick={() => setState({ name: "idle" })}>
+          Cancel
+        </button>
+      </span>
+    );
+  }
+  if (state.name === "submitting") return <span className="muted">Requeuing…</span>;
+  if (state.name === "done") return <StatusBadge label="requeued" tone="positive" />;
+  return (
+    <span className="decisionFlags">
+      <StatusBadge label="requeue failed" tone="critical" />
+      <span className="muted">{state.message}</span>
+      <button className="actionLink" type="button" onClick={() => setState({ name: "idle" })}>
+        Try again
+      </button>
+    </span>
+  );
+}
 
 const DEFAULT_FILTERS: OutboxSearchFilters = { pageSize: 25 };
 
@@ -199,6 +266,12 @@ export function OutboxOperatorConsole() {
         ) : (
           <span className="muted">Not applicable</span>
         ),
+      actions:
+        record.status === "DEAD_LETTERED" ? (
+          <RequeueControl eventId={record.eventId} onRequeued={() => void runSearch(filters)} />
+        ) : (
+          <span className="muted">Not applicable</span>
+        ),
     },
   }));
 
@@ -268,7 +341,7 @@ export function OutboxOperatorConsole() {
 
       <Panel>
         <SectionHeader
-          description="Searches use a same-origin POST body. No Replay, Requeue, Delete, Skip, or Force Publish control is exposed here."
+          description="Searches use a same-origin POST body. Dead-lettered events can be requeued below; no Delete, Skip, or Force Publish control is exposed here."
           eyebrow="Authorized read surface"
           title="Search filters"
         />
@@ -368,6 +441,7 @@ export function OutboxOperatorConsole() {
                 { key: "nextAttempt", label: "Next attempt" },
                 { key: "outcome", label: "Outcome" },
                 { key: "reason", label: "Dead-letter reason" },
+                { key: "actions", label: "Actions" },
               ]}
               rows={rows}
             />

@@ -22,7 +22,7 @@ export default function OutboxPage() {
       sessionSlot={<SessionStatusBadge />}
     >
       <PageHeader
-        description="Read-only visibility into outbox delivery, retry, lag, and dead-letter state. No Replay, Requeue, Delete, Skip, or Force Publish control is exposed here."
+        description="Visibility into outbox delivery, retry, lag, and dead-letter state. Dead-lettered events can be requeued below; no Replay, Delete, Skip, or Force Publish control is exposed here."
         eyebrow="Security operations"
         title="Outbox delivery"
       />
