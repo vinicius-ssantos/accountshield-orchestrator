@@ -20,6 +20,10 @@ export type BffErrorCode =
   // maker-checker or state-machine rejection.
   | "SELF_APPROVAL_NOT_ALLOWED"
   | "ILLEGAL_TRANSITION"
+  // Rollout's own vocabulary (issue #200): distinct from CONFLICT for the same reason as the
+  // pair above -- specific, actionable UI messages rather than a generic "state changed, retry".
+  | "ROLLOUT_ALREADY_ACTIVE"
+  | "ROLLOUT_CANDIDATE_NOT_APPROVED"
   | "RATE_LIMITED"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
