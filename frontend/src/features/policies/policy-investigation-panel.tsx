@@ -19,6 +19,7 @@ import {
   investigatePolicyThroughBff,
 } from "./policy-investigation-browser";
 import { PolicyLifecycleActions } from "./policy-lifecycle-actions";
+import { PolicyRolloutActions } from "./policy-rollout-actions";
 import type {
   PolicyImpactAvailability,
   PolicyInvestigationDetail,
@@ -189,7 +190,7 @@ export function PolicyInvestigationPanel({
       <SectionHeader
         eyebrow="Read-only policy lifecycle"
         title="Policy detail"
-        description="Approve, activate, reject, and retire are available for eligible versions below. Rollback and rollout-percentage controls remain read-only."
+        description="Approve, activate, reject, retire, and canary rollout controls (start, adjust percentage, roll back) are available for eligible versions below."
         trailing={
           <button className="button button--secondary" onClick={onClose} type="button">
             Close investigation
@@ -305,6 +306,14 @@ export function PolicyInvestigationPanel({
                   not distinguishable here from a policy that never had one.
                 </p>
               )}
+              <PolicyRolloutActions
+                policyKey={detail.policyKey}
+                approvedCandidateVersions={detail.versions
+                  .filter((version) => version.status === "APPROVED")
+                  .map((version) => version.version)}
+                activeRollout={detail.activeRollout}
+                onChanged={() => void load()}
+              />
             </section>
 
             <section className="investigationSection" aria-labelledby="policy-impact-heading">

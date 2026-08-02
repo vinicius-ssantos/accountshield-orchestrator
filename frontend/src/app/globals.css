@@ -140,6 +140,19 @@ button:active,
   background: transparent;
 }
 
+/* For immediate, no-undo, no-step-up actions (e.g. rollout rollback) -- deliberately distinct
+   from button--primary/--secondary so the destructive/irreversible nature is visually, not just
+   textually, different from a routine confirm. */
+.button--critical {
+  background: var(--status-critical-bg);
+  border-color: var(--status-critical-border);
+  color: var(--status-critical-text);
+}
+
+.button--critical:hover {
+  border-color: var(--status-critical-text);
+}
+
 .secondaryLink {
   color: var(--color-text-muted);
   display: inline-flex;

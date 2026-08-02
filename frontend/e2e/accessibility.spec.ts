@@ -87,3 +87,57 @@ for (const scenario of scenarios) {
     ).toEqual([]);
   });
 }
+
+test("@a11y policy rollout controls (percentage form and rollback confirmation) have no critical or serious axe violations", async ({
+  page,
+}) => {
+  await page.goto("/policies");
+  await expect(
+    page.getByRole("table", { name: "Policy directory results" }),
+  ).toBeVisible();
+
+  const row = page.getByRole("row", { name: /credential-change-canary/ });
+  await row.getByRole("button", { name: "Investigate policy" }).click();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Policy detail" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 4, name: "Rollout controls" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Adjust percentage" }).click();
+  await expect(page.getByLabel("New rollout percentage")).toBeVisible();
+
+  const percentageFormResults = await new AxeBuilder({ page }).analyze();
+  const percentageFormViolations = percentageFormResults.violations.filter(
+    (violation) =>
+      violation.impact === "critical" || violation.impact === "serious",
+  );
+  expect(
+    percentageFormViolations,
+    JSON.stringify(percentageFormViolations, null, 2),
+  ).toEqual([]);
+
+  // Reload to return to the idle stage -- "Roll back" only renders there, not while the
+  // percentage-adjustment form (started above) is open.
+  await page.reload();
+  await row.getByRole("button", { name: "Investigate policy" }).click();
+  await expect(
+    page.getByRole("heading", { level: 4, name: "Rollout controls" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Roll back" }).click();
+  await expect(
+    page.getByText("Roll back immediately?", { exact: true }),
+  ).toBeVisible();
+
+  const rollbackResults = await new AxeBuilder({ page }).analyze();
+  const rollbackViolations = rollbackResults.violations.filter(
+    (violation) =>
+      violation.impact === "critical" || violation.impact === "serious",
+  );
+  expect(
+    rollbackViolations,
+    JSON.stringify(rollbackViolations, null, 2),
+  ).toEqual([]);
+});
