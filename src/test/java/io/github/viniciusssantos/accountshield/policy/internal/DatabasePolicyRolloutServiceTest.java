@@ -18,6 +18,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyRolloutStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.RolloutAlreadyActiveException;
 import io.github.viniciusssantos.accountshield.policy.RolloutCandidateNotApprovedException;
+import io.github.viniciusssantos.accountshield.policy.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyRolloutEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyRolloutRepository;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
@@ -43,8 +44,11 @@ class DatabasePolicyRolloutServiceTest {
     private final ChallengeService challengeService = mock(ChallengeService.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final PolicySimulatedStepUpCodeCapture simulatedStepUpCodeCapture =
+            mock(PolicySimulatedStepUpCodeCapture.class);
     private final DatabasePolicyRolloutService service = new DatabasePolicyRolloutService(
-            rolloutRepository, versionRepository, challengeService, clock, eventPublisher);
+            rolloutRepository, versionRepository, challengeService, clock, eventPublisher,
+            simulatedStepUpCodeCapture, true);
 
     private void stubSuccessfulStepUp() {
         when(challengeService.consume(any())).thenReturn(consumedChallengePlan());
@@ -58,6 +62,39 @@ class DatabasePolicyRolloutServiceTest {
         return new ChallengePlan(
                 STEP_UP_CHALLENGE_ID, ACTOR, ChallengeType.TOTP_SIMULATED, ChallengePurpose.PRIVILEGED_OPERATION,
                 UUID.randomUUID(), ChallengeStatus.CONSUMED, 3, 3, NOW.minusSeconds(60), NOW.plusSeconds(600), NOW);
+    }
+
+    private ChallengePlan issuedChallengePlan() {
+        return new ChallengePlan(
+                STEP_UP_CHALLENGE_ID, ACTOR, ChallengeType.TOTP_SIMULATED, ChallengePurpose.PRIVILEGED_OPERATION,
+                UUID.randomUUID(), ChallengeStatus.CHALLENGED, 3, 3, NOW, NOW.plusSeconds(600), null);
+    }
+
+    @Test
+    void requestRolloutStepUpDisclosesTheSimulatedCodeAndContextId() {
+        when(challengeService.create(any())).thenReturn(issuedChallengePlan());
+        when(simulatedStepUpCodeCapture.consume(STEP_UP_CHALLENGE_ID)).thenReturn("123456");
+
+        StepUpChallenge challenge = service.requestRolloutStepUp(POLICY_KEY, CANDIDATE_VERSION, ACTOR);
+
+        assertThat(challenge.challengeId()).isEqualTo(STEP_UP_CHALLENGE_ID);
+        assertThat(challenge.simulatedCode()).isEqualTo("123456");
+        assertThat(challenge.contextId()).isNotNull();
+    }
+
+    @Test
+    void requestPercentageUpdateStepUpDisclosesTheSimulatedCodeAndContextId() {
+        PolicyRolloutEntity entity = existingActiveRollout();
+        when(rolloutRepository.findByPolicyKeyAndStatus(POLICY_KEY, "ACTIVE"))
+                .thenReturn(Optional.of(entity));
+        when(challengeService.create(any())).thenReturn(issuedChallengePlan());
+        when(simulatedStepUpCodeCapture.consume(STEP_UP_CHALLENGE_ID)).thenReturn("654321");
+
+        StepUpChallenge challenge = service.requestPercentageUpdateStepUp(POLICY_KEY, ACTOR);
+
+        assertThat(challenge.challengeId()).isEqualTo(STEP_UP_CHALLENGE_ID);
+        assertThat(challenge.simulatedCode()).isEqualTo("654321");
+        assertThat(challenge.contextId()).isNotNull();
     }
 
     @Test

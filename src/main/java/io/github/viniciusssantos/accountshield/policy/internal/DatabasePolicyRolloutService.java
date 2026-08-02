@@ -14,6 +14,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundExcep
 import io.github.viniciusssantos.accountshield.policy.PrivilegedPolicyActionAttempted;
 import io.github.viniciusssantos.accountshield.policy.RolloutAlreadyActiveException;
 import io.github.viniciusssantos.accountshield.policy.RolloutCandidateNotApprovedException;
+import io.github.viniciusssantos.accountshield.policy.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyRolloutEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyRolloutRepository;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
@@ -25,6 +26,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,29 +43,31 @@ class DatabasePolicyRolloutService implements PolicyRolloutService {
     private final ChallengeService challengeService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final PolicySimulatedStepUpCodeCapture simulatedStepUpCodeCapture;
+    private final boolean simulationEnabled;
 
     DatabasePolicyRolloutService(
             PolicyRolloutRepository rolloutRepository,
             PolicyVersionRepository versionRepository,
             ChallengeService challengeService,
             @Qualifier("decisionClock") Clock clock,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            PolicySimulatedStepUpCodeCapture simulatedStepUpCodeCapture,
+            @Value("${accountshield.challenge.simulation-enabled:true}") boolean simulationEnabled) {
         this.rolloutRepository = rolloutRepository;
         this.versionRepository = versionRepository;
         this.challengeService = challengeService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
+        this.simulatedStepUpCodeCapture = simulatedStepUpCodeCapture;
+        this.simulationEnabled = simulationEnabled;
     }
 
     @Override
     @Transactional
-    public UUID requestRolloutStepUp(String policyKey, String candidateVersion, String actor) {
+    public StepUpChallenge requestRolloutStepUp(String policyKey, String candidateVersion, String actor) {
         validateActor(actor);
-        return challengeService.create(new CreateChallengeCommand(
-                actor,
-                ChallengeType.TOTP_SIMULATED,
-                ChallengePurpose.PRIVILEGED_OPERATION,
-                stepUpContextId(policyKey, candidateVersion, ACTION_START_ROLLOUT))).challengeId();
+        return issueStepUpChallenge(policyKey, candidateVersion, ACTION_START_ROLLOUT, actor);
     }
 
     @Override
@@ -99,14 +103,10 @@ class DatabasePolicyRolloutService implements PolicyRolloutService {
 
     @Override
     @Transactional
-    public UUID requestPercentageUpdateStepUp(String policyKey, String actor) {
+    public StepUpChallenge requestPercentageUpdateStepUp(String policyKey, String actor) {
         validateActor(actor);
         PolicyRolloutEntity entity = requireActiveRolloutEntity(policyKey);
-        return challengeService.create(new CreateChallengeCommand(
-                actor,
-                ChallengeType.TOTP_SIMULATED,
-                ChallengePurpose.PRIVILEGED_OPERATION,
-                stepUpContextId(policyKey, entity.getCandidateVersion(), ACTION_UPDATE_ROLLOUT))).challengeId();
+        return issueStepUpChallenge(policyKey, entity.getCandidateVersion(), ACTION_UPDATE_ROLLOUT, actor);
     }
 
     @Override
@@ -159,6 +159,18 @@ class DatabasePolicyRolloutService implements PolicyRolloutService {
                     new PrivilegedPolicyActionAttempted(policyKey, candidateVersion, action, actor, false));
             throw exception;
         }
+    }
+
+    private StepUpChallenge issueStepUpChallenge(
+            String policyKey, String candidateVersion, String action, String actor) {
+        UUID contextId = stepUpContextId(policyKey, candidateVersion, action);
+        UUID challengeId = challengeService.create(new CreateChallengeCommand(
+                actor,
+                ChallengeType.TOTP_SIMULATED,
+                ChallengePurpose.PRIVILEGED_OPERATION,
+                contextId)).challengeId();
+        String simulatedCode = simulationEnabled ? simulatedStepUpCodeCapture.consume(challengeId) : null;
+        return new StepUpChallenge(challengeId, simulatedCode, contextId);
     }
 
     private UUID stepUpContextId(String policyKey, String candidateVersion, String action) {

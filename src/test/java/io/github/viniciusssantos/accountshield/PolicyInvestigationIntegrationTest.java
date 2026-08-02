@@ -123,7 +123,7 @@ class PolicyInvestigationIntegrationTest {
 
         String candidateVersion = approvedCandidate(key, "canary-" + UUID.randomUUID().toString().substring(0, 8));
         UUID stepUpChallengeId = verifiedStepUp(
-                rolloutService.requestRolloutStepUp(key, candidateVersion, "operator"));
+                rolloutService.requestRolloutStepUp(key, candidateVersion, "operator").challengeId());
         rolloutService.startRollout(key, candidateVersion, 100, stepUpChallengeId, "operator");
 
         PolicyInvestigationDetail detail = investigationQuery.investigate(key).orElseThrow();

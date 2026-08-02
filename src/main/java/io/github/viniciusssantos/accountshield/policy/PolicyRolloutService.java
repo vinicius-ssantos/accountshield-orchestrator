@@ -5,12 +5,12 @@ import java.util.UUID;
 
 public interface PolicyRolloutService {
 
-    UUID requestRolloutStepUp(String policyKey, String candidateVersion, String actor);
+    StepUpChallenge requestRolloutStepUp(String policyKey, String candidateVersion, String actor);
 
     PolicyRollout startRollout(
             String policyKey, String candidateVersion, int rolloutPercentage, UUID stepUpChallengeId, String actor);
 
-    UUID requestPercentageUpdateStepUp(String policyKey, String actor);
+    StepUpChallenge requestPercentageUpdateStepUp(String policyKey, String actor);
 
     PolicyRollout updatePercentage(
             String policyKey, int rolloutPercentage, UUID stepUpChallengeId, String actor);
