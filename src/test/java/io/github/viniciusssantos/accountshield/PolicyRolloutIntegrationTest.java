@@ -12,6 +12,7 @@ import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyRollout;
 import io.github.viniciusssantos.accountshield.policy.PolicyRolloutService;
 import io.github.viniciusssantos.accountshield.policy.PolicyRolloutStatus;
+import io.github.viniciusssantos.accountshield.policy.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResult;
@@ -65,7 +66,7 @@ class PolicyRolloutIntegrationTest {
     void rolloutRoutesDecisionsToCandidateForSubjectsInCohortAndRecordsProvenance() {
         String candidateVersion = approvedCandidate();
         UUID stepUpChallengeId = verifiedStepUp(
-                policyRolloutService.requestRolloutStepUp(POLICY_KEY, candidateVersion, "operator"));
+                policyRolloutService.requestRolloutStepUp(POLICY_KEY, candidateVersion, "operator").challengeId());
         policyRolloutService.startRollout(POLICY_KEY, candidateVersion, 100, stepUpChallengeId, "operator");
 
         String accountReference = "rollout-subject-" + UUID.randomUUID();
@@ -91,7 +92,7 @@ class PolicyRolloutIntegrationTest {
 
         String candidateVersion = approvedCandidate();
         UUID stepUpChallengeId = verifiedStepUp(
-                policyRolloutService.requestRolloutStepUp(POLICY_KEY, candidateVersion, "operator"));
+                policyRolloutService.requestRolloutStepUp(POLICY_KEY, candidateVersion, "operator").challengeId());
         policyRolloutService.startRollout(POLICY_KEY, candidateVersion, 50, stepUpChallengeId, "operator");
 
         ProtectionDecisionResult first = decide(accountReference);
@@ -107,7 +108,7 @@ class PolicyRolloutIntegrationTest {
     void rollbackImmediatelyRoutesNewDecisionsBackToStable() {
         String candidateVersion = approvedCandidate();
         UUID stepUpChallengeId = verifiedStepUp(
-                policyRolloutService.requestRolloutStepUp(POLICY_KEY, candidateVersion, "operator"));
+                policyRolloutService.requestRolloutStepUp(POLICY_KEY, candidateVersion, "operator").challengeId());
         policyRolloutService.startRollout(POLICY_KEY, candidateVersion, 100, stepUpChallengeId, "operator");
 
         String accountReference = "rollout-rollback-" + UUID.randomUUID();
@@ -120,6 +121,43 @@ class PolicyRolloutIntegrationTest {
         ProtectionDecisionResult afterRollback = decide("rollout-rollback-after-" + UUID.randomUUID());
         assertThat(afterRollback.policyVersion()).isNotEqualTo(candidateVersion);
         assertThat(policyRolloutService.findActiveRollout(POLICY_KEY)).isEmpty();
+    }
+
+    @Test
+    @Transactional
+    void rolloutStepUpDisclosesEnoughForARealHttpClientToCompleteVerification() {
+        String candidateVersion = approvedCandidate();
+
+        StepUpChallenge stepUp = policyRolloutService.requestRolloutStepUp(POLICY_KEY, candidateVersion, "operator");
+
+        assertThat(stepUp.simulatedCode()).isEqualTo(issuedCodeFor(stepUp.challengeId()));
+        challengeService.verify(new ChallengeVerificationCommand(
+                stepUp.challengeId(), stepUp.simulatedCode(), ChallengePurpose.PRIVILEGED_OPERATION,
+                stepUp.contextId()));
+    }
+
+    @Test
+    @Transactional
+    void percentageUpdateStepUpDisclosesEnoughForARealHttpClientToCompleteVerification() {
+        String candidateVersion = approvedCandidate();
+        UUID startStepUp = verifiedStepUp(
+                policyRolloutService.requestRolloutStepUp(POLICY_KEY, candidateVersion, "operator").challengeId());
+        policyRolloutService.startRollout(POLICY_KEY, candidateVersion, 10, startStepUp, "operator");
+
+        StepUpChallenge stepUp = policyRolloutService.requestPercentageUpdateStepUp(POLICY_KEY, "operator");
+
+        assertThat(stepUp.simulatedCode()).isEqualTo(issuedCodeFor(stepUp.challengeId()));
+        challengeService.verify(new ChallengeVerificationCommand(
+                stepUp.challengeId(), stepUp.simulatedCode(), ChallengePurpose.PRIVILEGED_OPERATION,
+                stepUp.contextId()));
+    }
+
+    private String issuedCodeFor(UUID challengeId) {
+        return events.stream(ChallengeIssued.class)
+                .filter(event -> event.challengeId().equals(challengeId))
+                .reduce((first, second) -> second)
+                .orElseThrow()
+                .issuedCode();
     }
 
     private String approvedCandidate() {

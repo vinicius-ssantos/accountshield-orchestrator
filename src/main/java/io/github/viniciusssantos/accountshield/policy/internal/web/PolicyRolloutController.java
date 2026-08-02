@@ -3,6 +3,7 @@ package io.github.viniciusssantos.accountshield.policy.internal.web;
 import io.github.viniciusssantos.accountshield.policy.PolicyRollout;
 import io.github.viniciusssantos.accountshield.policy.PolicyRolloutNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyRolloutService;
+import io.github.viniciusssantos.accountshield.policy.StepUpChallenge;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -34,9 +35,9 @@ class PolicyRolloutController {
             @PathVariable String policyKey,
             @Valid @RequestBody StartRolloutStepUpRequest request,
             Authentication authentication) {
-        UUID challengeId = rolloutService.requestRolloutStepUp(
+        StepUpChallenge challenge = rolloutService.requestRolloutStepUp(
                 policyKey, request.candidateVersion(), authentication.getName());
-        return ResponseEntity.ok(new PolicyLifecycleController.StepUpChallengeResponse(challengeId, null, null));
+        return ResponseEntity.ok(PolicyLifecycleController.StepUpChallengeResponse.from(challenge));
     }
 
     @PostMapping("/{policyKey}/rollout")
@@ -56,8 +57,8 @@ class PolicyRolloutController {
     public ResponseEntity<PolicyLifecycleController.StepUpChallengeResponse> requestPercentageUpdateStepUp(
             @PathVariable String policyKey,
             Authentication authentication) {
-        UUID challengeId = rolloutService.requestPercentageUpdateStepUp(policyKey, authentication.getName());
-        return ResponseEntity.ok(new PolicyLifecycleController.StepUpChallengeResponse(challengeId, null, null));
+        StepUpChallenge challenge = rolloutService.requestPercentageUpdateStepUp(policyKey, authentication.getName());
+        return ResponseEntity.ok(PolicyLifecycleController.StepUpChallengeResponse.from(challenge));
     }
 
     @PatchMapping("/{policyKey}/rollout")

@@ -165,8 +165,7 @@ class PolicyLifecycleController {
                     + "challenge providers; null when simulation is disabled. Never a real out-of-band "
                     + "delivery.")
             String simulatedCode,
-            @Schema(description = "Required contextId for POST /api/v1/challenges/{id}/verify; null for "
-                    + "rollout/rollback step-up, which do not yet expose this field.")
+            @Schema(description = "Required contextId for POST /api/v1/challenges/{id}/verify.")
             UUID contextId) {
 
         static StepUpChallengeResponse from(StepUpChallenge challenge) {
