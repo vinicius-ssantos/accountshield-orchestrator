@@ -24,6 +24,10 @@ export type BffErrorCode =
   // pair above -- specific, actionable UI messages rather than a generic "state changed, retry".
   | "ROLLOUT_ALREADY_ACTIVE"
   | "ROLLOUT_CANDIDATE_NOT_APPROVED"
+  // Outbox requeue (issue #203) has no step-up gate -- it's operational remediation, not a
+  // privileged security action -- but still benefits from a distinct, actionable message for its
+  // one real conflict case: the event is no longer dead-lettered by the time requeue is attempted.
+  | "OUTBOX_EVENT_NOT_DEAD_LETTERED"
   | "RATE_LIMITED"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
