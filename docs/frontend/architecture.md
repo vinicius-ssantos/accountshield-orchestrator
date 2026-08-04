@@ -45,6 +45,11 @@ page -> feature query/service -> adapter -> generated client -> BFF -> Spring AP
 - correlation IDs are safe operational references, not authorization;
 - administrative commands require explicit confirmation and auditable reasons.
 
+## Performance and bundle budgets
+
+Bundle size and Web Vitals are documented, CI-enforced budgets, not an unmeasured claim. See
+[Frontend performance, bundle, and Web Vitals budgets](performance.md).
+
 ## Accepted architecture decisions
 
 - [ADR 0011 — Colocate the Next.js operations console](../adr/0011-colocate-nextjs-operations-console.md)
