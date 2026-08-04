@@ -21,6 +21,7 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0018](0018-operator-recovery-review-mutation.md) | Accepted | First console mutation: operator recovery review through the BFF, gated by the #78 session guard with no env-token fallback, removing `recoveries` from the read-only architecture scope | Issue #194 |
 | [0019](0019-operator-policy-rollout-mutation.md) | Accepted | Third console mutation: operator policy rollout controls (start/adjust/rollback) through the BFF, reusing policy lifecycle's step-up verify route and a no-step-up, distinctly-confirmed immediate rollback | Issue #200 |
 | [0020](0020-operator-outbox-requeue-mutation.md) | Accepted | Fourth console mutation: operator outbox dead-letter requeue through the BFF, the first with no step-up gate (operational remediation, not a privileged security action) | Issue #203 |
+| [0021](0021-operator-evidence-export-mutation.md) | Accepted | Fifth console mutation: operator evidence export/verify through the BFF, the first feature to split one export route (mutation) from one verify route (read) within the same feature | Issue #214 |
 
 ## ADR lifecycle
 

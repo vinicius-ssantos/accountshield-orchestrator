@@ -141,3 +141,43 @@ test("@a11y policy rollout controls (percentage form and rollback confirmation) 
     JSON.stringify(rollbackViolations, null, 2),
   ).toEqual([]);
 });
+
+test("@a11y evidence export panel (reason form and verified result) have no critical or serious axe violations", async ({
+  page,
+}) => {
+  await page.goto("/decisions");
+  await expect(
+    page.getByRole("table", { name: "Decision investigation results" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Export evidence" }).first().click();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Export evidence" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Reason for export")).toBeVisible();
+
+  const reasonFormResults = await new AxeBuilder({ page }).analyze();
+  const reasonFormViolations = reasonFormResults.violations.filter(
+    (violation) =>
+      violation.impact === "critical" || violation.impact === "serious",
+  );
+  expect(
+    reasonFormViolations,
+    JSON.stringify(reasonFormViolations, null, 2),
+  ).toEqual([]);
+
+  await page.getByLabel("Reason for export").fill("customer dispute review");
+  await page.getByRole("button", { name: "Export bundle" }).click();
+  await page.getByRole("button", { name: "Verify bundle" }).click();
+  await expect(page.getByText("Bundle verified", { exact: true })).toBeVisible();
+
+  const verifiedResults = await new AxeBuilder({ page }).analyze();
+  const verifiedViolations = verifiedResults.violations.filter(
+    (violation) =>
+      violation.impact === "critical" || violation.impact === "serious",
+  );
+  expect(
+    verifiedViolations,
+    JSON.stringify(verifiedViolations, null, 2),
+  ).toEqual([]);
+});

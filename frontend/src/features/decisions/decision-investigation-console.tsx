@@ -23,6 +23,7 @@ import {
   searchDecisionsThroughBff,
 } from "./decision-search-browser";
 import { DecisionTimelinePanel } from "./decision-timeline-panel";
+import { EvidenceExportPanel } from "./evidence-export-panel";
 import {
   DecisionEventTypeValues,
   DecisionOutcomeValues,
@@ -110,6 +111,7 @@ export function DecisionInvestigationConsole() {
   const [loading, setLoading] = useState(true);
   const [selectedDecisionReference, setSelectedDecisionReference] = useState<string>();
   const [selectedReplayReference, setSelectedReplayReference] = useState<string>();
+  const [selectedEvidenceReference, setSelectedEvidenceReference] = useState<string>();
   const requestSequence = useRef(0);
 
   const runSearch = useCallback(async (next: DecisionSearchCriteria) => {
@@ -118,6 +120,7 @@ export function DecisionInvestigationConsole() {
     setError(undefined);
     setSelectedDecisionReference(undefined);
     setSelectedReplayReference(undefined);
+    setSelectedEvidenceReference(undefined);
     try {
       const page = await searchDecisionsThroughBff(next);
       if (sequence === requestSequence.current) {
@@ -200,6 +203,14 @@ export function DecisionInvestigationConsole() {
             type="button"
           >
             Compare replay
+          </button>
+          <button
+            aria-pressed={selectedEvidenceReference === decision.decisionReference}
+            className="actionLink decisionEvidenceAction"
+            onClick={() => setSelectedEvidenceReference(decision.decisionReference)}
+            type="button"
+          >
+            Export evidence
           </button>
         </span>
       ),
@@ -394,6 +405,13 @@ export function DecisionInvestigationConsole() {
         <DecisionReplayPanel
           decisionReference={selectedReplayReference}
           onClose={() => setSelectedReplayReference(undefined)}
+        />
+      ) : null}
+
+      {selectedEvidenceReference ? (
+        <EvidenceExportPanel
+          decisionReference={selectedEvidenceReference}
+          onClose={() => setSelectedEvidenceReference(undefined)}
         />
       ) : null}
     </>

@@ -198,3 +198,27 @@ export interface OperationsMetric {
   value: string;
   detail: string;
 }
+
+export interface EvidenceManifest {
+  bundleSchemaVersion: string;
+  decisionId: string;
+  protectionRequestId: string;
+  generatedAt: string;
+  exportedBy: string;
+  exportReason: string;
+  contentHashAlgorithm: string;
+  contentHash: string;
+  signatureAlgorithm: string;
+  signature: string;
+  signingPublicKey: string;
+}
+
+export interface EvidenceBundle {
+  manifest: EvidenceManifest;
+  content: Record<string, unknown>;
+}
+
+export interface EvidenceVerificationResult {
+  valid: boolean;
+  problems: readonly string[];
+}
