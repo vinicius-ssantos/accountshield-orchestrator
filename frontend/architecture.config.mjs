@@ -9,40 +9,17 @@ const architectureConfig = {
   // src/features/outbox/ is deliberately NOT listed here as of issue #203: dead-letter requeue,
   // the first console mutation with no step-up gate (operational remediation, not a privileged
   // security action -- see ADR 0020).
+  // src/features/decisions/ is deliberately NOT listed here as of issue #214: evidence export,
+  // its first real mutation (audited, no step-up -- see ADR 0021). The ARCH007 exceptions below
+  // for decision-search-browser.ts/decision-timeline-browser.ts/decision-replay-browser.ts were
+  // removed alongside this change: ARCH007 only fires for paths inside readOnlyScopes, so once
+  // this directory left the list those entries became stale exceptions for a rule that no longer
+  // applies to them.
   readOnlyScopes: [
     "src/app/api/bff/runtime-status/",
     "src/server/bff/runtime-status",
-    "src/features/decisions/",
   ],
-  exceptions: [
-    {
-      ruleId: "ARCH007",
-      path: "src/features/decisions/decision-search-browser.ts",
-      rationale:
-        "Decision search is read-only but sends the validated correlation ID and filters in a same-origin POST body instead of a query string, so sensitive identifiers are never placed in the URL.",
-      owner: "vinicius-ssantos",
-      issue: "#69",
-      revisitOn: "2026-10-29",
-    },
-    {
-      ruleId: "ARCH007",
-      path: "src/features/decisions/decision-timeline-browser.ts",
-      rationale:
-        "Decision investigation is read-only but sends the opaque decision reference in a same-origin POST body so it never appears in the browser URL, history, referrer, or access logs.",
-      owner: "vinicius-ssantos",
-      issue: "#70",
-      revisitOn: "2026-10-29",
-    },
-    {
-      ruleId: "ARCH007",
-      path: "src/features/decisions/decision-replay-browser.ts",
-      rationale:
-        "Decision replay is read-only and side-effect-free but sends the opaque decision reference in a same-origin POST body so it never appears in the browser URL, history, referrer, or access logs.",
-      owner: "vinicius-ssantos",
-      issue: "#72",
-      revisitOn: "2026-10-29",
-    },
-  ],
+  exceptions: [],
 };
 
 export default architectureConfig;
