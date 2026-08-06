@@ -1,4 +1,4 @@
-# ADR 0017: BFF-managed opaque session cookie with double-submit CSRF
+# ADR 0052: BFF-managed opaque session cookie with double-submit CSRF
 
 - Status: Accepted
 - Date: 2026-07-31
@@ -8,7 +8,7 @@
 Issue #78 ("Implement the secure operator session through the Next.js BFF") requires a
 browser-facing operator session with no reusable backend credential exposed to browser
 JavaScript, backed by the newly added demo credential adapter (`POST /auth/session-tokens`,
-ADR 0046 on the backend). The BFF foundation (ADR 0013) already establishes that the browser
+ADR 0046 on the backend). The BFF foundation (ADR 0048) already establishes that the browser
 never talks to the Spring API directly; this ADR decides how the *session itself* is represented
 between the browser and the BFF.
 
@@ -109,6 +109,6 @@ obtained.
 
 - Issue #78 -- Implement the secure operator session through the Next.js BFF.
 - Backend ADR 0046 -- config-seeded demo operator credential adapter (issues #189/#190).
-- ADR 0013 -- backend-for-frontend security boundary.
+- ADR 0048 -- backend-for-frontend security boundary.
 - `frontend/src/server/bff/session/` (crypto, store, core, csrf, session.ts, require-session.ts),
   `frontend/src/proxy.ts`, `frontend/src/features/session/`.

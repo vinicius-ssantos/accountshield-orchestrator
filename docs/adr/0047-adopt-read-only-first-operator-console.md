@@ -1,4 +1,4 @@
-# ADR 0012: Adopt a read-only-first operator console
+# ADR 0047: Adopt a read-only-first operator console
 
 - Status: Accepted
 - Date: 2026-07-23

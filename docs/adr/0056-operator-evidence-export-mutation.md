@@ -1,4 +1,4 @@
-# ADR 0021: Operator evidence export as the fifth console mutation, and the first with a read/mutation split inside one feature
+# ADR 0056: Operator evidence export as the fifth console mutation, and the first with a read/mutation split inside one feature
 
 - Status: Accepted
 - Date: 2026-08-04
@@ -9,8 +9,8 @@ Issue #214 wires the read-only decision investigation console to the backend's e
 redacted evidence bundle service (issue #42, ADR 0028): `POST /api/v1/evidence/export`
 (`{protectionRequestId, reason}` → `EvidenceBundle`) and `POST /api/v1/evidence/verify`
 (`EvidenceBundle` → `{valid, problems}`). This is the fifth console mutation, after recovery
-review (#194, ADR 0018), policy lifecycle (#197), policy rollout (#200, ADR 0019), and outbox
-dead-letter requeue (#203, ADR 0020).
+review (#194, ADR 0053), policy lifecycle (#197), policy rollout (#200, ADR 0054), and outbox
+dead-letter requeue (#203, ADR 0055).
 
 No backend changes were required: both endpoints, their `SECURITY_OPERATOR` role gate, the
 append-only `audit.evidence_export_log` write, and the no-step-up posture already existed and
@@ -29,7 +29,7 @@ had a single, uniformly-classified action per feature; this is the first case ne
 ### `evidence-export` is a mutation; `evidence-verify` is a read
 
 `server/bff/evidence-export.ts` uses `requireOperatorSession` (no env-token fallback, CSRF and
-origin validation unconditional for the route), matching every mutation module since ADR 0018.
+origin validation unconditional for the route), matching every mutation module since ADR 0053.
 `server/bff/evidence-verify.ts` uses `resolveOperatorToken`, matching `decision-replay.ts`'s
 classification -- fixtures/dev env-token fallback allowed, same as any other read.
 
@@ -43,7 +43,7 @@ introduced here; this ADR just makes explicit that `evidence-verify` inherits it
 
 ### No step-up gate, on both routes
 
-Following ADR 0020's criterion (operational remediation / non-decision-changing action vs. a
+Following ADR 0055's criterion (operational remediation / non-decision-changing action vs. a
 privileged action that changes what the system decides or who gets access), evidence export is
 squarely on the "no step-up" side: it creates no new authorization, activates no policy, and
 changes no account-protection outcome. The manifest's signature and content hash -- not a fresh
@@ -78,7 +78,7 @@ body from a nominally read-only path) are removed rather than left in place: ARC
 for paths inside `readOnlyScopes`, so once the directory leaves that list the rule no longer
 applies there at all, and the entries would otherwise fail `architecture:check`'s ARCH011
 stale-exception validation -- the same fix already applied when `src/features/outbox/` left
-`readOnlyScopes` in ADR 0020.
+`readOnlyScopes` in ADR 0055.
 
 ### No new `BffErrorCode`
 
@@ -100,7 +100,7 @@ fixtures/dev env-token fallback to a route that has no real state-changing risk 
 
 ### Add a step-up gate to `export`, for consistency with the earlier three mutations
 
-Rejected for the same reason ADR 0019 and ADR 0020 already rejected it for rollback and requeue:
+Rejected for the same reason ADR 0054 and ADR 0055 already rejected it for rollback and requeue:
 the backend contract does not require a challenge for this endpoint, and ADR 0028 deliberately
 designed the bundle's own signature as this feature's security control. Inventing a step-up flow
 the backend doesn't support would misrepresent the actual authorization model.
@@ -154,9 +154,9 @@ one feature, in which case this ADR's precedent should be referenced rather than
 - Issue #42 / ADR 0028 -- the backend evidence bundle service this issue exposes through the
   console, including its threat model and the rationale for why signing (not step-up) is this
   feature's security control.
-- Issue #203 / ADR 0020 -- the immediately preceding mutation and the no-step-up criterion this
+- Issue #203 / ADR 0055 -- the immediately preceding mutation and the no-step-up criterion this
   ADR applies.
-- Issue #194 / ADR 0018 -- the origin of the `requireOperatorSession`-only rule for mutations.
+- Issue #194 / ADR 0053 -- the origin of the `requireOperatorSession`-only rule for mutations.
 - `frontend/src/server/bff/evidence-export-core.ts`, `evidence-export.ts`,
   `evidence-export-fixtures.ts`, `evidence-verify-core.ts`, `evidence-verify.ts`,
   `evidence-verify-fixtures.ts`, `frontend/src/features/decisions/evidence-export-browser.ts`,

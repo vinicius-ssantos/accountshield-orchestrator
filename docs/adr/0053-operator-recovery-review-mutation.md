@@ -1,4 +1,4 @@
-# ADR 0018: Operator recovery review as the first console mutation
+# ADR 0053: Operator recovery review as the first console mutation
 
 - Status: Accepted
 - Date: 2026-08-01
@@ -111,7 +111,7 @@ import cost; or a real compliance need for reviewer-supplied justification emerg
 
 - Issue #194 -- Implement operator recovery review (approve/deny) through the BFF with fresh
   step-up.
-- Issue #78 / ADR 0017 -- the session/CSRF infrastructure this mutation is the first real
+- Issue #78 / ADR 0052 -- the session/CSRF infrastructure this mutation is the first real
   consumer of.
 - ADR 0004 -- challenge orchestration via simulated providers (context for the step-up disclosure
   fix).

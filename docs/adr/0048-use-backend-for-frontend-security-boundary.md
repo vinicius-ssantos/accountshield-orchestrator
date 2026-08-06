@@ -1,4 +1,4 @@
-# ADR 0013: Use a backend-for-frontend security boundary
+# ADR 0048: Use a backend-for-frontend security boundary
 
 - Status: Accepted
 - Date: 2026-07-23

@@ -1,4 +1,4 @@
-# ADR 0019: Operator policy rollout controls as the third console mutation
+# ADR 0054: Operator policy rollout controls as the third console mutation
 
 - Status: Accepted
 - Date: 2026-08-02
@@ -8,7 +8,7 @@
 Issue #200 wires the read-only policy investigation console (issue #182/#183) to the backend's
 existing canary rollout flow (start rollout with a percentage, adjust percentage, roll back --
 issue #34): the third privileged mutation exposed by the operator console, after recovery review
-(#194, ADR 0018) and policy lifecycle approve/activate/reject/retire (#197).
+(#194, ADR 0053) and policy lifecycle approve/activate/reject/retire (#197).
 
 Building this surfaced the same backend gap already fixed twice before: `PolicyRolloutController`'s
 two step-up endpoints (start-rollout step-up, percentage-update step-up) always returned
@@ -23,7 +23,7 @@ is already generic (keyed only on `challengeId`, with no lifecycle-specific acti
 The BFF mutation module (`server/bff/policy-rollout-core.ts`, `policy-rollout.ts`,
 `policy-rollout-fixtures.ts`, five routes under `app/api/bff/policy-rollout/`) mirrors policy
 lifecycle's structure and reuses `require-session.ts`'s `requireOperatorSession` directly -- the
-same "no env-token fallback for mutations" rule established in ADR 0018 applies here too.
+same "no env-token fallback for mutations" rule established in ADR 0053 applies here too.
 
 Step-up verification does **not** get its own BFF route. Both rollout step-up flows use
 `ChallengePurpose.PRIVILEGED_OPERATION`, identical to policy lifecycle's, and the backend's
@@ -88,7 +88,7 @@ forcing them into the existing codes would produce a misleading UI message.
 - rollback's lack of step-up is an intentional backend design choice inherited as-is, not
   something this issue could change -- the UI's distinct confirmation styling is a compensating
   control, not equivalent security to a step-up gate;
-- no client-side role-based hiding, matching the precedent set in ADR 0018 -- an unauthorized
+- no client-side role-based hiding, matching the precedent set in ADR 0053 -- an unauthorized
   operator briefly sees rollout controls that will then fail against the backend's own role check.
 
 ## Guardrails
@@ -112,7 +112,7 @@ flow to change to match.
 
 - Issue #200 -- Implement operator policy rollout controls (start/adjust/rollback) through the BFF.
 - Issue #197 / policy lifecycle mutation -- the direct structural template for this module.
-- Issue #194 / ADR 0018 -- the first console mutation and the origin of the
+- Issue #194 / ADR 0053 -- the first console mutation and the origin of the
   `requireOperatorSession`-only rule.
 - ADR 0004 -- challenge orchestration via simulated providers (context for the step-up disclosure
   fix).

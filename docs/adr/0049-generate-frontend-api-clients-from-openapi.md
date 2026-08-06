@@ -1,4 +1,4 @@
-# ADR 0014: Generate frontend API clients from the published OpenAPI contract
+# ADR 0049: Generate frontend API clients from the published OpenAPI contract
 
 - Status: Accepted
 - Date: 2026-07-23
