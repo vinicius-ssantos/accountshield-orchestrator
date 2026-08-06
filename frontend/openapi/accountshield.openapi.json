@@ -1,0 +1,2398 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AccountShield Orchestrator API",
+    "version": "1.0.0",
+    "description": "Versioned frontend contract snapshot generated from the published Springdoc API."
+  },
+  "paths": {
+    "/api/v1/operator/decisions/investigate": {
+      "post": {
+        "operationId": "investigateDecision",
+        "summary": "Retrieve one authorized privacy-minimized decision timeline and provenance view",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionTimelineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision investigation timeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionTimelineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/operator/policies/investigate": {
+      "post": {
+        "operationId": "investigatePolicy",
+        "summary": "Retrieve one authorized privacy-minimized policy lifecycle and impact investigation",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyInvestigationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Policy investigation detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyInvestigationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/operator/policies/search": {
+      "post": {
+        "operationId": "searchPolicyDirectory",
+        "summary": "Search the authorized privacy-minimized policy directory read model",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicySearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Policy directory page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDirectorySearchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/operator/outbox/search": {
+      "post": {
+        "operationId": "searchOutboxOperations",
+        "summary": "Search the authorized privacy-minimized outbox delivery health and event read model",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboxSearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Outbox health and event page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/operator/decisions/replay": {
+      "post": {
+        "operationId": "replayDecision",
+        "summary": "Retrieve one authorized privacy-minimized deterministic replay comparison",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionReplayRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision replay comparison",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionReplayResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/operator/decisions/search": {
+      "post": {
+        "operationId": "searchDecisionInvestigations",
+        "summary": "Search the authorized privacy-minimized decision investigation read model",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionSearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision investigation page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/operator/recoveries/investigate": {
+      "post": {
+        "operationId": "investigateRecovery",
+        "summary": "Retrieve one authorized privacy-minimized recovery investigation view",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryInvestigationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recovery investigation view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryInvestigationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/operator/recoveries/search": {
+      "post": {
+        "operationId": "searchRecoveryInvestigations",
+        "summary": "Search the authorized privacy-minimized recovery investigation read model",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoverySearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recovery investigation page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoverySearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/protection-decisions": {
+      "post": {
+        "operationId": "createProtectionDecision",
+        "summary": "Evaluate an account-protection event",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtectionDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Protection decision created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProtectionDecisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "RFC 9457 problem details",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ProtectionEventType": {
+        "type": "string",
+        "enum": [
+          "LOGIN_ATTEMPT",
+          "SENSITIVE_ACTION",
+          "LOGIN_RECOVERY_ATTEMPT",
+          "PASSWORD_RESET_ATTEMPT",
+          "CREDENTIAL_CHANGE_ATTEMPT",
+          "DEVICE_TRUST_RESET_ATTEMPT"
+        ]
+      },
+      "NetworkRiskLevel": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ]
+      },
+      "ProtectionOutcome": {
+        "type": "string",
+        "enum": [
+          "ALLOW",
+          "REQUIRE_STEP_UP",
+          "START_RECOVERY",
+          "TEMPORARILY_BLOCK"
+        ]
+      },
+      "RiskBand": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ]
+      },
+      "ChallengeType": {
+        "type": "string",
+        "enum": [
+          "TOTP_SIMULATED",
+          "EMAIL_SIMULATED",
+          "WEBAUTHN_SIMULATED"
+        ]
+      },
+      "DecisionSearchEventType": {
+        "type": "string",
+        "enum": [
+          "LOGIN_ATTEMPT",
+          "SENSITIVE_ACTION",
+          "LOGIN_RECOVERY_ATTEMPT",
+          "PASSWORD_RESET_ATTEMPT",
+          "CREDENTIAL_CHANGE_ATTEMPT",
+          "DEVICE_TRUST_RESET_ATTEMPT"
+        ]
+      },
+      "DecisionSearchOutcome": {
+        "type": "string",
+        "enum": [
+          "ALLOW",
+          "REQUIRE_STEP_UP",
+          "START_RECOVERY",
+          "TEMPORARILY_BLOCK"
+        ]
+      },
+      "DecisionSearchRiskBand": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ]
+      },
+      "SectionAvailability": {
+        "type": "string",
+        "enum": [
+          "AVAILABLE",
+          "NOT_APPLICABLE",
+          "UNAVAILABLE"
+        ]
+      },
+      "SignalProvenanceState": {
+        "type": "string",
+        "enum": [
+          "RECORDED",
+          "SIMULATED",
+          "STALE",
+          "UNAVAILABLE"
+        ]
+      },
+      "RecoverySearchStatus": {
+        "type": "string",
+        "enum": [
+          "INITIATED",
+          "VERIFYING_IDENTITY",
+          "IDENTITY_VERIFIED",
+          "DELAYED",
+          "MANUAL_REVIEW",
+          "COMPLETED",
+          "IDENTITY_FAILED",
+          "REJECTED",
+          "ABORTED"
+        ]
+      },
+      "RecoverySearchClassification": {
+        "type": "string",
+        "enum": [
+          "IMMEDIATE",
+          "DELAYED",
+          "MANUAL_REVIEW"
+        ]
+      },
+      "RecoverySearchEventType": {
+        "type": "string",
+        "enum": [
+          "LOGIN",
+          "PASSWORD_RESET",
+          "CREDENTIAL_CHANGE",
+          "DEVICE_TRUST_RESET"
+        ]
+      },
+      "RecoveryReviewState": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "REVIEWED",
+          "NOT_APPLICABLE"
+        ]
+      },
+      "DecisionReplayRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisionReference"
+        ],
+        "properties": {
+          "decisionReference": {
+            "type": "string",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36
+          }
+        }
+      },
+      "DecisionReplaySideResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "outcome",
+          "riskScore",
+          "riskBand",
+          "reasons"
+        ],
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "riskScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "riskBand": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonResponse"
+            }
+          }
+        }
+      },
+      "DecisionReplayResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisionReference",
+          "maskedSubjectReference",
+          "matches",
+          "original",
+          "replayed",
+          "policyKey",
+          "policyVersion",
+          "algorithmVersion",
+          "normalizedInputSchemaVersion",
+          "reasonCatalogVersion",
+          "decisionEngineVersion",
+          "mismatches"
+        ],
+        "properties": {
+          "decisionReference": {
+            "type": "string"
+          },
+          "maskedSubjectReference": {
+            "type": "string"
+          },
+          "matches": {
+            "type": "boolean"
+          },
+          "original": {
+            "$ref": "#/components/schemas/DecisionReplaySideResponse"
+          },
+          "replayed": {
+            "$ref": "#/components/schemas/DecisionReplaySideResponse"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "normalizedInputSchemaVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasonCatalogVersion": {
+            "type": "string"
+          },
+          "decisionEngineVersion": {
+            "type": "string"
+          },
+          "mismatches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DecisionSearchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]{1,128}$"
+          },
+          "eventType": {
+            "$ref": "#/components/schemas/DecisionSearchEventType"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DecisionSearchOutcome"
+          },
+          "riskBand": {
+            "$ref": "#/components/schemas/DecisionSearchRiskBand"
+          },
+          "policyVersion": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "decidedFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          }
+        }
+      },
+      "DecisionSummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisionReference",
+          "correlationId",
+          "eventType",
+          "outcome",
+          "riskScore",
+          "riskBand",
+          "policyKey",
+          "policyVersion",
+          "decidedAt",
+          "degraded",
+          "simulated",
+          "provenanceAvailable"
+        ],
+        "properties": {
+          "decisionReference": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "riskScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "riskBand": {
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "degraded": {
+            "type": "boolean"
+          },
+          "simulated": {
+            "type": "boolean"
+          },
+          "provenanceAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DecisionSearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisions",
+          "pageSize",
+          "hasMore"
+        ],
+        "properties": {
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionSummaryResponse"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DecisionTimelineRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisionReference"
+        ],
+        "properties": {
+          "decisionReference": {
+            "type": "string",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36
+          }
+        }
+      },
+      "ReasonEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "contribution",
+          "ordinal"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SignalProvenanceEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "observedAt",
+          "confidence",
+          "schemaVersion",
+          "state",
+          "simulated",
+          "integrityAvailable"
+        ],
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "confidence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schemaVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/SignalProvenanceState"
+          },
+          "simulated": {
+            "type": "boolean"
+          },
+          "integrityAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PolicyProvenanceEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyKey",
+          "policyVersion",
+          "routingReason",
+          "rolloutCohortBucket",
+          "rolloutCandidateVersion",
+          "rolloutCandidateSelected"
+        ],
+        "properties": {
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "routingReason": {
+            "type": "string"
+          },
+          "rolloutCohortBucket": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rolloutCandidateVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rolloutCandidateSelected": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "ExecutionProvenanceEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "algorithmVersion",
+          "normalizedInputSchemaVersion",
+          "reasonCatalogVersion",
+          "decisionEngineVersion",
+          "applicationCommitSha",
+          "canonicalInputHashAvailable",
+          "auditRecordHashAvailable"
+        ],
+        "properties": {
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "normalizedInputSchemaVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasonCatalogVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decisionEngineVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "applicationCommitSha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "canonicalInputHashAvailable": {
+            "type": "boolean"
+          },
+          "auditRecordHashAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChallengeSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "challengeType",
+          "purpose",
+          "status",
+          "createdAt",
+          "expiresAt",
+          "consumedAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "challengeType": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "RecoverySummary": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "directive",
+          "status",
+          "issuedAt",
+          "expiresAt",
+          "consumedAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "directive": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "OutboxSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "eventType",
+          "status",
+          "occurredAt",
+          "publishedAt",
+          "deadLetteredAt",
+          "attemptCount"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deadLetteredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TimelineEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "kind",
+          "status",
+          "occurredAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InvestigationSections": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "challenge",
+          "recovery",
+          "outbox"
+        ],
+        "properties": {
+          "challenge": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          },
+          "recovery": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          },
+          "outbox": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          }
+        }
+      },
+      "DecisionTimelineResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decision",
+          "maskedSubjectReference",
+          "reasons",
+          "signalProvenance",
+          "policyProvenance",
+          "executionProvenance",
+          "challenges",
+          "recovery",
+          "outboxEvents",
+          "timeline",
+          "sections",
+          "partial"
+        ],
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/DecisionSummaryResponse"
+          },
+          "maskedSubjectReference": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonEvidence"
+            }
+          },
+          "signalProvenance": {
+            "$ref": "#/components/schemas/SignalProvenanceEvidence"
+          },
+          "policyProvenance": {
+            "$ref": "#/components/schemas/PolicyProvenanceEvidence"
+          },
+          "executionProvenance": {
+            "$ref": "#/components/schemas/ExecutionProvenanceEvidence"
+          },
+          "challenges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChallengeSummary"
+            }
+          },
+          "recovery": {
+            "$ref": "#/components/schemas/RecoverySummary"
+          },
+          "outboxEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutboxSummary"
+            }
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            }
+          },
+          "sections": {
+            "$ref": "#/components/schemas/InvestigationSections"
+          },
+          "partial": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RecoverySearchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RecoverySearchStatus"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/RecoverySearchClassification"
+          },
+          "eventType": {
+            "$ref": "#/components/schemas/RecoverySearchEventType"
+          },
+          "reviewState": {
+            "$ref": "#/components/schemas/RecoveryReviewState"
+          },
+          "initiatedFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "initiatedTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eligibleFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eligibleTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "minimumRiskScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "maximumRiskScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          }
+        }
+      },
+      "RecoverySummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recoveryReference",
+          "maskedSubjectReference",
+          "eventType",
+          "status",
+          "terminal",
+          "classification",
+          "classificationRuleVersion",
+          "riskScore",
+          "initiatedAt",
+          "updatedAt",
+          "eligibleAfter",
+          "originatingDecisionReference",
+          "reviewState",
+          "challengeExpected"
+        ],
+        "properties": {
+          "recoveryReference": {
+            "type": "string"
+          },
+          "maskedSubjectReference": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "terminal": {
+            "type": "boolean"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "classificationRuleVersion": {
+            "type": "string"
+          },
+          "riskScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "initiatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eligibleAfter": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "originatingDecisionReference": {
+            "type": "string"
+          },
+          "reviewState": {
+            "type": "string"
+          },
+          "challengeExpected": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RecoverySearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recoveries",
+          "pageSize",
+          "hasMore"
+        ],
+        "properties": {
+          "recoveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecoverySummaryResponse"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RecoveryInvestigationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recoveryReference"
+        ],
+        "properties": {
+          "recoveryReference": {
+            "type": "string",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36
+          }
+        }
+      },
+      "ChallengeEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "challengeType",
+          "purpose",
+          "status",
+          "createdAt",
+          "expiresAt",
+          "consumedAt"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "challengeType": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "RecoveryInvestigationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recovery",
+          "protectionRequestReference",
+          "reviewerPresent",
+          "challenges",
+          "challengeAvailability",
+          "partial"
+        ],
+        "properties": {
+          "recovery": {
+            "$ref": "#/components/schemas/RecoverySummaryResponse"
+          },
+          "protectionRequestReference": {
+            "type": "string"
+          },
+          "reviewerPresent": {
+            "type": "boolean"
+          },
+          "challenges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChallengeEvidence"
+            }
+          },
+          "challengeAvailability": {
+            "$ref": "#/components/schemas/SectionAvailability"
+          },
+          "partial": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProtectionDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountReference",
+          "eventType"
+        ],
+        "properties": {
+          "accountReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "eventType": {
+            "$ref": "#/components/schemas/ProtectionEventType"
+          },
+          "failedAttempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "default": 0
+          },
+          "newDevice": {
+            "type": "boolean",
+            "default": false
+          },
+          "impossibleTravel": {
+            "type": "boolean",
+            "default": false
+          },
+          "compromisedCredential": {
+            "type": "boolean",
+            "default": false
+          },
+          "networkRiskLevel": {
+            "$ref": "#/components/schemas/NetworkRiskLevel"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128
+          }
+        }
+      },
+      "ReasonResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "contribution"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "integer"
+          }
+        }
+      },
+      "ChallengeResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "challengeId",
+          "challengeType",
+          "expiresAt"
+        ],
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "challengeType": {
+            "$ref": "#/components/schemas/ChallengeType"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProtectionDecisionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decisionId",
+          "outcome",
+          "riskScore",
+          "riskBand",
+          "algorithmVersion",
+          "policyKey",
+          "policyVersion",
+          "reasons",
+          "decidedAt"
+        ],
+        "properties": {
+          "decisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectionRequestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "recoveryAuthorizationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ProtectionOutcome"
+          },
+          "riskScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "riskBand": {
+            "$ref": "#/components/schemas/RiskBand"
+          },
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonResponse"
+            }
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "challenge": {
+            "$ref": "#/components/schemas/ChallengeResponse"
+          }
+        }
+      },
+      "ProblemCode": {
+        "type": "string",
+        "enum": [
+          "INVALID_PROTECTION_REQUEST",
+          "ACTIVE_POLICY_UNAVAILABLE",
+          "IDEMPOTENCY_CONFLICT",
+          "RATE_LIMIT_EXCEEDED",
+          "INVALID_DECISION_SEARCH",
+          "DECISION_SEARCH_UNAVAILABLE",
+          "INVALID_DECISION_INVESTIGATION",
+          "DECISION_INVESTIGATION_NOT_FOUND",
+          "DECISION_INVESTIGATION_UNAVAILABLE",
+          "INVALID_RECOVERY_SEARCH",
+          "RECOVERY_SEARCH_UNAVAILABLE",
+          "INVALID_RECOVERY_INVESTIGATION",
+          "RECOVERY_INVESTIGATION_NOT_FOUND",
+          "RECOVERY_INVESTIGATION_UNAVAILABLE",
+          "INVALID_DECISION_REPLAY",
+          "DECISION_REPLAY_NOT_FOUND",
+          "DECISION_REPLAY_UNAVAILABLE",
+          "INVALID_POLICY_DIRECTORY_SEARCH",
+          "POLICY_DIRECTORY_SEARCH_UNAVAILABLE",
+          "INVALID_POLICY_INVESTIGATION",
+          "POLICY_INVESTIGATION_NOT_FOUND",
+          "POLICY_INVESTIGATION_UNAVAILABLE"
+        ]
+      },
+      "PolicySearchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "PolicyDirectorySummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyKey",
+          "totalVersions",
+          "hasActiveRollout"
+        ],
+        "properties": {
+          "policyKey": {
+            "type": "string"
+          },
+          "totalVersions": {
+            "type": "integer"
+          },
+          "activeVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activeVersionActivatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "hasActiveRollout": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PolicyDirectorySearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policies"
+        ],
+        "properties": {
+          "policies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDirectorySummaryResponse"
+            }
+          }
+        }
+      },
+      "OutboxSearchStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "IN_PROGRESS",
+          "PUBLISHED",
+          "DEAD_LETTERED"
+        ]
+      },
+      "OutboxSearchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "statuses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutboxSearchStatus"
+            }
+          },
+          "eventType": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "occurredFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "occurredTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "minAttemptCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "maxAttemptCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          }
+        }
+      },
+      "OutboxHealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pendingCount",
+          "retryingCount",
+          "inProgressCount",
+          "deadLetteredCount",
+          "recentlyDeadLetteredCount",
+          "recentlyPublishedCount",
+          "windowMinutes",
+          "asOf"
+        ],
+        "properties": {
+          "pendingCount": {
+            "type": "integer"
+          },
+          "retryingCount": {
+            "type": "integer"
+          },
+          "inProgressCount": {
+            "type": "integer"
+          },
+          "deadLetteredCount": {
+            "type": "integer"
+          },
+          "oldestPendingAgeSeconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "recentlyDeadLetteredCount": {
+            "type": "integer"
+          },
+          "recentlyPublishedCount": {
+            "type": "integer"
+          },
+          "windowMinutes": {
+            "type": "integer"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OutboxEventRecordResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "aggregateType",
+          "eventType",
+          "status",
+          "attemptCount",
+          "occurredAt",
+          "claimed",
+          "maskedCorrelationReference",
+          "deadLetterReasonAvailable"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OutboxSearchStatus"
+          },
+          "attemptCount": {
+            "type": "integer"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deadLetteredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "nextAttemptAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "claimed": {
+            "type": "boolean"
+          },
+          "claimedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "schemaVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maskedCorrelationReference": {
+            "type": "string"
+          },
+          "deadLetterReasonAvailable": {
+            "type": "boolean"
+          },
+          "deadLetterFailureCategory": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OutboxEventPageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "records",
+          "pageSize",
+          "hasMore"
+        ],
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutboxEventRecordResponse"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OutboxSearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "health",
+          "events"
+        ],
+        "properties": {
+          "health": {
+            "$ref": "#/components/schemas/OutboxHealthResponse"
+          },
+          "events": {
+            "$ref": "#/components/schemas/OutboxEventPageResponse"
+          }
+        }
+      },
+      "PolicyInvestigationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyKey"
+        ],
+        "properties": {
+          "policyKey": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      },
+      "PolicyLifecycleStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "VALIDATED",
+          "APPROVED",
+          "ACTIVE",
+          "RETIRED",
+          "REJECTED"
+        ]
+      },
+      "PolicyDiagnosticSeverity": {
+        "type": "string",
+        "enum": [
+          "ERROR",
+          "WARNING"
+        ]
+      },
+      "PolicyDiagnosticResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "severity",
+          "path",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/PolicyDiagnosticSeverity"
+          },
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyAnalysisResultResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "analyzerVersion",
+          "diagnostics"
+        ],
+        "properties": {
+          "analyzerVersion": {
+            "type": "string"
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDiagnosticResponse"
+            }
+          }
+        }
+      },
+      "PolicyGovernanceResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "createdBy",
+          "validatedBy",
+          "validatedAt",
+          "approvedBy",
+          "approvedAt",
+          "approvalReason"
+        ],
+        "properties": {
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "validatedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "validatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approvalReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PolicyVersionSummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "policyKey",
+          "version",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PolicyLifecycleStatus"
+          },
+          "allowMaxScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stepUpMaxScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "recoveryMaxScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "activatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/PolicyAnalysisResultResponse"
+          },
+          "governance": {
+            "$ref": "#/components/schemas/PolicyGovernanceResponse"
+          }
+        }
+      },
+      "PolicyRoutingScopeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientId",
+          "eventType"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyRolloutLifecycleStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "ROLLED_BACK"
+        ]
+      },
+      "PolicyRolloutSummaryResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "candidateVersion",
+          "rolloutPercentage",
+          "status",
+          "startedAt",
+          "startedBy",
+          "updatedAt"
+        ],
+        "properties": {
+          "candidateVersion": {
+            "type": "string"
+          },
+          "rolloutPercentage": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PolicyRolloutLifecycleStatus"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rolledBackAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "rolledBackBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PolicyImpactAvailability": {
+        "type": "string",
+        "enum": [
+          "AVAILABLE",
+          "NOT_APPLICABLE",
+          "UNAVAILABLE"
+        ]
+      },
+      "PolicyDivergentDecisionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "maskedProtectionRequestReference",
+          "redactedAccountReference",
+          "originalOutcome",
+          "candidateOutcome",
+          "riskScore",
+          "originalReasons"
+        ],
+        "properties": {
+          "maskedProtectionRequestReference": {
+            "type": "string"
+          },
+          "redactedAccountReference": {
+            "type": "string"
+          },
+          "originalOutcome": {
+            "type": "string"
+          },
+          "candidateOutcome": {
+            "type": "string"
+          },
+          "riskScore": {
+            "type": "integer"
+          },
+          "originalReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonResponse"
+            }
+          }
+        }
+      },
+      "PolicyImpactSummaryResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "candidatePolicyVersion",
+          "originalPolicyVersionsObserved",
+          "algorithmVersionsObserved",
+          "totalDecisions",
+          "divergentDecisionsCount",
+          "divergencePercentage",
+          "maxDivergencePercentageThreshold",
+          "exceedsDivergenceThreshold",
+          "transitionMatrix",
+          "impactByEventType",
+          "impactByRiskBand",
+          "divergentDecisions"
+        ],
+        "properties": {
+          "candidatePolicyVersion": {
+            "type": "string"
+          },
+          "originalPolicyVersionsObserved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "algorithmVersionsObserved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalDecisions": {
+            "type": "integer"
+          },
+          "divergentDecisionsCount": {
+            "type": "integer"
+          },
+          "divergencePercentage": {
+            "type": "number"
+          },
+          "maxDivergencePercentageThreshold": {
+            "type": "number"
+          },
+          "exceedsDivergenceThreshold": {
+            "type": "boolean"
+          },
+          "transitionMatrix": {
+            "type": "object"
+          },
+          "impactByEventType": {
+            "type": "object"
+          },
+          "impactByRiskBand": {
+            "type": "object"
+          },
+          "divergentDecisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDivergentDecisionResponse"
+            }
+          }
+        }
+      },
+      "PolicyInvestigationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyKey",
+          "versions",
+          "routingScope",
+          "impactAvailability"
+        ],
+        "properties": {
+          "policyKey": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyVersionSummaryResponse"
+            }
+          },
+          "routingScope": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyRoutingScopeResponse"
+            }
+          },
+          "activeRollout": {
+            "$ref": "#/components/schemas/PolicyRolloutSummaryResponse"
+          },
+          "impactAnalysis": {
+            "$ref": "#/components/schemas/PolicyImpactSummaryResponse"
+          },
+          "impactAvailability": {
+            "$ref": "#/components/schemas/PolicyImpactAvailability"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ProblemCode"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "retryAfter": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

@@ -19,7 +19,7 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# virtual machine crash logs
 hs_err_pid*
 replay_pid*
 
@@ -36,8 +36,7 @@ target/
 # Local-only self-review notes (findings are tracked as GitHub issues instead)
 docs/reviews/
 
-# Frontend (tracked source lives on integration/frontend-console; these are local
-# dependency/build artifacts left on disk when switching to a branch that doesn't track them)
+# Frontend
 frontend/node_modules/
 frontend/.next/
 frontend/next-env.d.ts

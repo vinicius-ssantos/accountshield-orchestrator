@@ -157,17 +157,30 @@ The authoritative capability status is maintained in the [feature catalog](docs/
 - envelope encryption/key rotation/crypto-shredding, database least-privilege roles, and a data classification/pseudonymization/retention model;
 - transaction-aware observability, distributed tracing (Micrometer + OTLP + Jaeger), a resilience/concurrency fault-injection suite, property-based tests and API fuzzing, a reproducible capacity benchmark, and an executable backup/restore/disaster-recovery drill;
 - CI/software-supply-chain security (CodeQL, dependency review, Trivy/Gitleaks, SBOM, Dependabot), OpenAPI/AsyncAPI compatibility gates, and an adversarial account-takeover scenario laboratory;
-- a standalone Java SDK (`sdk/`) with a runnable demo consumer (`demo/`) and a Scenario CLI (`cli/`), all built on the public API only.
+- a standalone Java SDK (`sdk/`) with a runnable demo consumer (`demo/`) and a Scenario CLI (`cli/`), all built on the public API only;
+- a Next.js/BFF operator console (issue #41) with read-only investigation and authenticated operator mutations (recovery review, policy lifecycle/rollout, dead-letter requeue, evidence export).
 
 ### Partial
 
-See the [feature catalog](docs/features/README.md) for the exact, per-capability list of what remains partial (e.g. RFC 9457 problem-code completeness, some replay-provenance edges) -- none of it blocks the core golden path above.
+See the [feature catalog](docs/features/README.md) for the exact, per-capability list of what remains partial (e.g. RFC 9457 problem-code completeness, some replay-provenance edges, operator console portfolio polish) -- none of it blocks the core golden path above.
 
 ### Not yet delivered
 
-The operator console (issue #41, Next.js/BFF, its own dedicated epic) remains a separate, larger, in-progress initiative. A tagged `v1.0.0` release with Docker/GHCR artifacts, changelog, and SBOM attachment is being finalized (issue #28).
+Production-grade (non-simulated) challenge providers remain out of scope for this portfolio release by design (see "Explicitly out of scope" above). See the [feature catalog](docs/features/README.md) for the authoritative, per-capability implemented/partial/planned breakdown.
 
 See the [dependency-ordered roadmap](docs/roadmap.md) for the full delivery history and gate structure. Open pull requests are not classified as delivered until merged into `main`.
+
+## Security Operations Console
+
+The repository includes a Next.js operator console under [`frontend/`](frontend/), fronted by a server-only BFF. Beyond read-only investigation of decisions, recoveries, policies, replay, and outbox operations, it now exposes authenticated, audited operator mutations — recovery review with fresh step-up, policy lifecycle and rollout control, dead-letter requeue, and evidence export — gated behind a secure BFF session. Backend authorization remains authoritative for every mutation.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend architecture, security constraints, and planned delivery slices are documented in [`frontend/README.md`](frontend/README.md) and [`docs/frontend/architecture.md`](docs/frontend/architecture.md).
 
 ## Local development
 

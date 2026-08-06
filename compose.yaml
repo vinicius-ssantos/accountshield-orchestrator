@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-accountshield}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-accountshield-local-only}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -36,13 +36,48 @@ services:
       # the app's port 8080 outside localhost while this profile is active (see SECURITY.md).
       SPRING_PROFILES_ACTIVE: local
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-local}
+        ACCOUNTSHIELD_DATA_SOURCE: ${ACCOUNTSHIELD_DATA_SOURCE:-fixtures}
+    container_name: accountshield-frontend
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      ACCOUNTSHIELD_API_URL: http://app:8080
+      ACCOUNTSHIELD_DATA_SOURCE: ${ACCOUNTSHIELD_DATA_SOURCE:-fixtures}
+      ACCOUNTSHIELD_BFF_TIMEOUT_MS: ${ACCOUNTSHIELD_BFF_TIMEOUT_MS:-2000}
+      ACCOUNTSHIELD_BFF_MAX_RESPONSE_BYTES: ${ACCOUNTSHIELD_BFF_MAX_RESPONSE_BYTES:-32768}
+      NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-local}
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3001}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/healthz').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
 
   # Issue #55 (ADR 0037): the realistic Java consumer demo, built on accountshield-sdk. Opt-in
   # (profile, not started by a plain "docker compose up") since it is a one-shot client run, not a
@@ -79,7 +114,7 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
 
   grafana:
     image: grafana/grafana:11.3.0
@@ -93,7 +128,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/accountshield-dashboard.json:/var/lib/grafana/dashboards/accountshield-dashboard.json:ro
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
 
 volumes:
   accountshield-postgres:

@@ -1,0 +1,337 @@
+#!/usr/bin/env node
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const GENERATOR_NAME = "accountshield-openapi-generator";
+const GENERATOR_VERSION = "1.0.0";
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+const FRONTEND_DIR = resolve(SCRIPT_DIR, "..");
+const INPUT_PATH = resolve(FRONTEND_DIR, "openapi/accountshield.openapi.json");
+const TYPES_PATH = resolve(
+  FRONTEND_DIR,
+  "src/generated/accountshield/openapi-types.ts",
+);
+const CLIENT_PATH = resolve(
+  FRONTEND_DIR,
+  "src/generated/accountshield/openapi-client.ts",
+);
+const CHECK_MODE = process.argv.includes("--check");
+
+function fail(message) {
+  console.error(`${GENERATOR_NAME}: ${message}`);
+  process.exit(1);
+}
+
+function assertObject(value, message) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail(message);
+  }
+  return value;
+}
+
+function referenceName(reference) {
+  const prefix = "#/components/schemas/";
+  if (typeof reference !== "string" || !reference.startsWith(prefix)) {
+    fail(`unsupported reference: ${String(reference)}`);
+  }
+  return reference.slice(prefix.length);
+}
+
+function schemaType(schema) {
+  if (schema.$ref) {
+    return referenceName(schema.$ref);
+  }
+
+  const rawType = schema.type;
+  const nullable = Array.isArray(rawType) && rawType.includes("null");
+  const type = Array.isArray(rawType)
+    ? rawType.find((candidate) => candidate !== "null")
+    : rawType;
+
+  let result;
+  switch (type) {
+    case "string":
+      result = "string";
+      break;
+    case "integer":
+    case "number":
+      result = "number";
+      break;
+    case "boolean":
+      result = "boolean";
+      break;
+    case "array":
+      result = `ReadonlyArray<${schemaType(assertObject(schema.items, "array items are required"))}>`;
+      break;
+    case "object":
+      result = "Readonly<Record<string, unknown>>";
+      break;
+    default:
+      fail(`unsupported schema type: ${String(type)}`);
+  }
+
+  return nullable ? `${result} | null` : result;
+}
+
+function enumDeclaration(name, schema) {
+  const values = schema.enum;
+  if (!Array.isArray(values) || values.some((value) => typeof value !== "string")) {
+    fail(`${name} enum values must be strings`);
+  }
+
+  return [
+    `export const ${name}KnownValues = [`,
+    ...values.map((value) => `  ${JSON.stringify(value)},`),
+    `] as const;`,
+    ``,
+    `export type ${name}Known = (typeof ${name}KnownValues)[number];`,
+    `export type ${name} = ${name}Known | (string & {});`,
+  ].join("\n");
+}
+
+function objectDeclaration(name, schema) {
+  const properties = assertObject(schema.properties ?? {}, `${name} properties must be an object`);
+  const propertyNames = Object.keys(properties).sort();
+  const required = new Set(Array.isArray(schema.required) ? schema.required : []);
+  const nullable = Array.isArray(schema.type) && schema.type.includes("null");
+  const interfaceName = nullable ? `${name}Value` : name;
+
+  if (propertyNames.length === 0) {
+    // An empty `interface X {}` allows any non-nullish value (including primitives), which
+    // @typescript-eslint/no-empty-object-type rejects. Record<string, never> is the lint-clean
+    // equivalent of "an object with no properties" for a genuinely filter-less request schema.
+    const lines = [`export type ${interfaceName} = Record<string, never>;`];
+    if (nullable) {
+      lines.push("", `export type ${name} = ${interfaceName} | null;`);
+    }
+    return lines.join("\n");
+  }
+
+  const lines = [`export interface ${interfaceName} {`];
+
+  for (const propertyName of propertyNames) {
+    const propertySchema = assertObject(
+      properties[propertyName],
+      `${name}.${propertyName} must be a schema`,
+    );
+    const optional = required.has(propertyName) ? "" : "?";
+    lines.push(
+      `  readonly ${propertyName}${optional}: ${schemaType(propertySchema)};`,
+    );
+  }
+
+  lines.push("}");
+  if (nullable) {
+    lines.push("", `export type ${name} = ${interfaceName} | null;`);
+  }
+  return lines.join("\n");
+}
+
+function generateTypes(document, sourceHash) {
+  const components = assertObject(document.components, "components are required");
+  const schemas = assertObject(components.schemas, "components.schemas are required");
+  const declarations = [];
+
+  for (const name of Object.keys(schemas).sort()) {
+    const schema = assertObject(schemas[name], `${name} must be a schema`);
+    if (Array.isArray(schema.enum)) {
+      declarations.push(enumDeclaration(name, schema));
+      continue;
+    }
+
+    const rawType = schema.type;
+    const objectType =
+      rawType === "object" ||
+      (Array.isArray(rawType) && rawType.includes("object"));
+    if (objectType) {
+      declarations.push(objectDeclaration(name, schema));
+      continue;
+    }
+
+    declarations.push(`export type ${name} = ${schemaType(schema)};`);
+  }
+
+  return [
+    `// Generated by ${GENERATOR_NAME}@${GENERATOR_VERSION}.`,
+    `// Source: openapi/accountshield.openapi.json`,
+    `// Source SHA-256: ${sourceHash}`,
+    `// DO NOT EDIT. Run: npm run openapi:generate`,
+    ``,
+    ...declarations.flatMap((declaration) => [declaration, ""]),
+  ].join("\n");
+}
+
+function responseSchemaFor(operation) {
+  const responses = assertObject(operation.responses, "operation responses are required");
+  const successStatus = Object.keys(responses)
+    .filter((status) => /^2\d\d$/.test(status))
+    .sort()[0];
+  if (!successStatus) {
+    fail("operation requires a 2xx response");
+  }
+
+  const response = assertObject(responses[successStatus], `${successStatus} response is invalid`);
+  const content = assertObject(response.content, `${successStatus} response content is required`);
+  const media = assertObject(
+    content["application/json"],
+    `${successStatus} application/json response is required`,
+  );
+  return {
+    status: Number(successStatus),
+    schemaName: referenceName(assertObject(media.schema, "response schema is required").$ref),
+  };
+}
+
+function requestSchemaFor(operation) {
+  const requestBody = assertObject(operation.requestBody, "requestBody is required");
+  const content = assertObject(requestBody.content, "requestBody.content is required");
+  const media = assertObject(
+    content["application/json"],
+    "application/json request body is required",
+  );
+  return referenceName(assertObject(media.schema, "request schema is required").$ref);
+}
+
+function generateClient(document, sourceHash) {
+  const paths = assertObject(document.paths, "paths are required");
+  const operations = [];
+
+  for (const path of Object.keys(paths).sort()) {
+    const pathItem = assertObject(paths[path], `${path} path item is invalid`);
+    for (const method of ["get", "post", "put", "patch", "delete"]) {
+      if (!pathItem[method]) continue;
+      const operation = assertObject(pathItem[method], `${method} ${path} is invalid`);
+      const operationId = operation.operationId;
+      if (typeof operationId !== "string" || !/^[A-Za-z][A-Za-z0-9]*$/.test(operationId)) {
+        fail(`${method.toUpperCase()} ${path} requires a safe operationId`);
+      }
+      const requestSchema =
+        method === "get" || method === "delete" ? null : requestSchemaFor(operation);
+      const response = responseSchemaFor(operation);
+      operations.push({
+        operationId,
+        method: method.toUpperCase(),
+        path,
+        requestSchema,
+        responseSchema: response.schemaName,
+        responseStatus: response.status,
+      });
+    }
+  }
+
+  const importedTypes = Array.from(
+    new Set(
+      operations.flatMap((operation) =>
+        [operation.requestSchema, operation.responseSchema].filter(Boolean),
+      ),
+    ),
+  ).sort();
+
+  const lines = [
+    `// Generated by ${GENERATOR_NAME}@${GENERATOR_VERSION}.`,
+    `// Source: openapi/accountshield.openapi.json`,
+    `// Source SHA-256: ${sourceHash}`,
+    `// DO NOT EDIT. Run: npm run openapi:generate`,
+    ``,
+    `import type {`,
+    ...importedTypes.map((name) => `  ${name},`),
+    `} from "./openapi-types";`,
+    ``,
+    `export interface GeneratedTransportRequest {`,
+    `  readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";`,
+    `  readonly path: string;`,
+    `  readonly body?: unknown;`,
+    `  readonly expectedStatus: number;`,
+    `  readonly signal?: AbortSignal;`,
+    `}`,
+    ``,
+    `export interface AccountShieldGeneratedTransport {`,
+    `  request<TResponse>(request: GeneratedTransportRequest): Promise<TResponse>;`,
+    `}`,
+    ``,
+  ];
+
+  for (const operation of operations) {
+    const bodyParameter = operation.requestSchema
+      ? `\n  body: ${operation.requestSchema},`
+      : "";
+    const bodyField = operation.requestSchema ? `\n    body,` : "";
+    lines.push(
+      `export function ${operation.operationId}(`,
+      `  transport: AccountShieldGeneratedTransport,${bodyParameter}`,
+      `  signal?: AbortSignal,`,
+      `): Promise<${operation.responseSchema}> {`,
+      `  return transport.request<${operation.responseSchema}>({`,
+      `    method: ${JSON.stringify(operation.method)},`,
+      `    path: ${JSON.stringify(operation.path)},${bodyField}`,
+      `    expectedStatus: ${operation.responseStatus},`,
+      `    signal,`,
+      `  });`,
+      `}`,
+      ``,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+async function writeOrCheck(path, expected) {
+  if (CHECK_MODE) {
+    let current;
+    try {
+      current = await readFile(path, "utf8");
+    } catch {
+      fail(`generated file is missing: ${path}`);
+    }
+
+    if (current !== expected) {
+      let divergedAt = 0;
+      while (
+        divergedAt < current.length &&
+        divergedAt < expected.length &&
+        current[divergedAt] === expected[divergedAt]
+      ) {
+        divergedAt += 1;
+      }
+      const context = (value) =>
+        JSON.stringify(value.slice(Math.max(0, divergedAt - 20), divergedAt + 20));
+      fail(
+        `generated output is stale: ${path}. Run npm run openapi:generate ` +
+          `(current.length=${current.length}, expected.length=${expected.length}, ` +
+          `diverged at index ${divergedAt}; current: ${context(current)}; expected: ${context(expected)})`,
+      );
+    }
+    return;
+  }
+
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, expected, "utf8");
+  console.log(`generated ${path}`);
+}
+
+const source = await readFile(INPUT_PATH, "utf8");
+let document;
+try {
+  document = JSON.parse(source);
+} catch (error) {
+  fail(`OpenAPI input is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+if (document.openapi !== "3.1.0") {
+  fail(`expected OpenAPI 3.1.0, received ${String(document.openapi)}`);
+}
+if ("servers" in document) {
+  fail("authoritative frontend contract must not contain environment-specific servers");
+}
+
+const sourceHash = createHash("sha256").update(source).digest("hex");
+await writeOrCheck(TYPES_PATH, generateTypes(document, sourceHash));
+await writeOrCheck(CLIENT_PATH, generateClient(document, sourceHash));
+
+if (CHECK_MODE) {
+  console.log(
+    `${GENERATOR_NAME}@${GENERATOR_VERSION}: generated output is current`,
+  );
+}
