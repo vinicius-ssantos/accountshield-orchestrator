@@ -1,12 +1,18 @@
 package io.github.viniciusssantos.accountshield.outbox.internal;
 
+import io.github.viniciusssantos.accountshield.audit.AuditChainIntegrityFailed;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeCompleted;
+import io.github.viniciusssantos.accountshield.outbox.AccountPseudonymizer;
+import io.github.viniciusssantos.accountshield.outbox.IntegrationEventEnvelope;
+import io.github.viniciusssantos.accountshield.outbox.IntegrationEventSchema;
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventEntity;
 import io.github.viniciusssantos.accountshield.outbox.internal.persistence.OutboxEventRepository;
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionMade;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryManualReviewRequired;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -19,24 +25,27 @@ public class OutboxEventRecorder {
 
     private final OutboxEventRepository repository;
     private final ObjectMapper objectMapper;
+    private final AccountPseudonymizer pseudonymizer;
 
-    public OutboxEventRecorder(OutboxEventRepository repository, ObjectMapper objectMapper) {
+    public OutboxEventRecorder(
+            OutboxEventRepository repository, ObjectMapper objectMapper, AccountPseudonymizer pseudonymizer) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.pseudonymizer = pseudonymizer;
     }
 
     @EventListener
     @Transactional(propagation = Propagation.MANDATORY)
     public void onProtectionDecisionMade(ProtectionDecisionMade event) {
         record(event.decidedAt(), "ProtectionDecision", event.decisionId().toString(),
-                "PROTECTION_DECISION_MADE", event);
+                "PROTECTION_DECISION_MADE", pseudonymizedPayload(event, event.accountReference()));
     }
 
     @EventListener
     @Transactional(propagation = Propagation.MANDATORY)
     public void onChallengeCompleted(ChallengeCompleted event) {
         record(event.completedAt(), "Challenge", event.challengeId().toString(),
-                "CHALLENGE_COMPLETED", event);
+                "CHALLENGE_COMPLETED", pseudonymizedPayload(event, event.accountReference()));
     }
 
     @EventListener
@@ -50,18 +59,44 @@ public class OutboxEventRecorder {
     @Transactional(propagation = Propagation.MANDATORY)
     public void onRecoveryCompleted(RecoveryCompleted event) {
         record(event.completedAt(), "Recovery", event.recoveryId().toString(),
-                "RECOVERY_COMPLETED", event);
+                "RECOVERY_COMPLETED", pseudonymizedPayload(event, event.accountReference()));
+    }
+
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onRecoveryManualReviewRequired(RecoveryManualReviewRequired event) {
+        record(event.requiredAt(), "Recovery", event.recoveryId().toString(),
+                "RECOVERY_MANUAL_REVIEW_REQUIRED", pseudonymizedPayload(event, event.accountReference()));
+    }
+
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onAuditChainIntegrityFailed(AuditChainIntegrityFailed event) {
+        record(event.detectedAt(), "AuditChain", event.fromSequence() + "-" + event.toSequence(),
+                "AUDIT_INTEGRITY_FAILED", event);
     }
 
     private void record(Instant occurredAt, String aggregateType, String aggregateId,
             String eventType, Object payload) {
+        UUID eventId = UUID.randomUUID();
+        IntegrationEventEnvelope envelope = new IntegrationEventEnvelope(
+                eventId, IntegrationEventSchema.CURRENT_VERSION, aggregateId, occurredAt, payload);
         repository.save(new OutboxEventEntity(
-                UUID.randomUUID(),
+                eventId,
                 aggregateType,
                 aggregateId,
                 eventType,
-                serialize(payload),
+                serialize(envelope),
                 occurredAt));
+    }
+
+    // the outbox payload is the actual integration-event boundary; raw account identifiers must not cross it
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> pseudonymizedPayload(Object event, String accountReference) {
+        Map<String, Object> payload = (Map<String, Object>) objectMapper.convertValue(event, Map.class);
+        payload.remove("accountReference");
+        payload.put("subjectToken", pseudonymizer.pseudonymize(accountReference));
+        return payload;
     }
 
     private String serialize(Object value) {

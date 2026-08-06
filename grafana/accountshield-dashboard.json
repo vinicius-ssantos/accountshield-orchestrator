@@ -96,6 +96,87 @@
           "legendFormat": "{{policy_key}}"
         }
       ]
+    },
+    {
+      "title": "Decision Latency (p50/p95/p99)",
+      "description": "accountshield_protection_decision_duration_seconds: a real duration Timer around ProtectionDecisionApplicationService.decide(), tagged only by outcome (ADR 0030). Replaces the risk-score-based latency proxy the SLO doc previously (incorrectly) referenced.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(accountshield_protection_decision_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(accountshield_protection_decision_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(accountshield_protection_decision_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "title": "Retention Purged by Job (outbox / challenge / recovery / idempotency)",
+      "description": "accountshield_retention_purged_total, tagged by job: challenge-plan-retention, outbox-event-retention, idempotency-record-retention, recovery-flow-retention, recovery-authorization-retention.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(accountshield_retention_purged_total[1h]))",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "title": "Outbox Dead-Lettered Count",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 32, "w": 6, "h": 8 },
+      "targets": [
+        {
+          "expr": "accountshield_outbox_dead_lettered_count",
+          "legendFormat": "dead-lettered"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 1, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Outbox Oldest Pending Age (s)",
+      "type": "gauge",
+      "gridPos": { "x": 18, "y": 32, "w": 6, "h": 8 },
+      "targets": [
+        {
+          "expr": "accountshield_outbox_pending_oldest_age_seconds",
+          "legendFormat": "oldest pending"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 60, "color": "yellow" },
+              { "value": 300, "color": "red" }
+            ]
+          }
+        }
+      }
     }
   ]
 }

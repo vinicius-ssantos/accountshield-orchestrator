@@ -4,9 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.viniciusssantos.accountshield.audit.DecisionTraceRecorder;
+import io.github.viniciusssantos.accountshield.crypto.FieldEncryptionService;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRolloutService;
+import io.github.viniciusssantos.accountshield.policy.PolicyRoutingService;
 import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.challenge.ChallengePlan;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeResult;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeVerificationCommand;
+import io.github.viniciusssantos.accountshield.challenge.ConsumeChallengeCommand;
+import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyGuard;
 import io.github.viniciusssantos.accountshield.protection.IdempotencyResult;
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionCommand;
@@ -17,8 +25,12 @@ import io.github.viniciusssantos.accountshield.protection.internal.ProtectionDec
 import io.github.viniciusssantos.accountshield.protection.internal.persistence.ProtectionRequestRepository;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
 import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +57,12 @@ class ProtectionDecisionIntegrationTest {
     private PolicyEvaluationService policyEvaluationService;
 
     @Autowired
+    private PolicyRoutingService policyRoutingService;
+
+    @Autowired
+    private PolicyRolloutService policyRolloutService;
+
+    @Autowired
     private ProtectionRequestRepository protectionRequestRepository;
 
     @Autowired
@@ -58,6 +76,12 @@ class ProtectionDecisionIntegrationTest {
 
     @Autowired
     private org.springframework.context.ApplicationContext applicationContext;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    @Autowired
+    private FieldEncryptionService fieldEncryptionService;
 
     @Test
     void persistsAllInitialOutcomesWithVersionedExplainability() {
@@ -111,6 +135,16 @@ class ProtectionDecisionIntegrationTest {
                     decision.decisionId()))
                     .isEqualTo("LOW");
             assertThat(jdbcTemplate.queryForObject(
+                    "SELECT normalized_context ->> 'reasonCatalogVersion' FROM audit.decision_trace WHERE id = ?",
+                    String.class,
+                    decision.decisionId()))
+                    .isEqualTo("risk-reason-catalog-1.0");
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT normalized_context ->> 'decisionEngineVersion' FROM audit.decision_trace WHERE id = ?",
+                    String.class,
+                    decision.decisionId()))
+                    .isEqualTo("decision-engine-1.0");
+            assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM audit.decision_reason WHERE decision_id = ?",
                     Long.class,
                     decision.decisionId()))
@@ -135,17 +169,19 @@ class ProtectionDecisionIntegrationTest {
         };
         IdempotencyGuard noOpGuard = new IdempotencyGuard() {
             @Override
-            public IdempotencyResult resolve(String key, String fingerprint, Instant now) {
+            public IdempotencyResult claim(
+                    String clientId, String key, String fingerprint, UUID resourceId, Instant now) {
                 return IdempotencyResult.absent();
             }
             @Override
-            public void record(String key, String fingerprint, String resourceType,
-                    UUID resourceId, String responsePayload, Instant createdAt, Instant expiresAt) {
+            public void finalizeResult(String clientId, String key, String responsePayload) {
             }
         };
         var failingService = new ProtectionDecisionApplicationService(
                 riskAssessmentService,
                 policyEvaluationService,
+                policyRoutingService,
+                policyRolloutService,
                 protectionRequestRepository,
                 failingRecorder,
                 noOpGuard,
@@ -153,11 +189,13 @@ class ProtectionDecisionIntegrationTest {
                 Clock.systemUTC(),
                 new ObjectMapper(),
                 applicationContext,
-                (acct, ts) -> {});
+                (clientId, acct, ts) -> {},
+                Duration.ofMinutes(5),
+                meterRegistry);
         var command = new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
-                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
                 "rollback-test-" + UUID.randomUUID());
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
@@ -168,19 +206,140 @@ class ProtectionDecisionIntegrationTest {
         assertThat(requestCount(accountReference)).isEqualTo(before);
     }
 
+    @Test
+    void staleSignalEnvelopeProducesNoProtectionRequestRow() {
+        String accountReference = "integration-stale-" + UUID.randomUUID();
+        RiskSignalEnvelope staleEnvelope = new RiskSignalEnvelope(
+                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                "CLIENT_SUPPLIED",
+                Instant.now().minus(Duration.ofHours(1)),
+                SignalConfidence.HIGH,
+                null,
+                true);
+
+        assertThatThrownBy(() -> protectionDecisionService.decide(new ProtectionDecisionCommand(
+                accountReference,
+                ProtectionEventType.LOGIN_ATTEMPT,
+                staleEnvelope,
+                "idem-" + UUID.randomUUID())))
+                .isInstanceOf(io.github.viniciusssantos.accountshield.protection.StaleRiskSignalException.class);
+
+        assertThat(requestCount(accountReference)).isZero();
+    }
+
+    @Test
+    void challengeProviderFailureDegradesToPersistedTemporarilyBlock() {
+        String accountReference = "integration-degraded-" + UUID.randomUUID();
+        ChallengeService failingChallengeService = new ChallengeService() {
+            @Override
+            public ChallengePlan create(CreateChallengeCommand command) {
+                throw new IllegalStateException("simulated challenge provider outage");
+            }
+
+            @Override
+            public ChallengeResult verify(ChallengeVerificationCommand command) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ChallengePlan consume(ConsumeChallengeCommand command) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        var degradingService = new ProtectionDecisionApplicationService(
+                riskAssessmentService,
+                policyEvaluationService,
+                policyRoutingService,
+                policyRolloutService,
+                protectionRequestRepository,
+                applicationContext.getBean(DecisionTraceRecorder.class),
+                applicationContext.getBean(IdempotencyGuard.class),
+                failingChallengeService,
+                Clock.systemUTC(),
+                new ObjectMapper(),
+                applicationContext,
+                (clientId, acct, ts) -> {},
+                Duration.ofMinutes(5),
+                meterRegistry);
+
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        ProtectionDecisionResult result = transactionTemplate.execute(status -> degradingService.decide(
+                new ProtectionDecisionCommand(
+                        accountReference,
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        envelope(new RiskSignals(10, false, false, false, NetworkRiskLevel.LOW)),
+                        "idem-" + UUID.randomUUID())));
+
+        assertThat(result.outcome()).isEqualTo(ProtectionOutcome.TEMPORARILY_BLOCK);
+        assertThat(result.degraded()).isTrue();
+        assertThat(result.degradationReason()).isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT outcome FROM audit.decision_trace WHERE id = ?",
+                String.class, result.decisionId()))
+                .isEqualTo("TEMPORARILY_BLOCK");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT normalized_context ->> 'degraded' FROM audit.decision_trace WHERE id = ?",
+                String.class, result.decisionId()))
+                .isEqualTo("true");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT normalized_context ->> 'degradationReason' FROM audit.decision_trace WHERE id = ?",
+                String.class, result.decisionId()))
+                .isEqualTo("CHALLENGE_PROVIDER_UNAVAILABLE");
+    }
+
+    @Test
+    void twoClientsReusingTheSameAccountReferenceAndIdempotencyKeySucceedIndependently() {
+        String sharedAccountReference = "shared-across-clients-" + UUID.randomUUID();
+        String sharedIdempotencyKey = "shared-idem-" + UUID.randomUUID();
+        String otherClientId = "acme-corp-" + UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO policy.client_policy_route (id, client_id, event_type, policy_key) "
+                        + "VALUES (gen_random_uuid(), ?, 'LOGIN_ATTEMPT', 'account-protection-default')",
+                otherClientId);
+
+        ProtectionDecisionResult defaultClientResult = protectionDecisionService.decide(
+                new ProtectionDecisionCommand(
+                        sharedAccountReference,
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
+                        sharedIdempotencyKey));
+        ProtectionDecisionResult otherClientResult = protectionDecisionService.decide(
+                new ProtectionDecisionCommand(
+                        sharedAccountReference,
+                        ProtectionEventType.LOGIN_ATTEMPT,
+                        envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
+                        sharedIdempotencyKey,
+                        new io.github.viniciusssantos.accountshield.protection.ClientId(otherClientId)));
+
+        assertThat(defaultClientResult.protectionRequestId())
+                .isNotEqualTo(otherClientResult.protectionRequestId());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM protection.idempotency_record WHERE idempotency_key = ?",
+                Long.class, sharedIdempotencyKey))
+                .isEqualTo(2L);
+        assertThat(requestCount(sharedAccountReference)).isEqualTo(2L);
+    }
+
     private ProtectionDecisionResult decide(String accountReference, RiskSignals signals) {
         return protectionDecisionService.decide(new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
-                signals,
+                envelope(signals),
                 "idem-" + UUID.randomUUID()));
     }
 
+    // account_reference is encrypted at rest (issue #49): a plaintext WHERE clause can no longer
+    // match, so rows are decrypted in Java and compared against the plaintext value under test.
     private long requestCount(String accountReference) {
-        Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM protection.protection_request WHERE account_reference = ?",
-                Long.class,
-                accountReference);
-        return count == null ? 0 : count;
+        List<String> storedValues = jdbcTemplate.queryForList(
+                "SELECT account_reference FROM protection.protection_request", String.class);
+        return storedValues.stream()
+                .filter(stored -> accountReference.equals(fieldEncryptionService.decrypt(stored)))
+                .count();
+    }
+
+    private static RiskSignalEnvelope envelope(RiskSignals signals) {
+        return new RiskSignalEnvelope(signals, "CLIENT_SUPPLIED", Instant.now(), SignalConfidence.HIGH, null, true);
     }
 }

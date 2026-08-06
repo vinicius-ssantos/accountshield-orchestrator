@@ -26,8 +26,15 @@ replay_pid*
 # Build
 target/
 
+# jqwik's local failed-example replay cache (issue #53) -- machine-local run state, not source
+.jqwik-database
+
 # IDE
 .idea/
+*.iml
+
+# Local-only self-review notes (findings are tracked as GitHub issues instead)
+docs/reviews/
 
 # Frontend
 frontend/node_modules/
@@ -37,6 +44,7 @@ frontend/out/
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
+frontend/tsconfig.tsbuildinfo
 frontend/.env
 frontend/.env.local
 frontend/.env.development.local

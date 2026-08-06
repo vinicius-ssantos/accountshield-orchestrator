@@ -1,0 +1,2547 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AccountShield Orchestrator API",
+    "description": "Adaptive account-protection decision and orchestration platform with explainable risk policies, step-up challenges, secure recovery, abuse detection, replay, and security simulation.",
+    "contact": {
+      "name": "AccountShield",
+      "url": "https://github.com/vinicius-ssantos/accountshield-orchestrator"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost",
+      "description": "Generated server url"
+    }
+  ],
+  "paths": {
+    "/api/v1/webhooks": {
+      "get": {
+        "tags": [
+          "webhook-admin-controller"
+        ],
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookSubscriptionView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "webhook-admin-controller"
+        ],
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSecretIssued"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{subscriptionId}/rotate-secret": {
+      "post": {
+        "tags": [
+          "webhook-admin-controller"
+        ],
+        "operationId": "rotateSecret",
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSecretIssued"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{subscriptionId}/enable": {
+      "post": {
+        "tags": [
+          "webhook-admin-controller"
+        ],
+        "operationId": "enable",
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{subscriptionId}/disable": {
+      "post": {
+        "tags": [
+          "webhook-admin-controller"
+        ],
+        "operationId": "disable",
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/simulation/shadow": {
+      "post": {
+        "tags": [
+          "simulation-controller"
+        ],
+        "operationId": "shadow",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "riskScore",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "candidatePolicyVersion",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShadowResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/simulation/policy-impact": {
+      "post": {
+        "tags": [
+          "policy-impact-controller"
+        ],
+        "operationId": "analyzeImpact",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "candidatePolicyVersion",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "maxSamples",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 5000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyImpactReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recovery": {
+      "post": {
+        "tags": [
+          "recovery-controller"
+        ],
+        "operationId": "initiate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiateRecoveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recovery/{recoveryId}/review": {
+      "post": {
+        "tags": [
+          "recovery-controller"
+        ],
+        "operationId": "review",
+        "parameters": [
+          {
+            "name": "recoveryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recovery/{recoveryId}/review/step-up": {
+      "post": {
+        "tags": [
+          "recovery-controller"
+        ],
+        "operationId": "requestReviewStepUp",
+        "parameters": [
+          {
+            "name": "recoveryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recovery/{recoveryId}/confirm-identity": {
+      "post": {
+        "tags": [
+          "recovery-controller"
+        ],
+        "operationId": "confirmIdentity",
+        "parameters": [
+          {
+            "name": "recoveryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmIdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recovery/{recoveryId}/complete": {
+      "post": {
+        "tags": [
+          "recovery-controller"
+        ],
+        "operationId": "complete",
+        "parameters": [
+          {
+            "name": "recoveryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/protection-decisions": {
+      "post": {
+        "tags": [
+          "protection-decision-controller"
+        ],
+        "operationId": "decide",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtectionDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProtectionDecisionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "createDraft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyVersionSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/{version}/validate": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "validate",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyVersionSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/{version}/retire": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "retire",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyVersionSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/{version}/retire/step-up": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "requestRetirementStepUp",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/{version}/reject": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "reject",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyVersionSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/{version}/approve": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "approve",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyVersionSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/{version}/approve/step-up": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "requestApprovalStepUp",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/{version}/activate": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "activate",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyVersionSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/{version}/activate/step-up": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "requestActivationStepUp",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/rollout": {
+      "get": {
+        "tags": [
+          "policy-rollout-controller"
+        ],
+        "operationId": "status",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyRollout"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "policy-rollout-controller"
+        ],
+        "operationId": "startRollout",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRolloutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyRollout"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "policy-rollout-controller"
+        ],
+        "operationId": "updatePercentage",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRolloutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyRollout"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/rollout/step-up": {
+      "post": {
+        "tags": [
+          "policy-rollout-controller"
+        ],
+        "operationId": "requestRolloutStepUp",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRolloutStepUpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "policy-rollout-controller"
+        ],
+        "operationId": "requestPercentageUpdateStepUp",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{policyKey}/rollout/rollback": {
+      "post": {
+        "tags": [
+          "policy-rollout-controller"
+        ],
+        "operationId": "rollback",
+        "parameters": [
+          {
+            "name": "policyKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyRollout"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policies/analyze": {
+      "post": {
+        "tags": [
+          "policy-lifecycle-controller"
+        ],
+        "operationId": "analyze",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyAnalysisResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/outbox/{eventId}/requeue": {
+      "post": {
+        "tags": [
+          "outbox-admin-controller"
+        ],
+        "operationId": "requeue",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/verify": {
+      "post": {
+        "tags": [
+          "evidence-export-controller"
+        ],
+        "operationId": "verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceBundle"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceVerificationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/export": {
+      "post": {
+        "tags": [
+          "evidence-export-controller"
+        ],
+        "operationId": "export",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceBundle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/challenges/{challengeId}/verify": {
+      "post": {
+        "tags": [
+          "challenge-controller"
+        ],
+        "operationId": "verify_1",
+        "parameters": [
+          {
+            "name": "challengeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeVerificationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/simulation/replay/{protectionRequestId}": {
+      "get": {
+        "tags": [
+          "simulation-controller"
+        ],
+        "operationId": "replay",
+        "parameters": [
+          {
+            "name": "protectionRequestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/outbox": {
+      "get": {
+        "tags": [
+          "outbox-admin-controller"
+        ],
+        "operationId": "list_1",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OutboxEventSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/chain/verify": {
+      "get": {
+        "tags": [
+          "audit-chain-controller"
+        ],
+        "operationId": "verify_2",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditChainVerificationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/chain/root-hash": {
+      "get": {
+        "tags": [
+          "audit-chain-controller"
+        ],
+        "operationId": "rootHash",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditChainRootHash"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateWebhookSubscriptionRequest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 0
+          },
+          "eventTypeFilter": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "WebhookSecretIssued": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "secret": {
+            "type": "string"
+          }
+        }
+      },
+      "ShadowResponse": {
+        "type": "object",
+        "properties": {
+          "liveOutcome": {
+            "type": "string"
+          },
+          "shadowOutcome": {
+            "type": "string"
+          },
+          "livePolicyVersion": {
+            "type": "string"
+          },
+          "shadowPolicyVersion": {
+            "type": "string"
+          },
+          "riskScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "diverged": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DivergentDecision": {
+        "type": "object",
+        "properties": {
+          "protectionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "redactedAccountReference": {
+            "type": "string"
+          },
+          "originalOutcome": {
+            "type": "string"
+          },
+          "candidateOutcome": {
+            "type": "string"
+          },
+          "riskScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "originalReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskReason"
+            }
+          }
+        }
+      },
+      "PolicyImpactReport": {
+        "type": "object",
+        "properties": {
+          "policyKey": {
+            "type": "string"
+          },
+          "candidatePolicyVersion": {
+            "type": "string"
+          },
+          "originalPolicyVersionsObserved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "algorithmVersionsObserved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "totalDecisions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "divergentDecisionsCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "divergencePercentage": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxDivergencePercentageThreshold": {
+            "type": "number",
+            "format": "double"
+          },
+          "exceedsDivergenceThreshold": {
+            "type": "boolean"
+          },
+          "transitionMatrix": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          },
+          "impactByEventType": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PolicySegmentImpact"
+            }
+          },
+          "impactByRiskBand": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PolicySegmentImpact"
+            }
+          },
+          "divergentDecisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DivergentDecision"
+            }
+          }
+        }
+      },
+      "PolicySegmentImpact": {
+        "type": "object",
+        "properties": {
+          "segment": {
+            "type": "string"
+          },
+          "totalDecisions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "divergentDecisions": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RiskReason": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "InitiateRecoveryRequest": {
+        "type": "object",
+        "properties": {
+          "authorizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unexpired recovery authorization returned by a START_RECOVERY decision",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          }
+        },
+        "required": [
+          "authorizationId"
+        ]
+      },
+      "RecoveryResponse": {
+        "type": "object",
+        "properties": {
+          "recoveryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountReference": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "classificationRuleVersion": {
+            "type": "string"
+          },
+          "identityChallengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "initiatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eligibleAfter": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "authorizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originatingDecisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RecoveryReviewRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "stepUpChallengeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Challenge ID returned by POST .../review/step-up, after it has been verified via POST /api/v1/challenges/{id}/verify"
+          }
+        },
+        "required": [
+          "decision",
+          "stepUpChallengeId"
+        ]
+      },
+      "StepUpChallengeResponse": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ConfirmIdentityRequest": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "challengeId"
+        ]
+      },
+      "ProtectionDecisionRequest": {
+        "type": "object",
+        "properties": {
+          "accountReference": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "LOGIN_ATTEMPT",
+              "SENSITIVE_ACTION",
+              "LOGIN_RECOVERY_ATTEMPT",
+              "PASSWORD_RESET_ATTEMPT",
+              "CREDENTIAL_CHANGE_ATTEMPT",
+              "DEVICE_TRUST_RESET_ATTEMPT"
+            ]
+          },
+          "failedAttempts": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 20,
+            "minimum": 0
+          },
+          "newDevice": {
+            "type": "boolean"
+          },
+          "impossibleTravel": {
+            "type": "boolean"
+          },
+          "compromisedCredential": {
+            "type": "boolean"
+          },
+          "networkRiskLevel": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "signalProvider": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "signalObservedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "signalConfidence": {
+            "type": "string",
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          },
+          "clientId": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "accountReference",
+          "eventType"
+        ]
+      },
+      "ChallengeResponse": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "challengeType": {
+            "type": "string",
+            "enum": [
+              "TOTP_SIMULATED",
+              "EMAIL_SIMULATED",
+              "WEBAUTHN_SIMULATED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProtectionDecisionResponse": {
+        "type": "object",
+        "properties": {
+          "decisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recoveryAuthorizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "ALLOW",
+              "REQUIRE_STEP_UP",
+              "START_RECOVERY",
+              "TEMPORARILY_BLOCK"
+            ]
+          },
+          "riskScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "riskBand": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonResponse"
+            }
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "challenge": {
+            "$ref": "#/components/schemas/ChallengeResponse"
+          },
+          "degraded": {
+            "type": "boolean"
+          },
+          "degradationReason": {
+            "type": "string"
+          }
+        }
+      },
+      "ReasonResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CreateDraftRequest": {
+        "type": "object",
+        "properties": {
+          "policyKey": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "allowMaxScore": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 99,
+            "minimum": 0
+          },
+          "stepUpMaxScore": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 99,
+            "minimum": 1
+          },
+          "recoveryMaxScore": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Highest recovery-request score that may produce START_RECOVERY",
+            "example": 89,
+            "maximum": 99,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "policyKey",
+          "version"
+        ]
+      },
+      "PolicyAnalysisResult": {
+        "type": "object",
+        "properties": {
+          "analyzerVersion": {
+            "type": "string"
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDiagnostic"
+            }
+          }
+        }
+      },
+      "PolicyDiagnostic": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "ERROR",
+              "WARNING"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyGovernance": {
+        "type": "object",
+        "properties": {
+          "createdBy": {
+            "type": "string"
+          },
+          "validatedBy": {
+            "type": "string"
+          },
+          "validatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvalReason": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyVersionSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "APPROVED",
+              "ACTIVE",
+              "RETIRED",
+              "REJECTED"
+            ]
+          },
+          "allowMaxScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stepUpMaxScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "recoveryMaxScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "activatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/PolicyAnalysisResult"
+          },
+          "governance": {
+            "$ref": "#/components/schemas/PolicyGovernance"
+          }
+        }
+      },
+      "StepUpRequest": {
+        "type": "object",
+        "properties": {
+          "stepUpChallengeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Challenge ID returned by the matching .../step-up endpoint, after it has been verified via POST /api/v1/challenges/{id}/verify"
+          }
+        },
+        "required": [
+          "stepUpChallengeId"
+        ]
+      },
+      "ApproveRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why this policy version is being approved for activation"
+          },
+          "stepUpChallengeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Challenge ID returned by the matching .../approve/step-up endpoint, after it has been verified via POST /api/v1/challenges/{id}/verify"
+          }
+        },
+        "required": [
+          "reason",
+          "stepUpChallengeId"
+        ]
+      },
+      "StartRolloutRequest": {
+        "type": "object",
+        "properties": {
+          "candidateVersion": {
+            "type": "string"
+          },
+          "rolloutPercentage": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0
+          },
+          "stepUpChallengeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "candidateVersion",
+          "stepUpChallengeId"
+        ]
+      },
+      "PolicyRollout": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "candidateVersion": {
+            "type": "string"
+          },
+          "rolloutPercentage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ROLLED_BACK"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rolledBackAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rolledBackBy": {
+            "type": "string"
+          }
+        }
+      },
+      "StartRolloutStepUpRequest": {
+        "type": "object",
+        "properties": {
+          "candidateVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidateVersion"
+        ]
+      },
+      "AnalyzeRequest": {
+        "type": "object",
+        "properties": {
+          "allowMaxScore": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Candidate threshold; omitted/null triggers a *_MISSING diagnostic"
+          },
+          "stepUpMaxScore": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Candidate threshold; omitted/null triggers a *_MISSING diagnostic"
+          },
+          "recoveryMaxScore": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Candidate threshold; omitted/null triggers a *_MISSING diagnostic"
+          }
+        }
+      },
+      "AuditChainRecordProof": {
+        "type": "object",
+        "properties": {
+          "chainSequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "previousHash": {
+            "type": "string"
+          },
+          "recordHash": {
+            "type": "string"
+          },
+          "hashAlgorithm": {
+            "type": "string"
+          },
+          "canonicalSchemaVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "DecisionReasonContribution": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
+      "EvidenceBundle": {
+        "type": "object",
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/EvidenceManifest"
+          },
+          "content": {
+            "$ref": "#/components/schemas/EvidenceBundleContent"
+          }
+        }
+      },
+      "EvidenceBundleContent": {
+        "type": "object",
+        "properties": {
+          "bundleSchemaVersion": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pseudonymizedAccountReference": {
+            "type": "string"
+          },
+          "requestFingerprint": {
+            "type": "string"
+          },
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "riskScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "normalizedContext": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionReasonContribution"
+            }
+          },
+          "replay": {
+            "$ref": "#/components/schemas/ReplayResult"
+          },
+          "chainProof": {
+            "$ref": "#/components/schemas/AuditChainRecordProof"
+          }
+        }
+      },
+      "EvidenceManifest": {
+        "type": "object",
+        "properties": {
+          "bundleSchemaVersion": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "exportedBy": {
+            "type": "string"
+          },
+          "exportReason": {
+            "type": "string"
+          },
+          "contentHashAlgorithm": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "signatureAlgorithm": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "signingPublicKey": {
+            "type": "string"
+          }
+        }
+      },
+      "ReplayResult": {
+        "type": "object",
+        "properties": {
+          "protectionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "matches": {
+            "type": "boolean"
+          },
+          "originalOutcome": {
+            "type": "string"
+          },
+          "replayedOutcome": {
+            "type": "string"
+          },
+          "originalRiskScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "replayedRiskScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "originalRiskBand": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "replayedRiskBand": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "originalReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskReason"
+            }
+          },
+          "replayedReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskReason"
+            }
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "normalizedInputSchemaVersion": {
+            "type": "string"
+          },
+          "reasonCatalogVersion": {
+            "type": "string"
+          },
+          "decisionEngineVersion": {
+            "type": "string"
+          },
+          "mismatches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "EvidenceVerificationResult": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ExportRequest": {
+        "type": "object",
+        "properties": {
+          "protectionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ChallengeVerificationRequest": {
+        "type": "object",
+        "properties": {
+          "providedCode": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 0
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "PROTECTION_STEP_UP",
+              "RECOVERY_IDENTITY",
+              "PRIVILEGED_OPERATION"
+            ]
+          },
+          "contextId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "contextId",
+          "providedCode",
+          "purpose"
+        ]
+      },
+      "ChallengeVerificationResponse": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CHALLENGED",
+              "VERIFIED",
+              "CONSUMED",
+              "FAILED",
+              "EXPIRED"
+            ]
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "remainingAttempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UpdateRolloutRequest": {
+        "type": "object",
+        "properties": {
+          "rolloutPercentage": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0
+          },
+          "stepUpChallengeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "stepUpChallengeId"
+        ]
+      },
+      "WebhookSubscriptionView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string"
+          },
+          "eventTypeFilter": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "DISABLED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "secretRotatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReplayResponse": {
+        "type": "object",
+        "properties": {
+          "protectionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "matches": {
+            "type": "boolean"
+          },
+          "originalOutcome": {
+            "type": "string"
+          },
+          "replayedOutcome": {
+            "type": "string"
+          },
+          "originalRiskScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "replayedRiskScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "originalRiskBand": {
+            "type": "string"
+          },
+          "replayedRiskBand": {
+            "type": "string"
+          },
+          "originalReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskReason"
+            }
+          },
+          "replayedReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskReason"
+            }
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "algorithmVersion": {
+            "type": "string"
+          },
+          "normalizedInputSchemaVersion": {
+            "type": "string"
+          },
+          "reasonCatalogVersion": {
+            "type": "string"
+          },
+          "decisionEngineVersion": {
+            "type": "string"
+          },
+          "mismatches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OutboxEventSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "aggregateId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadLetteredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditChainBreak": {
+        "type": "object",
+        "properties": {
+          "chainSequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditChainVerificationResult": {
+        "type": "object",
+        "properties": {
+          "recordsChecked": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "breaks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditChainBreak"
+            }
+          }
+        }
+      },
+      "AuditChainRootHash": {
+        "type": "object",
+        "properties": {
+          "chainSequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recordHash": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

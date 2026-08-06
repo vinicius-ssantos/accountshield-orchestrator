@@ -23,10 +23,13 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
+import io.github.viniciusssantos.accountshield.recovery.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
 import io.github.viniciusssantos.accountshield.recovery.UnknownRecoveryClassificationRuleException;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -58,7 +61,9 @@ class RecoveryIntegrationTest {
                 new ProtectionDecisionCommand(
                         accountReference,
                         ProtectionEventType.PASSWORD_RESET_ATTEMPT,
-                        new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                        new RiskSignalEnvelope(
+                                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                                "CLIENT_SUPPLIED", Instant.now(), SignalConfidence.HIGH, null, true),
                         "recovery-authorization-" + UUID.randomUUID()));
 
         assertThat(decision.outcome()).isEqualTo(ProtectionOutcome.START_RECOVERY);
@@ -151,8 +156,27 @@ class RecoveryIntegrationTest {
                 .isInstanceOf(InvalidRecoveryStateException.class);
 
         RecoveryFlow approved = recoveryService.review(new RecoveryReviewCommand(
-                initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-approver"));
+                initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-approver",
+                reviewStepUpChallenge(initiated.recoveryId(), "operator-approver")));
         assertThat(approved.status()).isEqualTo(RecoveryStatus.COMPLETED);
+    }
+
+    @Test
+    void reviewStepUpDisclosesTheSimulatedCodeMatchingTheIssuedEvent() {
+        RecoveryFlow initiated = initiateFlow(61, "CREDENTIAL_CHANGE");
+        verifyAndConfirmIdentity(initiated);
+
+        StepUpChallenge stepUp = recoveryService.requestReviewStepUp(initiated.recoveryId(), "operator-approver");
+
+        assertThat(stepUp.simulatedCode()).isEqualTo(issuedCodeFor(stepUp.challengeId()));
+    }
+
+    private UUID reviewStepUpChallenge(UUID recoveryId, String actor) {
+        UUID challengeId = recoveryService.requestReviewStepUp(recoveryId, actor).challengeId();
+        String issuedCode = issuedCodeFor(challengeId);
+        challengeService.verify(new ChallengeVerificationCommand(
+                challengeId, issuedCode, ChallengePurpose.PRIVILEGED_OPERATION, recoveryId));
+        return challengeId;
     }
 
     @Test
@@ -258,6 +282,11 @@ class RecoveryIntegrationTest {
                 directive,
                 "fingerprint-" + protectionRequestId,
                 Timestamp.from(issuedAt));
+
+        // decision_id is deliberately not backed by a real decision_trace row here: ADR 0010
+        // requires a previously issued authorization to remain usable even when the audit
+        // projection is absent, and this fixture (and the append-only test below) exercises
+        // exactly that
 
         jdbcTemplate.update(
                 "INSERT INTO recovery.recovery_authorization "

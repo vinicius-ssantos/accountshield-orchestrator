@@ -5,10 +5,26 @@ import io.github.viniciusssantos.accountshield.audit.DecisionTraceView;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluation;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationContext;
 import io.github.viniciusssantos.accountshield.policy.PolicyEvaluationService;
-import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.protection.ClientId;
+import io.github.viniciusssantos.accountshield.protection.DecisionEngineVersion;
+import io.github.viniciusssantos.accountshield.protection.RequestFingerprint;
+import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
+import io.github.viniciusssantos.accountshield.risk.RiskAlgorithmRegistry;
+import io.github.viniciusssantos.accountshield.risk.RiskAssessment;
+import io.github.viniciusssantos.accountshield.risk.RiskAssessmentService;
+import io.github.viniciusssantos.accountshield.risk.RiskBand;
+import io.github.viniciusssantos.accountshield.risk.RiskReason;
+import io.github.viniciusssantos.accountshield.risk.RiskReasonCatalog;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
+import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
 import io.github.viniciusssantos.accountshield.simulation.ReplayResult;
 import io.github.viniciusssantos.accountshield.simulation.ShadowEvaluationResult;
 import io.github.viniciusssantos.accountshield.simulation.SimulationService;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,14 +34,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 class SimulationApplicationService implements SimulationService {
 
+    private static final String DEFAULT_SIGNAL_PROVIDER = "CLIENT_SUPPLIED";
+
     private final DecisionTraceQuery decisionTraceQuery;
     private final PolicyEvaluationService policyEvaluationService;
+    private final RiskAlgorithmRegistry riskAlgorithmRegistry;
 
     SimulationApplicationService(
             DecisionTraceQuery decisionTraceQuery,
-            PolicyEvaluationService policyEvaluationService) {
+            PolicyEvaluationService policyEvaluationService,
+            RiskAlgorithmRegistry riskAlgorithmRegistry) {
         this.decisionTraceQuery = decisionTraceQuery;
         this.policyEvaluationService = policyEvaluationService;
+        this.riskAlgorithmRegistry = riskAlgorithmRegistry;
     }
 
     @Override
@@ -40,36 +61,87 @@ class SimulationApplicationService implements SimulationService {
 
         DecisionTraceView trace = traceOpt.get();
 
-        PolicyEvaluation replayed = Boolean.TRUE.equals(
-                trace.normalizedContext().get("recoveryRequest"))
+        RiskAssessmentService algorithm = riskAlgorithmRegistry.resolve(trace.algorithmVersion());
+        RiskSignalEnvelope reconstructed = reconstructEnvelope(trace);
+        RiskAssessment recomputed = algorithm.assess(reconstructed);
+
+        boolean recoveryRequest = Boolean.TRUE.equals(trace.normalizedContext().get("recoveryRequest"));
+        PolicyEvaluation replayedPolicy = recoveryRequest
                 ? policyEvaluationService.evaluateVersion(
-                        trace.policyKey(),
-                        trace.policyVersion(),
-                        trace.riskScore(),
+                        trace.policyKey(), trace.policyVersion(), recomputed.score(),
                         PolicyEvaluationContext.recoveryRequestContext())
                 : policyEvaluationService.evaluateVersion(
-                        trace.policyKey(),
-                        trace.policyVersion(),
-                        trace.riskScore());
+                        trace.policyKey(), trace.policyVersion(), recomputed.score());
 
-        if (replayed.outcome().name().equals(trace.outcome())
-                && replayed.outcome().name().equals(trace.outcome())) {
-            return Optional.of(ReplayResult.matching(
-                    protectionRequestId,
-                    trace.outcome(),
-                    trace.riskScore(),
-                    trace.policyKey(),
-                    trace.policyVersion()));
+        RiskBand originalBand = RiskBand.fromScore(trace.riskScore());
+        List<RiskReason> originalReasons = trace.reasons().stream()
+                .map(reason -> new RiskReason(reason.code(), reason.contribution()))
+                .toList();
+
+        Map<String, Object> context = trace.normalizedContext();
+        String schemaVersion = reconstructed.schemaVersion();
+        String reasonCatalogVersion = context.containsKey("reasonCatalogVersion")
+                ? (String) context.get("reasonCatalogVersion") : RiskReasonCatalog.CURRENT_VERSION;
+        String decisionEngineVersion = context.containsKey("decisionEngineVersion")
+                ? (String) context.get("decisionEngineVersion") : DecisionEngineVersion.CURRENT;
+        String clientId = context.containsKey("clientId")
+                ? (String) context.get("clientId") : ClientId.DEFAULT.value();
+        String recomputedFingerprint = RequestFingerprint.compute(
+                clientId,
+                trace.accountReference(),
+                (String) context.get("protectionEventType"),
+                reconstructed.signals().failedAttempts(),
+                reconstructed.signals().newDevice(),
+                reconstructed.signals().impossibleTravel(),
+                reconstructed.signals().compromisedCredential(),
+                reconstructed.signals().networkRiskLevel().name());
+
+        List<String> mismatches = new ArrayList<>();
+        if (recomputed.score() != trace.riskScore()) {
+            mismatches.add("riskScore: expected " + trace.riskScore() + " but replay produced "
+                    + recomputed.score());
+        }
+        if (recomputed.band() != originalBand) {
+            mismatches.add("riskBand: expected " + originalBand + " but replay produced " + recomputed.band());
+        }
+        if (!originalReasons.equals(recomputed.reasons())) {
+            mismatches.add("reasons: expected " + originalReasons + " but replay produced " + recomputed.reasons());
+        }
+        if (!replayedPolicy.outcome().name().equals(trace.outcome())) {
+            mismatches.add("outcome: expected " + trace.outcome() + " but replay produced "
+                    + replayedPolicy.outcome().name());
+        }
+        if (!recomputedFingerprint.equals(trace.requestFingerprint())) {
+            mismatches.add("canonicalInputHash: reconstructed input does not hash to the recorded "
+                    + "request fingerprint");
+        }
+        List<String> unknownReasonCodes = originalReasons.stream()
+                .map(RiskReason::code)
+                .filter(code -> !RiskReasonCatalog.KNOWN_CODES.contains(code))
+                .toList();
+        if (!unknownReasonCodes.isEmpty()) {
+            mismatches.add("reasonCatalogVersion: unrecognized reason code(s) " + unknownReasonCodes
+                    + " not present in catalog " + RiskReasonCatalog.CURRENT_VERSION);
         }
 
-        return Optional.of(ReplayResult.mismatch(
+        return Optional.of(new ReplayResult(
                 protectionRequestId,
+                mismatches.isEmpty(),
                 trace.outcome(),
-                replayed.outcome().name(),
+                replayedPolicy.outcome().name(),
                 trace.riskScore(),
-                trace.riskScore(),
+                recomputed.score(),
+                originalBand,
+                recomputed.band(),
+                originalReasons,
+                recomputed.reasons(),
                 trace.policyKey(),
-                trace.policyVersion()));
+                trace.policyVersion(),
+                trace.algorithmVersion(),
+                schemaVersion,
+                reasonCatalogVersion,
+                decisionEngineVersion,
+                mismatches));
     }
 
     @Override
@@ -91,5 +163,34 @@ class SimulationApplicationService implements SimulationService {
                 live.policyVersion(),
                 shadow.policyVersion(),
                 riskScore);
+    }
+
+    /**
+     * Reconstructs the exact signal envelope a historical decision was made with, from its
+     * persisted normalized_context. Provenance fields added after #45 (provider/observedAt/
+     * confidence/schemaVersion/simulated) are defaulted the same way the original request-parsing
+     * layer defaults them, so traces recorded before that change still replay correctly — only
+     * confidence actually affects the recomputed score (LOW_CONFIDENCE_SIGNAL).
+     */
+    private RiskSignalEnvelope reconstructEnvelope(DecisionTraceView trace) {
+        Map<String, Object> context = trace.normalizedContext();
+        RiskSignals signals = new RiskSignals(
+                ((Number) context.get("failedAttempts")).intValue(),
+                Boolean.TRUE.equals(context.get("newDevice")),
+                Boolean.TRUE.equals(context.get("impossibleTravel")),
+                Boolean.TRUE.equals(context.get("compromisedCredential")),
+                NetworkRiskLevel.valueOf((String) context.get("networkRiskLevel")));
+
+        String provider = context.containsKey("signalProvider")
+                ? (String) context.get("signalProvider") : DEFAULT_SIGNAL_PROVIDER;
+        Instant observedAt = context.containsKey("signalObservedAt")
+                ? Instant.parse((String) context.get("signalObservedAt")) : trace.decidedAt();
+        SignalConfidence confidence = context.containsKey("signalConfidence")
+                ? SignalConfidence.valueOf((String) context.get("signalConfidence")) : SignalConfidence.HIGH;
+        String schemaVersion = (String) context.get("signalSchemaVersion");
+        boolean simulated = context.containsKey("signalSimulated")
+                ? Boolean.TRUE.equals(context.get("signalSimulated")) : true;
+
+        return new RiskSignalEnvelope(signals, provider, observedAt, confidence, schemaVersion, simulated);
     }
 }

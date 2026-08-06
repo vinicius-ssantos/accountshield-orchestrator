@@ -7,7 +7,10 @@ import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionResu
 import io.github.viniciusssantos.accountshield.protection.ProtectionDecisionService;
 import io.github.viniciusssantos.accountshield.protection.ProtectionEventType;
 import io.github.viniciusssantos.accountshield.risk.NetworkRiskLevel;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.SignalConfidence;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,7 +37,7 @@ class OutboxEventIntegrationTest {
         ProtectionDecisionResult result = protectionDecisionService.decide(new ProtectionDecisionCommand(
                 accountReference,
                 ProtectionEventType.LOGIN_ATTEMPT,
-                new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW),
+                envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
                 "idem-" + UUID.randomUUID()));
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -47,7 +50,44 @@ class OutboxEventIntegrationTest {
         assertThat(row.get("occurred_at")).isNotNull();
         assertThat(row.get("published_at")).isNull();
         assertThat(row.get("attempt_count")).isEqualTo(0);
-        assertThat(row.get("payload").toString()).contains(accountReference);
+        assertThat(row.get("status")).isEqualTo("PENDING");
+        assertThat(row.get("next_attempt_at")).isNotNull();
+        assertThat(row.get("payload").toString()).doesNotContain(accountReference);
+        assertThat(row.get("payload").toString()).contains("subjectToken");
+        assertThat(row.get("payload").toString()).contains("\"schemaVersion\"").contains("integration-event-1.0");
+        assertThat(row.get("payload").toString()).contains("\"correlationId\"").contains(result.decisionId().toString());
+        assertThat(row.get("payload").toString()).contains("\"eventId\"").contains(row.get("id").toString());
+    }
+
+    @Test
+    void sameAccountAlwaysProducesTheSameSubjectToken() {
+        String accountReference = "outbox-pseudonym-" + UUID.randomUUID();
+
+        ProtectionDecisionResult first = protectionDecisionService.decide(new ProtectionDecisionCommand(
+                accountReference,
+                ProtectionEventType.LOGIN_ATTEMPT,
+                envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
+                "idem-" + UUID.randomUUID()));
+        ProtectionDecisionResult second = protectionDecisionService.decide(new ProtectionDecisionCommand(
+                accountReference,
+                ProtectionEventType.LOGIN_ATTEMPT,
+                envelope(new RiskSignals(0, false, false, false, NetworkRiskLevel.LOW)),
+                "idem-" + UUID.randomUUID()));
+
+        String firstToken = subjectTokenOf(first.decisionId());
+        String secondToken = subjectTokenOf(second.decisionId());
+
+        assertThat(firstToken).isNotBlank().isEqualTo(secondToken);
+    }
+
+    private String subjectTokenOf(UUID decisionId) {
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT payload FROM outbox.outbox_event WHERE aggregate_id = ? AND event_type = 'PROTECTION_DECISION_MADE'",
+                decisionId.toString());
+        String payload = row.get("payload").toString();
+        int start = payload.indexOf("\"subjectToken\":\"") + "\"subjectToken\":\"".length();
+        int end = payload.indexOf('"', start);
+        return payload.substring(start, end);
     }
 
     @Test
@@ -55,7 +95,7 @@ class OutboxEventIntegrationTest {
         ProtectionDecisionResult decision = protectionDecisionService.decide(new ProtectionDecisionCommand(
                 "outbox-dedup-" + UUID.randomUUID(),
                 ProtectionEventType.LOGIN_ATTEMPT,
-                new RiskSignals(10, true, false, false, NetworkRiskLevel.LOW),
+                envelope(new RiskSignals(10, true, false, false, NetworkRiskLevel.LOW)),
                 "idem-" + UUID.randomUUID()));
 
         Long count = jdbcTemplate.queryForObject(
@@ -63,5 +103,9 @@ class OutboxEventIntegrationTest {
                 Long.class,
                 decision.decisionId().toString());
         assertThat(count).isEqualTo(1L);
+    }
+
+    private static RiskSignalEnvelope envelope(RiskSignals signals) {
+        return new RiskSignalEnvelope(signals, "CLIENT_SUPPLIED", Instant.now(), SignalConfidence.HIGH, null, true);
     }
 }

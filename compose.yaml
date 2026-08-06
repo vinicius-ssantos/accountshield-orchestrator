@@ -27,8 +27,22 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-accountshield}
       DATABASE_USERNAME: ${POSTGRES_USER:-accountshield}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-accountshield-local-only}
+      ACCOUNTSHIELD_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      # Enables the local/demo-only /dev/tokens endpoint (SecurityConfig permits it anonymously
+      # only under this profile) so the "demo" service below can self-mint a bearer token --
+      # consistent with this file already being local-dev/demo tooling, not a hardened deployment
+      # descriptor (see ADR 0024's identical reasoning for not wiring the restricted DB role here).
+      # WARNING: /dev/tokens mints privileged JWTs (any role) without authentication. Never expose
+      # the app's port 8080 outside localhost while this profile is active (see SECURITY.md).
+      SPRING_PROFILES_ACTIVE: local
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
 
   frontend:
     build:
@@ -40,7 +54,7 @@ services:
     container_name: accountshield-frontend
     depends_on:
       app:
-        condition: service_started
+        condition: service_healthy
     environment:
       ACCOUNTSHIELD_API_URL: http://app:8080
       ACCOUNTSHIELD_DATA_SOURCE: ${ACCOUNTSHIELD_DATA_SOURCE:-fixtures}
@@ -65,8 +79,35 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # Issue #55 (ADR 0037): the realistic Java consumer demo, built on accountshield-sdk. Opt-in
+  # (profile, not started by a plain "docker compose up") since it is a one-shot client run, not a
+  # standing service -- run with: docker compose --profile demo up --build demo.
+  demo:
+    build:
+      context: .
+      dockerfile: demo/Dockerfile
+    container_name: accountshield-demo
+    profiles: ["demo"]
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      ACCOUNTSHIELD_BASE_URL: http://app:8080
+
+  # Jaeger's all-in-one image accepts OTLP directly on 4317 (gRPC)/4318 (HTTP) in modern versions
+  # -- no separate OpenTelemetry Collector hop is needed for this scope (ADR 0030).
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: accountshield-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+      - "4317:4317"
+      - "4318:4318"
+
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.55.1
     container_name: accountshield-prometheus
     depends_on:
       - app
@@ -76,7 +117,7 @@ services:
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.3.0
     container_name: accountshield-grafana
     depends_on:
       - prometheus

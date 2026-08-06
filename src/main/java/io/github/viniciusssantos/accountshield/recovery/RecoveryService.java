@@ -11,4 +11,6 @@ public interface RecoveryService {
     RecoveryFlow complete(UUID recoveryId);
 
     RecoveryFlow review(RecoveryReviewCommand command);
+
+    StepUpChallenge requestReviewStepUp(UUID recoveryId, String actor);
 }

@@ -1,0 +1,14 @@
+# Single-maintainer project today -- see docs/roadmap.md and SECURITY.md for the project's actual
+# governance model. This file exists to make review expectations explicit for anyone who forks or
+# contributes, and to flag the areas where a change carries outsized security/correctness weight.
+
+* @vinicius-ssantos
+
+# Security-sensitive and cross-cutting areas -- changes here affect every module's guarantees.
+/src/main/java/io/github/viniciusssantos/accountshield/SecurityConfig.java @vinicius-ssantos
+/src/main/java/io/github/viniciusssantos/accountshield/crypto/ @vinicius-ssantos
+/src/main/java/io/github/viniciusssantos/accountshield/audit/ @vinicius-ssantos
+/src/main/resources/db/migration/ @vinicius-ssantos
+/docs/adr/ @vinicius-ssantos
+/SECURITY.md @vinicius-ssantos
+/.github/workflows/ @vinicius-ssantos

@@ -1,8 +1,10 @@
 package io.github.viniciusssantos.accountshield.simulation.internal.web;
 
+import io.github.viniciusssantos.accountshield.risk.RiskReason;
 import io.github.viniciusssantos.accountshield.simulation.ReplayResult;
 import io.github.viniciusssantos.accountshield.simulation.ShadowEvaluationResult;
 import io.github.viniciusssantos.accountshield.simulation.SimulationService;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,24 +43,42 @@ class SimulationController {
 
     record ReplayResponse(
             UUID protectionRequestId,
+            boolean matches,
             String originalOutcome,
             String replayedOutcome,
             int originalRiskScore,
             int replayedRiskScore,
+            String originalRiskBand,
+            String replayedRiskBand,
+            List<RiskReason> originalReasons,
+            List<RiskReason> replayedReasons,
             String policyKey,
             String policyVersion,
-            boolean matches) {
+            String algorithmVersion,
+            String normalizedInputSchemaVersion,
+            String reasonCatalogVersion,
+            String decisionEngineVersion,
+            List<String> mismatches) {
 
         static ReplayResponse from(ReplayResult r) {
             return new ReplayResponse(
                     r.protectionRequestId(),
+                    r.matches(),
                     r.originalOutcome(),
                     r.replayedOutcome(),
                     r.originalRiskScore(),
                     r.replayedRiskScore(),
+                    r.originalRiskBand().name(),
+                    r.replayedRiskBand().name(),
+                    r.originalReasons(),
+                    r.replayedReasons(),
                     r.policyKey(),
                     r.policyVersion(),
-                    r.matches());
+                    r.algorithmVersion(),
+                    r.normalizedInputSchemaVersion(),
+                    r.reasonCatalogVersion(),
+                    r.decisionEngineVersion(),
+                    r.mismatches());
         }
     }
 

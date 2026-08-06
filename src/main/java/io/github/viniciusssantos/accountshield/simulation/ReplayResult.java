@@ -1,40 +1,32 @@
 package io.github.viniciusssantos.accountshield.simulation;
 
-import io.github.viniciusssantos.accountshield.policy.ProtectionOutcome;
+import io.github.viniciusssantos.accountshield.risk.RiskBand;
+import io.github.viniciusssantos.accountshield.risk.RiskReason;
+import java.util.List;
 import java.util.UUID;
 
 public record ReplayResult(
         UUID protectionRequestId,
+        boolean matches,
         String originalOutcome,
         String replayedOutcome,
         int originalRiskScore,
         int replayedRiskScore,
+        RiskBand originalRiskBand,
+        RiskBand replayedRiskBand,
+        List<RiskReason> originalReasons,
+        List<RiskReason> replayedReasons,
         String policyKey,
         String policyVersion,
-        boolean matches) {
+        String algorithmVersion,
+        String normalizedInputSchemaVersion,
+        String reasonCatalogVersion,
+        String decisionEngineVersion,
+        List<String> mismatches) {
 
-    public static ReplayResult matching(
-            UUID protectionRequestId,
-            String outcome,
-            int riskScore,
-            String policyKey,
-            String policyVersion) {
-        return new ReplayResult(
-                protectionRequestId, outcome, outcome, riskScore, riskScore,
-                policyKey, policyVersion, true);
-    }
-
-    public static ReplayResult mismatch(
-            UUID protectionRequestId,
-            String originalOutcome,
-            String replayedOutcome,
-            int originalRiskScore,
-            int replayedRiskScore,
-            String policyKey,
-            String policyVersion) {
-        return new ReplayResult(
-                protectionRequestId, originalOutcome, replayedOutcome,
-                originalRiskScore, replayedRiskScore,
-                policyKey, policyVersion, false);
+    public ReplayResult {
+        originalReasons = List.copyOf(originalReasons);
+        replayedReasons = List.copyOf(replayedReasons);
+        mismatches = List.copyOf(mismatches);
     }
 }

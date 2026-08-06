@@ -1,24 +1,40 @@
 package io.github.viniciusssantos.accountshield.policy.internal;
 
+import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeType;
+import io.github.viniciusssantos.accountshield.challenge.ConsumeChallengeCommand;
+import io.github.viniciusssantos.accountshield.challenge.CreateChallengeCommand;
 import io.github.viniciusssantos.accountshield.policy.CreatePolicyCommand;
 import io.github.viniciusssantos.accountshield.policy.DuplicatePolicyVersionException;
 import io.github.viniciusssantos.accountshield.policy.PendingPolicyVersionExistsException;
 import io.github.viniciusssantos.accountshield.policy.PolicyActivated;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisFailedException;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalysisResult;
+import io.github.viniciusssantos.accountshield.policy.PolicyAnalyzer;
+import io.github.viniciusssantos.accountshield.policy.PolicyDefinition;
+import io.github.viniciusssantos.accountshield.policy.PolicyGovernance;
 import io.github.viniciusssantos.accountshield.policy.PolicyLifecycleService;
 import io.github.viniciusssantos.accountshield.policy.PolicyStatus;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionNotFoundException;
 import io.github.viniciusssantos.accountshield.policy.PolicyVersionSummary;
+import io.github.viniciusssantos.accountshield.policy.PrivilegedPolicyActionAttempted;
+import io.github.viniciusssantos.accountshield.policy.SelfApprovalNotAllowedException;
+import io.github.viniciusssantos.accountshield.policy.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionEntity;
 import io.github.viniciusssantos.accountshield.policy.internal.persistence.PolicyVersionRepository;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class PolicyLifecycleApplicationService implements PolicyLifecycleService {
@@ -26,25 +42,45 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
     private static final String ACTIVE = PolicyStatus.ACTIVE.name();
     private static final List<String> PENDING_STATUSES = List.of(
             PolicyStatus.DRAFT.name(),
-            PolicyStatus.VALIDATED.name());
+            PolicyStatus.VALIDATED.name(),
+            PolicyStatus.APPROVED.name());
+    private static final String ACTION_ACTIVATE = "ACTIVATE";
+    private static final String ACTION_RETIRE = "RETIRE";
+    private static final String ACTION_APPROVE = "APPROVE";
 
     private final PolicyVersionRepository repository;
+    private final ChallengeService challengeService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final PolicyAnalyzer policyAnalyzer;
+    private final ObjectMapper objectMapper;
+    private final PolicySimulatedStepUpCodeCapture simulatedStepUpCodeCapture;
+    private final boolean simulationEnabled;
 
     public PolicyLifecycleApplicationService(
             PolicyVersionRepository repository,
+            ChallengeService challengeService,
             @Qualifier("decisionClock") Clock clock,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            PolicyAnalyzer policyAnalyzer,
+            ObjectMapper objectMapper,
+            PolicySimulatedStepUpCodeCapture simulatedStepUpCodeCapture,
+            @Value("${accountshield.challenge.simulation-enabled:true}") boolean simulationEnabled) {
         this.repository = repository;
+        this.challengeService = challengeService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
+        this.policyAnalyzer = policyAnalyzer;
+        this.objectMapper = objectMapper;
+        this.simulatedStepUpCodeCapture = simulatedStepUpCodeCapture;
+        this.simulationEnabled = simulationEnabled;
     }
 
     @Override
     @Transactional
-    public PolicyVersionSummary createDraft(CreatePolicyCommand command) {
+    public PolicyVersionSummary createDraft(CreatePolicyCommand command, String actor) {
         validateCreateCommand(command);
+        validateActor(actor);
         if (repository.findByPolicyKeyAndVersion(command.policyKey(), command.version()).isPresent()) {
             throw new DuplicatePolicyVersionException(command.policyKey(), command.version());
         }
@@ -69,21 +105,64 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
                 command.recoveryMaxScore(),
                 now,
                 null);
+        entity.setCreatedBy(actor);
         repository.save(entity);
         return toSummary(entity);
     }
 
     @Override
     @Transactional
-    public PolicyVersionSummary validate(String policyKey, String version) {
+    public PolicyVersionSummary validate(String policyKey, String version, String actor) {
+        validateActor(actor);
         PolicyVersionEntity entity = requirePolicy(policyKey, version);
+        if (!PolicyStatus.DRAFT.name().equals(entity.getStatus())) {
+            // not a legal predecessor state for VALIDATED; throws IllegalPolicyTransitionException
+            // without mutating anything (transitionTo validates before it mutates)
+            entity.transitionTo(PolicyStatus.VALIDATED.name(), Instant.now(clock));
+        }
+        PolicyAnalysisResult result = policyAnalyzer.analyze(new PolicyDefinition(
+                entity.getAllowMaxScore(), entity.getStepUpMaxScore(), entity.getRecoveryMaxScore()));
+        if (result.hasErrors()) {
+            throw new PolicyAnalysisFailedException(policyKey, version, result);
+        }
+        entity.setAnalysis(objectMapper.writeValueAsString(result));
+        entity.recordValidation(actor, Instant.now(clock));
         entity.transitionTo(PolicyStatus.VALIDATED.name(), Instant.now(clock));
         return toSummary(entity);
     }
 
     @Override
     @Transactional
-    public PolicyVersionSummary activate(String policyKey, String version) {
+    public StepUpChallenge requestApprovalStepUp(String policyKey, String version, String actor) {
+        return issueStepUpChallenge(policyKey, version, ACTION_APPROVE, actor);
+    }
+
+    @Override
+    @Transactional
+    public PolicyVersionSummary approve(
+            String policyKey, String version, UUID stepUpChallengeId, String actor, String reason) {
+        consumeStepUp(policyKey, version, ACTION_APPROVE, stepUpChallengeId, actor);
+
+        PolicyVersionEntity entity = requirePolicy(policyKey, version);
+        if (!PolicyStatus.VALIDATED.name().equals(entity.getStatus())) {
+            // not a legal predecessor state for APPROVED; throws IllegalPolicyTransitionException
+            // without mutating anything (transitionTo validates before it mutates)
+            entity.transitionTo(PolicyStatus.APPROVED.name(), Instant.now(clock));
+        }
+        if (actor.equals(entity.getCreatedBy())) {
+            throw new SelfApprovalNotAllowedException(policyKey, version, actor);
+        }
+        validateReason(reason);
+        entity.recordApproval(actor, Instant.now(clock), reason);
+        entity.transitionTo(PolicyStatus.APPROVED.name(), Instant.now(clock));
+        return toSummary(entity);
+    }
+
+    @Override
+    @Transactional
+    public PolicyVersionSummary activate(String policyKey, String version, UUID stepUpChallengeId, String actor) {
+        consumeStepUp(policyKey, version, ACTION_ACTIVATE, stepUpChallengeId, actor);
+
         PolicyVersionEntity candidate = requirePolicy(policyKey, version);
         repository.findByPolicyKeyAndStatus(policyKey, ACTIVE)
                 .ifPresent(current -> current.transitionTo(
@@ -104,10 +183,57 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
 
     @Override
     @Transactional
-    public PolicyVersionSummary retire(String policyKey, String version) {
+    public PolicyVersionSummary retire(String policyKey, String version, UUID stepUpChallengeId, String actor) {
+        consumeStepUp(policyKey, version, ACTION_RETIRE, stepUpChallengeId, actor);
+
         PolicyVersionEntity entity = requirePolicy(policyKey, version);
         entity.transitionTo(PolicyStatus.RETIRED.name(), Instant.now(clock));
         return toSummary(entity);
+    }
+
+    @Override
+    @Transactional
+    public StepUpChallenge requestActivationStepUp(String policyKey, String version, String actor) {
+        return issueStepUpChallenge(policyKey, version, ACTION_ACTIVATE, actor);
+    }
+
+    @Override
+    @Transactional
+    public StepUpChallenge requestRetirementStepUp(String policyKey, String version, String actor) {
+        return issueStepUpChallenge(policyKey, version, ACTION_RETIRE, actor);
+    }
+
+    private StepUpChallenge issueStepUpChallenge(String policyKey, String version, String action, String actor) {
+        validateKey(policyKey);
+        validateVersion(version);
+        UUID contextId = stepUpContextId(policyKey, version, action);
+        UUID challengeId = challengeService.create(new CreateChallengeCommand(
+                actor,
+                ChallengeType.TOTP_SIMULATED,
+                ChallengePurpose.PRIVILEGED_OPERATION,
+                contextId)).challengeId();
+        String simulatedCode = simulationEnabled ? simulatedStepUpCodeCapture.consume(challengeId) : null;
+        return new StepUpChallenge(challengeId, simulatedCode, contextId);
+    }
+
+    private void consumeStepUp(
+            String policyKey, String version, String action, UUID stepUpChallengeId, String actor) {
+        UUID contextId = stepUpContextId(policyKey, version, action);
+        try {
+            challengeService.consume(new ConsumeChallengeCommand(
+                    stepUpChallengeId, actor, ChallengePurpose.PRIVILEGED_OPERATION, contextId));
+            eventPublisher.publishEvent(
+                    new PrivilegedPolicyActionAttempted(policyKey, version, action, actor, true));
+        } catch (RuntimeException exception) {
+            eventPublisher.publishEvent(
+                    new PrivilegedPolicyActionAttempted(policyKey, version, action, actor, false));
+            throw exception;
+        }
+    }
+
+    private UUID stepUpContextId(String policyKey, String version, String action) {
+        return UUID.nameUUIDFromBytes(
+                ("policy:" + action + ":" + policyKey + ":" + version).getBytes(StandardCharsets.UTF_8));
     }
 
     private PolicyVersionEntity requirePolicy(String policyKey, String version) {
@@ -149,6 +275,20 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
         }
     }
 
+    private void validateActor(String actor) {
+        Objects.requireNonNull(actor, "actor must not be null");
+        if (actor.isBlank() || actor.length() > 200) {
+            throw new IllegalArgumentException("actor must contain between 1 and 200 characters");
+        }
+    }
+
+    private void validateReason(String reason) {
+        Objects.requireNonNull(reason, "reason must not be null");
+        if (reason.isBlank() || reason.length() > 500) {
+            throw new IllegalArgumentException("reason must contain between 1 and 500 characters");
+        }
+    }
+
     private PolicyVersionSummary toSummary(PolicyVersionEntity entity) {
         return new PolicyVersionSummary(
                 entity.getId(),
@@ -159,6 +299,18 @@ public class PolicyLifecycleApplicationService implements PolicyLifecycleService
                 entity.getStepUpMaxScore(),
                 entity.getRecoveryMaxScore(),
                 entity.getCreatedAt(),
-                entity.getActivatedAt());
+                entity.getActivatedAt(),
+                entity.getAnalysis() == null
+                        ? null
+                        : objectMapper.readValue(entity.getAnalysis(), PolicyAnalysisResult.class),
+                entity.getCreatedBy() == null
+                        ? null
+                        : new PolicyGovernance(
+                                entity.getCreatedBy(),
+                                entity.getValidatedBy(),
+                                entity.getValidatedAt(),
+                                entity.getApprovedBy(),
+                                entity.getApprovedAt(),
+                                entity.getApprovalReason()));
     }
 }

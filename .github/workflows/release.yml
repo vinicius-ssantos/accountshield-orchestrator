@@ -1,0 +1,79 @@
+name: Release
+
+# Triggered only by pushing a "vX.Y.Z" tag -- never runs on an ordinary push/PR. See issue #28
+# (ADR 0039) and docs/RELEASING.md for the manual steps that create that tag in the first place.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Build, publish image, and cut the GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      # sdk/, demo/, and cli/ are standalone Maven projects (no reactor) -- built here so their
+      # jars can be attached as release artifacts and so the root build's test scope can resolve
+      # accountshield-sdk (issue #55, ADR 0037).
+      - name: Build sdk, demo, and cli modules
+        run: |
+          cd sdk && mvn --batch-mode --no-transfer-progress install
+          cd ../demo && mvn --batch-mode --no-transfer-progress package
+          cd ../cli && mvn --batch-mode --no-transfer-progress package
+
+      - name: Build and verify the server (produces the CycloneDX SBOM)
+        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience,benchmark,disaster-recovery
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publishing a real image to a real, public registry is exactly what a tagged release
+      # should do (issue #28) -- unlike ci.yml's PR-time build, this one actually pushes.
+      - name: Build and push the image to GHCR
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "AccountShield ${GITHUB_REF_NAME}" \
+            --notes "See CHANGELOG.md for the full list of changes. Docker image: \`ghcr.io/${{ github.repository }}:${GITHUB_REF_NAME}\`." \
+            target/bom.xml \
+            target/bom.json \
+            cli/target/accountshield-cli.jar \
+            demo/target/accountshield-demo.jar \
+            sdk/target/accountshield-sdk-*.jar \
+            docs/postman/AccountShield.postman_collection.json \
+            CHANGELOG.md

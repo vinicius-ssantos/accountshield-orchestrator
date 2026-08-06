@@ -24,6 +24,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryAuthorization;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryDirective;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryManualReviewRequired;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
@@ -53,12 +54,14 @@ class RecoveryApplicationServiceTest {
             mock(RecoveryAuthorizationApplicationService.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final SimulatedStepUpCodeCapture simulatedStepUpCodeCapture = new SimulatedStepUpCodeCapture();
     private RecoveryApplicationService service;
 
     @BeforeEach
     void setUp() {
         service = new RecoveryApplicationService(
-                repository, challengeService, authorizationService, clock, eventPublisher);
+                repository, challengeService, authorizationService, clock, eventPublisher,
+                simulatedStepUpCodeCapture, true);
     }
 
     @Test
@@ -181,6 +184,29 @@ class RecoveryApplicationServiceTest {
     }
 
     @Test
+    void confirmIdentityPublishesManualReviewRequiredForManualReviewClassification() {
+        UUID recoveryId = UUID.randomUUID();
+        UUID challengeId = UUID.randomUUID();
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(
+                entity(recoveryId, challengeId, RecoveryStatus.VERIFYING_IDENTITY,
+                        RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID())));
+        when(challengeService.consume(any(ConsumeChallengeCommand.class)))
+                .thenReturn(challengePlan(challengeId, ChallengeStatus.CONSUMED, recoveryId));
+        when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RecoveryFlow flow = service.confirmIdentity(new ConfirmIdentityCommand(recoveryId, challengeId));
+
+        assertThat(flow.status()).isEqualTo(RecoveryStatus.MANUAL_REVIEW);
+        ArgumentCaptor<RecoveryManualReviewRequired> eventCaptor =
+                ArgumentCaptor.forClass(RecoveryManualReviewRequired.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().recoveryId()).isEqualTo(recoveryId);
+        assertThat(eventCaptor.getValue().accountReference()).isEqualTo("user-ref");
+        assertThat(eventCaptor.getValue().classification())
+                .isEqualTo(RecoveryRiskClassification.MANUAL_REVIEW.name());
+    }
+
+    @Test
     void confirmIdentityRejectsUnknownClassificationRuleVersion() {
         UUID recoveryId = UUID.randomUUID();
         UUID challengeId = UUID.randomUUID();
@@ -268,13 +294,15 @@ class RecoveryApplicationServiceTest {
     @Test
     void reviewApprovesManualRecovery() {
         UUID recoveryId = UUID.randomUUID();
+        UUID stepUpChallengeId = UUID.randomUUID();
         when(repository.findById(recoveryId)).thenReturn(Optional.of(
                 entity(recoveryId, UUID.randomUUID(), RecoveryStatus.MANUAL_REVIEW,
                         RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID())));
         when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        stubStepUpConsumption(stepUpChallengeId);
 
         RecoveryFlow flow = service.review(new RecoveryReviewCommand(
-                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice"));
+                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice", stepUpChallengeId));
 
         assertThat(flow.status()).isEqualTo(RecoveryStatus.COMPLETED);
     }
@@ -282,14 +310,40 @@ class RecoveryApplicationServiceTest {
     @Test
     void reviewTranslatesConcurrentModificationIntoConflict() {
         UUID recoveryId = UUID.randomUUID();
+        UUID stepUpChallengeId = UUID.randomUUID();
         when(repository.findById(recoveryId)).thenReturn(Optional.of(
                 entity(recoveryId, UUID.randomUUID(), RecoveryStatus.MANUAL_REVIEW,
                         RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID())));
         when(repository.saveAndFlush(any())).thenThrow(new OptimisticLockingFailureException("stale"));
+        stubStepUpConsumption(stepUpChallengeId);
 
         assertThatThrownBy(() -> service.review(new RecoveryReviewCommand(
-                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice")))
+                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice", stepUpChallengeId)))
                 .isInstanceOf(RecoveryFlowConflictException.class);
+    }
+
+    @Test
+    void reviewFailsAndDoesNotMutateStateWhenStepUpIsRejected() {
+        UUID recoveryId = UUID.randomUUID();
+        UUID stepUpChallengeId = UUID.randomUUID();
+        RecoveryFlowEntity entity = entity(recoveryId, UUID.randomUUID(), RecoveryStatus.MANUAL_REVIEW,
+                RecoveryRiskClassification.MANUAL_REVIEW, UUID.randomUUID());
+        when(repository.findById(recoveryId)).thenReturn(Optional.of(entity));
+        when(challengeService.consume(any())).thenThrow(new ChallengeUseRejectedException());
+
+        assertThatThrownBy(() -> service.review(new RecoveryReviewCommand(
+                recoveryId, RecoveryReviewDecision.APPROVE, "operator-alice", stepUpChallengeId)))
+                .isInstanceOf(ChallengeUseRejectedException.class);
+
+        assertThat(entity.getStatus()).isEqualTo(RecoveryStatus.MANUAL_REVIEW.name());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    private void stubStepUpConsumption(UUID stepUpChallengeId) {
+        when(challengeService.consume(any())).thenReturn(new ChallengePlan(
+                stepUpChallengeId, "operator-alice", ChallengeType.TOTP_SIMULATED,
+                ChallengePurpose.PRIVILEGED_OPERATION, UUID.randomUUID(), ChallengeStatus.CONSUMED,
+                3, 3, NOW.minusSeconds(60), NOW.plusSeconds(600), NOW));
     }
 
     private RecoveryFlow initiateAtRisk(int riskScore) {

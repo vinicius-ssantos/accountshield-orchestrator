@@ -41,6 +41,7 @@ class RecoveryFlowRetentionCleanupTest {
     private UUID insertFlow(String status, String classification, OffsetDateTime updatedAt) {
         UUID id = UUID.randomUUID();
         UUID protectionRequestId = UUID.randomUUID();
+        UUID decisionId = UUID.randomUUID();
         UUID authorizationId = UUID.randomUUID();
 
         jdbcTemplate.update(
@@ -56,14 +57,29 @@ class RecoveryFlowRetentionCleanupTest {
 
         jdbcTemplate.update(
                 """
+                INSERT INTO audit.decision_trace (
+                    id, protection_request_id, account_reference, request_fingerprint,
+                    algorithm_version, policy_key, policy_version, outcome, risk_score,
+                    normalized_context, decided_at
+                ) VALUES (?, ?, ?, ?, 'risk-rules-1.0', 'account-protection-default', '1.0.0',
+                          'START_RECOVERY', 10, '{}'::jsonb, ?)
+                """,
+                decisionId,
+                protectionRequestId,
+                "acct-retention-" + id,
+                "fingerprint-decision-" + id,
+                updatedAt);
+
+        jdbcTemplate.update(
+                """
                 INSERT INTO recovery.recovery_authorization (
                     id, protection_request_id, decision_id, account_reference, directive,
                     risk_score, issued_at, expires_at, consumed_at
                 ) VALUES (?, ?, ?, ?, 'LOGIN', 10, ?, ?, NULL)
                 """,
                 authorizationId,
-                UUID.randomUUID(),
-                UUID.randomUUID(),
+                protectionRequestId,
+                decisionId,
                 "acct-retention-" + id,
                 updatedAt,
                 updatedAt.plusSeconds(600));
@@ -83,7 +99,7 @@ class RecoveryFlowRetentionCleanupTest {
                 updatedAt,
                 updatedAt,
                 protectionRequestId,
-                UUID.randomUUID(),
+                decisionId,
                 authorizationId);
 
         return id;

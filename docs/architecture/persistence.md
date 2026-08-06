@@ -11,7 +11,7 @@ Flyway owns schema creation and evolution. Hibernate runs with `ddl-auto=validat
 | Schema | Owning module | Current tables | Responsibility |
 | --- | --- | --- | --- |
 | `protection` | `protection` | `protection_request`, `idempotency_record` | Accepted request identity, fingerprint, status, and persisted logical result reference |
-| `policy` | `policy` | `policy_version` | Immutable activated/retired versions and mutable pre-activation lifecycle |
+| `policy` | `policy` | `policy_version`, `client_policy_route` | Immutable activated/retired versions and mutable pre-activation lifecycle; client/event-to-policy-key routing |
 | `audit` | `audit` | `decision_trace`, `decision_reason` | Append-only evidence and reason contributions |
 | `challenge` | `challenge` | `challenge_plan` | Purpose/context-bound verification state, attempts, expiry, and consumption |
 | `recovery` | `recovery` | `recovery_authorization`, `recovery_flow` | Expirable authorization and recovery state machine |

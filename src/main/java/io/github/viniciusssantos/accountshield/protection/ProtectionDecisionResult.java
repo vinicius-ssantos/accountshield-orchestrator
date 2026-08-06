@@ -20,10 +20,29 @@ public record ProtectionDecisionResult(
         String policyVersion,
         List<RiskReason> reasons,
         Instant decidedAt,
-        ChallengePlan challenge) {
+        ChallengePlan challenge,
+        boolean degraded,
+        String degradationReason) {
 
     public ProtectionDecisionResult {
         reasons = List.copyOf(reasons);
+    }
+
+    public ProtectionDecisionResult(
+            UUID decisionId,
+            UUID protectionRequestId,
+            UUID recoveryAuthorizationId,
+            ProtectionOutcome outcome,
+            int riskScore,
+            RiskBand riskBand,
+            String algorithmVersion,
+            String policyKey,
+            String policyVersion,
+            List<RiskReason> reasons,
+            Instant decidedAt,
+            ChallengePlan challenge) {
+        this(decisionId, protectionRequestId, recoveryAuthorizationId, outcome, riskScore, riskBand,
+                algorithmVersion, policyKey, policyVersion, reasons, decidedAt, challenge, false, null);
     }
 
     public ProtectionDecisionResult(
@@ -46,6 +65,6 @@ public record ProtectionDecisionResult(
         return new ProtectionDecisionResult(
                 decisionId, protectionRequestId, recoveryAuthorizationId,
                 outcome, riskScore, riskBand, algorithmVersion, policyKey,
-                policyVersion, reasons, decidedAt, null);
+                policyVersion, reasons, decidedAt, null, degraded, degradationReason);
     }
 }

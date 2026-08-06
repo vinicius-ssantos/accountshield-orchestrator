@@ -1,13 +1,14 @@
 package io.github.viniciusssantos.accountshield.protection;
 
-import io.github.viniciusssantos.accountshield.risk.RiskSignals;
+import io.github.viniciusssantos.accountshield.risk.RiskSignalEnvelope;
 import java.util.Objects;
 
 public record ProtectionDecisionCommand(
         String accountReference,
         ProtectionEventType eventType,
-        RiskSignals signals,
-        String idempotencyKey) {
+        RiskSignalEnvelope signalEnvelope,
+        String idempotencyKey,
+        ClientId clientId) {
 
     public ProtectionDecisionCommand {
         Objects.requireNonNull(accountReference, "accountReference must not be null");
@@ -15,11 +16,20 @@ public record ProtectionDecisionCommand(
             throw new IllegalArgumentException("accountReference must contain between 1 and 128 characters");
         }
         Objects.requireNonNull(eventType, "eventType must not be null");
-        Objects.requireNonNull(signals, "signals must not be null");
+        Objects.requireNonNull(signalEnvelope, "signalEnvelope must not be null");
         if (idempotencyKey != null
                 && (idempotencyKey.isBlank() || idempotencyKey.length() > 128)) {
             throw new IllegalArgumentException(
                     "idempotencyKey must be null or contain between 1 and 128 characters");
         }
+        Objects.requireNonNull(clientId, "clientId must not be null");
+    }
+
+    public ProtectionDecisionCommand(
+            String accountReference,
+            ProtectionEventType eventType,
+            RiskSignalEnvelope signalEnvelope,
+            String idempotencyKey) {
+        this(accountReference, eventType, signalEnvelope, idempotencyKey, ClientId.DEFAULT);
     }
 }

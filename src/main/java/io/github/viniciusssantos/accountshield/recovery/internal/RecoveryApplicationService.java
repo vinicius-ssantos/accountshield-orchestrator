@@ -12,16 +12,19 @@ import io.github.viniciusssantos.accountshield.challenge.InvalidChallengeStateEx
 import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
 import io.github.viniciusssantos.accountshield.recovery.InvalidRecoveryStateException;
+import io.github.viniciusssantos.accountshield.recovery.PrivilegedRecoveryActionAttempted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryAuthorization;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryCompleted;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryEventType;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryFlowConflictException;
+import io.github.viniciusssantos.accountshield.recovery.RecoveryManualReviewRequired;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryRiskClassification;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryStatus;
+import io.github.viniciusssantos.accountshield.recovery.StepUpChallenge;
 import io.github.viniciusssantos.accountshield.recovery.UnauthorizedRecoveryInitiationException;
 import io.github.viniciusssantos.accountshield.recovery.UnknownRecoveryClassificationRuleException;
 import io.github.viniciusssantos.accountshield.recovery.internal.persistence.RecoveryFlowEntity;
@@ -32,6 +35,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -49,13 +53,19 @@ class RecoveryApplicationService implements RecoveryService {
     private final RecoveryAuthorizationApplicationService authorizationService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final SimulatedStepUpCodeCapture simulatedStepUpCodeCapture;
+    private final boolean simulationEnabled;
 
     RecoveryApplicationService(
             RecoveryFlowRepository recoveryFlowRepository,
             ChallengeService challengeService,
             RecoveryAuthorizationApplicationService authorizationService,
             @Qualifier("decisionClock") Clock clock,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            SimulatedStepUpCodeCapture simulatedStepUpCodeCapture,
+            @Value("${accountshield.challenge.simulation-enabled:true}") boolean simulationEnabled) {
+        this.simulatedStepUpCodeCapture = simulatedStepUpCodeCapture;
+        this.simulationEnabled = simulationEnabled;
         this.recoveryFlowRepository = recoveryFlowRepository;
         this.challengeService = challengeService;
         this.authorizationService = authorizationService;
@@ -167,6 +177,11 @@ class RecoveryApplicationService implements RecoveryService {
         entity.setUpdatedAt(clock.instant());
         saveWithConflictCheck(entity);
 
+        if (nextStatus == RecoveryStatus.MANUAL_REVIEW) {
+            eventPublisher.publishEvent(new RecoveryManualReviewRequired(
+                    entity.getId(), entity.getAccountReference(), classification.name(), clock.instant()));
+        }
+
         return toDomain(entity);
     }
 
@@ -218,6 +233,7 @@ class RecoveryApplicationService implements RecoveryService {
 
         RecoveryFlowEntity entity = loadOrThrow(command.recoveryId(), "review");
         assertState(entity, RecoveryStatus.MANUAL_REVIEW, "review");
+        consumeReviewStepUp(command.recoveryId(), command.stepUpChallengeId(), command.reviewer());
 
         Instant now = clock.instant();
         String newStatus = command.decision() == RecoveryReviewDecision.APPROVE
@@ -238,6 +254,33 @@ class RecoveryApplicationService implements RecoveryService {
         }
 
         return toDomain(entity);
+    }
+
+    @Override
+    @Transactional
+    public StepUpChallenge requestReviewStepUp(UUID recoveryId, String actor) {
+        Objects.requireNonNull(recoveryId, "recoveryId must not be null");
+        Objects.requireNonNull(actor, "actor must not be null");
+        UUID challengeId = challengeService.create(new CreateChallengeCommand(
+                actor,
+                ChallengeType.TOTP_SIMULATED,
+                ChallengePurpose.PRIVILEGED_OPERATION,
+                recoveryId)).challengeId();
+        String simulatedCode = simulationEnabled ? simulatedStepUpCodeCapture.consume(challengeId) : null;
+        return new StepUpChallenge(challengeId, simulatedCode);
+    }
+
+    private void consumeReviewStepUp(UUID recoveryId, UUID stepUpChallengeId, String actor) {
+        try {
+            challengeService.consume(new ConsumeChallengeCommand(
+                    stepUpChallengeId, actor, ChallengePurpose.PRIVILEGED_OPERATION, recoveryId));
+            eventPublisher.publishEvent(
+                    new PrivilegedRecoveryActionAttempted(recoveryId, "REVIEW", actor, true));
+        } catch (RuntimeException exception) {
+            eventPublisher.publishEvent(
+                    new PrivilegedRecoveryActionAttempted(recoveryId, "REVIEW", actor, false));
+            throw exception;
+        }
     }
 
     private void saveWithConflictCheck(RecoveryFlowEntity entity) {

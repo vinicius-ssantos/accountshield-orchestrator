@@ -133,14 +133,14 @@ CI publishes Vitest coverage/JUnit output and Playwright reports, traces, screen
 
 ## Accepted architecture decisions
 
-- ADR 0012: adopt a read-only-first operator console;
-- ADR 0013: use a backend-for-frontend security boundary;
-- ADR 0014: generate API clients from the published OpenAPI contract;
-- ADR 0015: use deterministic synthetic data sources;
-- ADR 0016: prefer React Server Components and minimize client boundaries;
-- ADR 0017: BFF-managed operator session cookie and CSRF design;
-- ADR 0018–0021: operator recovery review, policy rollout, outbox requeue, and evidence export mutations;
-- ADR 0022: colocate the Next.js operations console in this repository.
+- ADR 0047: adopt a read-only-first operator console;
+- ADR 0048: use a backend-for-frontend security boundary;
+- ADR 0049: generate API clients from the published OpenAPI contract;
+- ADR 0050: use deterministic synthetic data sources;
+- ADR 0051: prefer React Server Components and minimize client boundaries;
+- ADR 0052: BFF-managed operator session cookie and CSRF design;
+- ADR 0053–0056: operator recovery review, policy rollout, outbox requeue, and evidence export mutations;
+- ADR 0057: colocate the Next.js operations console in this repository.
 
 See [`docs/adr/README.md`](../docs/adr/README.md) for the full, indexed list.
 

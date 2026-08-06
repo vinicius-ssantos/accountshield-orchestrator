@@ -10,6 +10,17 @@ spring:
       minimum-idle: ${DATABASE_MIN_IDLE:1}
       connection-timeout: 5000
       validation-timeout: 3000
+      # HikariCP's own connection-timeout only bounds how long it waits for a connection to
+      # become available; it does not reliably bound the underlying pgjdbc driver's native socket
+      # connect() call against a true network black hole (a cut connection that never resets or
+      # refuses, as opposed to one that fails fast) -- that call can block on OS-level TCP
+      # defaults far longer than 5s regardless of this setting. Bind the driver's own timeouts
+      # (seconds, not ms -- pgjdbc-specific units) so a genuine network partition surfaces as a
+      # controlled failure within the documented bound instead of an effectively unbounded hang
+      # (issue #146 / F-20, caught by DatabaseLatencyResilienceTest's Toxiproxy connection-cut).
+      data-source-properties:
+        connectTimeout: 5
+        socketTimeout: 10
   flyway:
     enabled: true
     validate-migration-naming: true
@@ -35,25 +46,98 @@ management:
       probes:
         enabled: true
       show-details: never
+  tracing:
+    sampling:
+      probability: ${ACCOUNTSHIELD_TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${ACCOUNTSHIELD_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{correlationId:-},%X{traceId:-},%X{spanId:-}]"
 
 accountshield:
+  auth:
+    demo-credentials:
+      # Fixed, portfolio-scoped demo personas -- not real user accounts (ADR 0046). The bcrypt
+      # hashes below are of publicly documented demo passwords, safe to commit; set this flag to
+      # false to disable operator login entirely without removing the persona list.
+      enabled: ${ACCOUNTSHIELD_DEMO_CREDENTIALS_ENABLED:true}
+      personas:
+        - username: operator-1
+          bcrypt-hash: "$2a$10$AqEjye4mg4kqddaNF8Eq3e5lFIqUiW90JotbWpDy1dI6s/7BaEx1K"
+          roles: [SECURITY_OPERATOR]
+        - username: analyst-1
+          bcrypt-hash: "$2a$10$YlF5usjQ5BJKvWPqqYOj3.fPyvZVWfur3qk/3ZpI3hgKIip/OWwWG"
+          roles: [SIMULATION_ANALYST]
+        - username: admin-1
+          bcrypt-hash: "$2a$10$GeUVdpW91DB6VHo7qHOrP..nYByIt2AoGADwci2/SMYhbO2XlAywO"
+          roles: [POLICY_ADMIN]
+        - username: reader-1
+          bcrypt-hash: "$2a$10$tUrlrmDL0DiuWs6/MGM00eV2yhoucAee./9Os58lWh/dCaykKRsK6"
+          roles: [OBSERVABILITY_READER]
   challenge:
     hmac-secret: ${CHALLENGE_HMAC_SECRET:accountshield-local-only-challenge-secret}
     simulation-enabled: ${CHALLENGE_SIMULATION_ENABLED:true}
+    retention:
+      terminal-ttl: 1d
+      fixed-delay: 1h
   protection:
     rate-limit:
       max-requests: 10
       window: 60s
+    idempotency:
+      ttl: 24h
+      retention:
+        batch-size: 500
+        fixed-delay: 1h
   outbox:
     relay:
       fixed-delay: 5s
       batch-size: 50
       max-attempts: 5
+      claim-timeout: 2m
+      backoff:
+        base-delay: 1s
+        max-delay: 5m
+    retention:
+      published-ttl: 7d
+      dead-lettered-ttl: 30d
+      batch-size: 500
+      fixed-delay: 1h
+  privacy:
+    pseudonym-secret: ${ACCOUNT_PSEUDONYM_SECRET:accountshield-local-only-pseudonym-secret}
+  webhook:
+    secret-encryption-key: ${ACCOUNTSHIELD_WEBHOOK_SECRET_ENCRYPTION_KEY:MQK2zVpJuhFHt9iIhP2WkFZC0rW80SVg5vz9SStRMxQ=}
+    delivery:
+      timeout: 5s
+    demo-receiver:
+      secret: ${ACCOUNTSHIELD_WEBHOOK_DEMO_RECEIVER_SECRET:accountshield-local-only-demo-receiver-secret}
+      max-timestamp-skew: 5m
+  crypto:
+    active-kek-version: ${ACCOUNTSHIELD_CRYPTO_ACTIVE_KEK_VERSION:1}
+    active-kek-secret: ${ACCOUNTSHIELD_CRYPTO_ACTIVE_KEK_SECRET:fV2x6TR85adre0B8wtaHGnLekX6MOoPjm1du9h/MBKY=}
+    previous-kek-version: ${ACCOUNTSHIELD_CRYPTO_PREVIOUS_KEK_VERSION:0}
+    previous-kek-secret: ${ACCOUNTSHIELD_CRYPTO_PREVIOUS_KEK_SECRET:}
+    subject-id-secret: ${ACCOUNTSHIELD_CRYPTO_SUBJECT_ID_SECRET:accountshield-local-only-subject-id-secret}
+    rewrap:
+      batch-size: 200
+      fixed-delay: 1h
+  risk:
+    max-signal-age: 5m
+  policy:
+    impact:
+      max-divergence-percentage: 20
   recovery:
     retention:
       terminal-ttl: 30d
       fixed-delay: 1h
+  audit:
+    chain:
+      verification:
+        batch-size: 500
+        fixed-delay: 1h
+  evidence:
+    signing:
+      key-size: 2048

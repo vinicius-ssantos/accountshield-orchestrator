@@ -1,4 +1,19 @@
 spring:
+  datasource:
+    hikari:
+      connection-timeout: 5000
+      validation-timeout: 3000
+      # This test-scoped application.yml occupies the same classpath location as (and shadows)
+      # src/main/resources/application.yml, so DatabaseLatencyResilienceTest's own comments
+      # asserting "HikariCP's configured connection-timeout (5s) + validation-timeout (3s) bound
+      # this" were describing values that were never actually active during tests -- HikariCP was
+      # silently running its own built-in defaults instead. connectTimeout/socketTimeout (seconds,
+      # pgjdbc-specific units) additionally bound the underlying driver's own socket operations,
+      # since HikariCP's connection-timeout alone does not reliably bound a native socket connect()
+      # against a true network black hole (issue #146 / F-20).
+      data-source-properties:
+        connectTimeout: 5
+        socketTimeout: 10
   jpa:
     open-in-view: false
     hibernate:
@@ -11,10 +26,52 @@ spring:
     enabled: true
     validate-migration-naming: true
 
+management:
+  otlp:
+    tracing:
+      export:
+        enabled: false
+
 accountshield:
+  auth:
+    demo-credentials:
+      enabled: true
+      personas:
+        - username: operator-1
+          bcrypt-hash: "$2a$10$AqEjye4mg4kqddaNF8Eq3e5lFIqUiW90JotbWpDy1dI6s/7BaEx1K"
+          roles: [SECURITY_OPERATOR]
+        - username: analyst-1
+          bcrypt-hash: "$2a$10$YlF5usjQ5BJKvWPqqYOj3.fPyvZVWfur3qk/3ZpI3hgKIip/OWwWG"
+          roles: [SIMULATION_ANALYST]
+        - username: admin-1
+          bcrypt-hash: "$2a$10$GeUVdpW91DB6VHo7qHOrP..nYByIt2AoGADwci2/SMYhbO2XlAywO"
+          roles: [POLICY_ADMIN]
+        - username: reader-1
+          bcrypt-hash: "$2a$10$tUrlrmDL0DiuWs6/MGM00eV2yhoucAee./9Os58lWh/dCaykKRsK6"
+          roles: [OBSERVABILITY_READER]
   outbox:
     relay:
+      fixed-delay: 9999s
+    retention:
+      fixed-delay: 9999s
+  challenge:
+    retention:
       fixed-delay: 9999s
   recovery:
     retention:
       fixed-delay: 9999s
+    authorization-retention:
+      fixed-delay: 9999s
+  protection:
+    idempotency:
+      retention:
+        fixed-delay: 9999s
+  crypto:
+    previous-kek-version: 99
+    previous-kek-secret: goEZxqNx2f+pk0Ap23Q+fpE0ae7q4uHRCTbKasd5HR4=
+    rewrap:
+      fixed-delay: 9999s
+  audit:
+    chain:
+      verification:
+        fixed-delay: 9999s

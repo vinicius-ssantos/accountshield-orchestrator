@@ -1,0 +1,53 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "30 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (java)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Java 25
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        with:
+          languages: java
+
+      # accountshield-sdk is a standalone Maven project this build's test scope depends on
+      # (issue #55, ADR 0037) -- must be installed into the local repo before this job's own
+      # independent `mvn package` can resolve it (this job doesn't reuse ci.yml's verify job).
+      - name: Build and install accountshield-sdk module
+        run: |
+          cd sdk
+          mvn --batch-mode --no-transfer-progress install -DskipTests
+
+      - name: Build (no tests -- CodeQL only needs compiled bytecode)
+        run: mvn --batch-mode --no-transfer-progress -DskipTests package
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        with:
+          category: codeql-java

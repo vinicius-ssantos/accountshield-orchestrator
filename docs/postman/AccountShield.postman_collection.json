@@ -1,0 +1,234 @@
+{
+  "info": {
+    "name": "AccountShield",
+    "description": "Sample requests covering decision, challenge, recovery, replay, policy rollout/impact, audit, and outbox (issue #28). Run 'Get dev token' first (requires SPRING_PROFILES_ACTIVE=local, the compose.yaml default) -- it stores the token into the {{token}} collection variable automatically. See docs/demo/curl-walkthrough.md for the equivalent curl commands.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" },
+    { "key": "protectionRequestId", "value": "" },
+    { "key": "challengeId", "value": "" },
+    { "key": "recoveryAuthorizationId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Get dev token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token', body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/dev/tokens",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"subject\":\"postman-demo\",\"roles\":[\"PROTECTION_CLIENT\",\"POLICY_ADMIN\",\"SIMULATION_ANALYST\",\"SECURITY_OPERATOR\"]}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Decision",
+      "item": [
+        {
+          "name": "Submit a step-up-triggering decision",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('protectionRequestId', body.protectionRequestId);",
+                  "if (body.challenge) { pm.collectionVariables.set('challengeId', body.challenge.challengeId); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/protection-decisions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"accountReference\":\"postman-demo-{{$guid}}@example.test\",\"eventType\":\"LOGIN_ATTEMPT\",\"impossibleTravel\":true,\"newDevice\":true,\"networkRiskLevel\":\"MEDIUM\",\"idempotencyKey\":\"postman-{{$guid}}\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Challenge",
+      "item": [
+        {
+          "name": "Verify challenge (deliberately wrong code)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/challenges/{{challengeId}}/verify",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"providedCode\":\"000000\",\"purpose\":\"PROTECTION_STEP_UP\",\"contextId\":\"{{protectionRequestId}}\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Recovery",
+      "item": [
+        {
+          "name": "Submit a recovery-abuse decision",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.recoveryAuthorizationId) { pm.collectionVariables.set('recoveryAuthorizationId', body.recoveryAuthorizationId); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/protection-decisions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"accountReference\":\"postman-recovery-{{$guid}}@example.test\",\"eventType\":\"PASSWORD_RESET_ATTEMPT\",\"compromisedCredential\":true,\"impossibleTravel\":true,\"networkRiskLevel\":\"LOW\",\"idempotencyKey\":\"postman-recovery-{{$guid}}\"}"
+            }
+          }
+        },
+        {
+          "name": "Initiate recovery",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/recovery",
+            "body": { "mode": "raw", "raw": "{\"authorizationId\":\"{{recoveryAuthorizationId}}\"}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Replay",
+      "item": [
+        {
+          "name": "Replay a decision",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/simulation/replay/{{protectionRequestId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Policy rollout and impact",
+      "item": [
+        {
+          "name": "Lint candidate thresholds",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/policies/analyze",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"allowMaxScore\":29,\"stepUpMaxScore\":69,\"recoveryMaxScore\":89}"
+            }
+          }
+        },
+        {
+          "name": "Diff candidate version against history",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/simulation/policy-impact?policyKey=account-protection-default&candidatePolicyVersion=1.1.0&maxSamples=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "simulation", "policy-impact"],
+              "query": [
+                { "key": "policyKey", "value": "account-protection-default" },
+                { "key": "candidatePolicyVersion", "value": "1.1.0" },
+                { "key": "maxSamples", "value": "100" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Audit",
+      "item": [
+        {
+          "name": "Verify audit chain range",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/audit/chain/verify?from=1&to=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "audit", "chain", "verify"],
+              "query": [
+                { "key": "from", "value": "1" },
+                { "key": "to", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Current chain root hash",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/audit/chain/root-hash" }
+        }
+      ]
+    },
+    {
+      "name": "7. Outbox",
+      "item": [
+        {
+          "name": "List pending outbox events",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/outbox?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "outbox"],
+              "query": [{ "key": "status", "value": "PENDING" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Evidence",
+      "item": [
+        {
+          "name": "Export an evidence bundle",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/evidence/export",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"protectionRequestId\":\"{{protectionRequestId}}\",\"reason\":\"postman demo\"}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

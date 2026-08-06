@@ -4,5 +4,7 @@
 # up with CRLF-terminated working-tree files even though the committed blob
 # is LF-only. That silently breaks byte-for-byte generated-artifact checks
 # such as `npm run openapi:check`, which compares a freshly regenerated
-# in-memory string (always LF) against the file as read from disk.
+# in-memory string (always LF) against the file as read from disk. It also
+# corrupts the shebang line of shell scripts like `mvnw` when they are
+# COPYed into a Linux Docker build stage straight from a Windows working tree.
 * text=auto eol=lf

@@ -13,7 +13,7 @@
 
     <groupId>io.github.vinicius-ssantos</groupId>
     <artifactId>accountshield-orchestrator</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>AccountShield Orchestrator</name>
     <description>Explainable account-protection decision and orchestration platform</description>
 
@@ -64,9 +64,25 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+        <!-- one of the OTLP exporter's transitive dependencies has Kotlin metadata; springdoc's
+             schema introspection reflects on it via kotlin-reflect, which is otherwise absent from
+             the classpath, crashing /v3/api-docs with NoClassDefFoundError: kotlin/reflect/full
+             /KClasses (surfaced by issue #52's OpenApiCompatibilityTest, ADR 0030) -->
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-reflect</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.8.0</version>
+            <version>3.0.3</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.modulith</groupId>
@@ -121,13 +137,119 @@
             <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-toxiproxy</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik</artifactId>
+            <version>1.10.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Issue #55 (ADR 0037): proves the accountshield-sdk module's typed models are wire
+             compatible with this server's real responses. The sdk module is a standalone Maven
+             project (sdk/pom.xml has no parent/reactor relationship to this pom.xml, and no
+             dependency on it either); this is the one deliberate, one-directional exception: the
+             server's OWN test suite may depend on the SDK to verify it against a live instance,
+             which does not create a cycle and does not give the SDK's compiled classpath any
+             server-internal dependency. CI installs sdk into the local repo before running this
+             build's own verify (see ci.yml). -->
+        <dependency>
+            <groupId>io.github.vinicius-ssantos</groupId>
+            <artifactId>accountshield-sdk</artifactId>
+            <version>1.0.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- build-info bound to generate-resources (not the goal's own default,
+                 prepare-package) so META-INF/build-info.properties exists before the test phase
+                 runs, not only after it; the BuildProperties bean OpenApiConfiguration uses as
+                 the single source of truth for the live OpenAPI contract's info.version
+                 (issue #151 / F-23) requires that file to already be on the classpath. -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                        <phase>generate-resources</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Coverage: report every run, and enforce a conservative floor so coverage cannot
+                 regress silently. The baseline (observed at the v1.0.0 tag) is ~89% instruction
+                 coverage; the floor is set at 80%, deliberately below the baseline so a normal PR
+                 is not blocked, but a sustained regression fails the build. ADR 0031's revisit
+                 criterion (phase in per-module thresholds for recovery/challenge/policy/etc.) remains
+                 open; this is the project-wide floor it called for first. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.15</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-coverage-floor</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.80</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- CycloneDX SBOM (ADR 0031): generated as a build artifact every run; real per-tag
+                 GitHub Release attachment deferred since no tags/releases exist yet in this repo. -->
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>2.9.2</version>
+                <executions>
+                    <execution>
+                        <id>build-sbom</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>makeAggregateBom</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

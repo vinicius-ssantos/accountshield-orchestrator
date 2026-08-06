@@ -6,5 +6,9 @@ public enum ChallengeStatus {
     VERIFIED,
     CONSUMED,
     FAILED,
-    EXPIRED
+    EXPIRED;
+
+    public boolean isTerminal() {
+        return this == VERIFIED || this == CONSUMED || this == FAILED || this == EXPIRED;
+    }
 }

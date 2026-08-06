@@ -6,7 +6,8 @@ import java.util.UUID;
 public record RecoveryReviewCommand(
         UUID recoveryId,
         RecoveryReviewDecision decision,
-        String reviewer) {
+        String reviewer,
+        UUID stepUpChallengeId) {
 
     public RecoveryReviewCommand {
         Objects.requireNonNull(recoveryId, "recoveryId must not be null");
@@ -15,5 +16,6 @@ public record RecoveryReviewCommand(
         if (reviewer.isBlank() || reviewer.length() > 128) {
             throw new IllegalArgumentException("reviewer must contain between 1 and 128 characters");
         }
+        Objects.requireNonNull(stepUpChallengeId, "stepUpChallengeId must not be null");
     }
 }

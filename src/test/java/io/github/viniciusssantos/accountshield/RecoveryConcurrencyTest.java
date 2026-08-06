@@ -6,6 +6,7 @@ import io.github.viniciusssantos.accountshield.challenge.ChallengeIssued;
 import io.github.viniciusssantos.accountshield.challenge.ChallengePurpose;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeService;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeStatus;
+import io.github.viniciusssantos.accountshield.challenge.ChallengeUseRejectedException;
 import io.github.viniciusssantos.accountshield.challenge.ChallengeVerificationCommand;
 import io.github.viniciusssantos.accountshield.recovery.ConfirmIdentityCommand;
 import io.github.viniciusssantos.accountshield.recovery.InitiateRecoveryCommand;
@@ -92,13 +93,23 @@ class RecoveryConcurrencyTest {
                 new ConfirmIdentityCommand(initiated.recoveryId(), initiated.identityChallengeId()));
         assertThat(readyForReview.status()).isEqualTo(RecoveryStatus.MANUAL_REVIEW);
 
+        UUID stepUpChallengeId =
+                recoveryService.requestReviewStepUp(initiated.recoveryId(), "operator-race").challengeId();
+        String stepUpCode = events.stream(ChallengeIssued.class)
+                .filter(event -> event.challengeId().equals(stepUpChallengeId))
+                .reduce((first, second) -> second)
+                .orElseThrow()
+                .issuedCode();
+        challengeService.verify(new ChallengeVerificationCommand(
+                stepUpChallengeId, stepUpCode, ChallengePurpose.PRIVILEGED_OPERATION, initiated.recoveryId()));
+
         List<Future<Boolean>> results = raceContenders(() -> {
             try {
                 recoveryService.review(new RecoveryReviewCommand(
-                        initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-race"));
+                        initiated.recoveryId(), RecoveryReviewDecision.APPROVE, "operator-race", stepUpChallengeId));
                 return true;
-            } catch (RecoveryFlowConflictException exception) {
-                // lost the optimistic-lock race against a concurrent review
+            } catch (RecoveryFlowConflictException | ChallengeUseRejectedException exception) {
+                // lost the optimistic-lock race on the recovery flow, or the step-up challenge, to another racer
                 return false;
             } catch (InvalidRecoveryStateException exception) {
                 // read happened after another racer had already committed COMPLETED
@@ -163,6 +174,20 @@ class RecoveryConcurrencyTest {
                 "concurrency-fixture-" + protectionRequestId,
                 directive,
                 "fingerprint-" + protectionRequestId,
+                Timestamp.from(issuedAt));
+
+        jdbcTemplate.update(
+                "INSERT INTO audit.decision_trace "
+                        + "(id, protection_request_id, account_reference, request_fingerprint, "
+                        + "algorithm_version, policy_key, policy_version, outcome, risk_score, "
+                        + "normalized_context, decided_at) "
+                        + "VALUES (?, ?, ?, ?, 'risk-rules-1.0', 'account-protection-default', '1.0.0', "
+                        + "'START_RECOVERY', ?, '{}'::jsonb, ?)",
+                decisionId,
+                protectionRequestId,
+                "concurrency-fixture-" + protectionRequestId,
+                "fingerprint-" + decisionId,
+                riskScore,
                 Timestamp.from(issuedAt));
 
         jdbcTemplate.update(

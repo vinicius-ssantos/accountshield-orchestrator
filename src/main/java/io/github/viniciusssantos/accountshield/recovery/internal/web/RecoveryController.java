@@ -6,6 +6,7 @@ import io.github.viniciusssantos.accountshield.recovery.RecoveryFlow;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewCommand;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryReviewDecision;
 import io.github.viniciusssantos.accountshield.recovery.RecoveryService;
+import io.github.viniciusssantos.accountshield.recovery.StepUpChallenge;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -52,13 +53,24 @@ class RecoveryController {
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 
+    @PostMapping("/{recoveryId}/review/step-up")
+    public ResponseEntity<StepUpChallengeResponse> requestReviewStepUp(
+            @PathVariable UUID recoveryId,
+            Authentication authentication) {
+        StepUpChallenge challenge = recoveryService.requestReviewStepUp(recoveryId, authentication.getName());
+        return ResponseEntity.ok(new StepUpChallengeResponse(challenge.challengeId(), challenge.simulatedCode()));
+    }
+
     @PostMapping("/{recoveryId}/review")
     public ResponseEntity<RecoveryResponse> review(
             @PathVariable UUID recoveryId,
             @Valid @RequestBody RecoveryReviewRequest request,
             Authentication authentication) {
         RecoveryFlow flow = recoveryService.review(new RecoveryReviewCommand(
-                recoveryId, RecoveryReviewDecision.valueOf(request.decision()), authentication.getName()));
+                recoveryId,
+                RecoveryReviewDecision.valueOf(request.decision()),
+                authentication.getName(),
+                request.stepUpChallengeId()));
         return ResponseEntity.ok(RecoveryResponse.from(flow));
     }
 
@@ -72,7 +84,21 @@ class RecoveryController {
     record ConfirmIdentityRequest(@NotNull UUID challengeId) {
     }
 
-    record RecoveryReviewRequest(@NotBlank String decision) {
+    record RecoveryReviewRequest(
+            @NotBlank String decision,
+            @Schema(description = "Challenge ID returned by POST .../review/step-up, "
+                    + "after it has been verified via POST /api/v1/challenges/{id}/verify")
+            @NotNull UUID stepUpChallengeId) {
+    }
+
+    record StepUpChallengeResponse(
+            UUID challengeId,
+            @Schema(
+                    description = "The simulated challenge code, disclosed only because this deployment uses "
+                            + "ADR 0004's simulated challenge providers (no real out-of-band delivery channel "
+                            + "exists). Null when simulation is disabled.",
+                    example = "482913")
+            String simulatedCode) {
     }
 
     record RecoveryResponse(
