@@ -26,7 +26,7 @@ AccountShield will include a frontend application in the same repository under `
 
 ## Backend dependencies
 
-The shell, fixtures, design tokens, and read-only views can evolve immediately. Secure mutations depend on backend issues covering authentication/RBAC, maker-checker policy approval, purpose-bound step-up, recovery authorization, data masking, and dead-letter operations.
+Read-only views and the shell evolved first. Each privileged mutation (recovery review, policy lifecycle/rollout, dead-letter requeue, evidence export) shipped only after its own backend readiness contract — authentication/RBAC, maker-checker policy approval, purpose-bound step-up, recovery authorization, data masking, and dead-letter operations — was in place, per the epic's mutation readiness gate. Any future mutation follows the same per-capability gate rather than being assumed available.
 
 ## API boundary
 
@@ -52,9 +52,14 @@ Bundle size and Web Vitals are documented, CI-enforced budgets, not an unmeasure
 
 ## Accepted architecture decisions
 
-- [ADR 0011 — Colocate the Next.js operations console](../adr/0011-colocate-nextjs-operations-console.md)
 - [ADR 0012 — Adopt a read-only-first operator console](../adr/0012-adopt-read-only-first-operator-console.md)
 - [ADR 0013 — Use a backend-for-frontend security boundary](../adr/0013-use-backend-for-frontend-security-boundary.md)
 - [ADR 0014 — Generate frontend API clients from OpenAPI](../adr/0014-generate-frontend-api-clients-from-openapi.md)
 - [ADR 0015 — Use deterministic frontend data sources](../adr/0015-use-deterministic-frontend-data-sources.md)
 - [ADR 0016 — Prefer React Server Components](../adr/0016-prefer-react-server-components.md)
+- [ADR 0017 — BFF operator session cookie and CSRF design](../adr/0017-bff-operator-session-cookie-and-csrf-design.md)
+- [ADR 0018 — Operator recovery review mutation](../adr/0018-operator-recovery-review-mutation.md)
+- [ADR 0019 — Operator policy rollout mutation](../adr/0019-operator-policy-rollout-mutation.md)
+- [ADR 0020 — Operator outbox dead-letter requeue mutation](../adr/0020-operator-outbox-requeue-mutation.md)
+- [ADR 0021 — Operator evidence export mutation](../adr/0021-operator-evidence-export-mutation.md)
+- [ADR 0022 — Colocate the Next.js operations console](../adr/0022-colocate-nextjs-operations-console.md)

@@ -1,4 +1,4 @@
-# ADR 0011: Colocate the Next.js operations console in the application repository
+# ADR 0022: Colocate the Next.js operations console in the application repository
 
 - Status: Accepted
 - Date: 2026-07-23

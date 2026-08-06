@@ -155,13 +155,13 @@ The authoritative capability status is maintained in the [feature catalog](docs/
 
 ### Not yet delivered
 
-Authentication/RBAC, privileged step-up authorization, maker-checker policy governance, client isolation, signed webhooks, cryptographic audit chaining, distributed tracing, production-grade challenge providers, operator mutations, SDK/CLI releases, and a reproducible 1.0 release remain planned.
+Production-grade challenge providers and distributed tracing remain planned. See the [feature catalog](docs/features/README.md) for the authoritative, per-capability implemented/partial/planned breakdown.
 
 See the [dependency-ordered roadmap](docs/roadmap.md) for the implementation sequence. Open pull requests are not classified as delivered until merged into `main`.
 
 ## Security Operations Console
 
-The repository now includes a fixture-driven, read-only Next.js console under [`frontend/`](frontend/). It establishes the operator experience for decisions, recoveries, policies, replay, and operational investigation without enabling privileged mutations.
+The repository includes a Next.js operator console under [`frontend/`](frontend/), fronted by a server-only BFF. Beyond read-only investigation of decisions, recoveries, policies, replay, and outbox operations, it now exposes authenticated, audited operator mutations — recovery review with fresh step-up, policy lifecycle and rollout control, dead-letter requeue, and evidence export — gated behind a secure BFF session. Backend authorization remains authoritative for every mutation.
 
 ```bash
 cd frontend

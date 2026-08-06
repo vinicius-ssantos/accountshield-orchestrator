@@ -17,11 +17,17 @@ Architecture decision records preserve the reasoning and constraints behind Acco
 | [0009](0009-outbox-relay-with-simulated-publisher.md) | Accepted | Persist publication intent transactionally and use a simulated relay | Outbox section in the [feature catalog](../features/README.md) |
 | [0010](0010-recovery-trust-boundaries.md) | Accepted | Use explicit `START_RECOVERY` and an immutable consumable recovery authorization; audit remains evidence | [Recovery](../architecture/recovery.md), [invariants](../architecture/invariants.md) |
 | [0011](0011-jwt-resource-server-with-local-issuer.md) | Accepted | Authorize sensitive APIs with a JWT resource server backed by a local, per-boot key pair | Issue #19 |
+| [0012](0012-adopt-read-only-first-operator-console.md) | Accepted | Ship investigation and explanation before administrative mutation; gate every mutation behind its own backend readiness contract | [Frontend architecture](../frontend/architecture.md) |
+| [0013](0013-use-backend-for-frontend-security-boundary.md) | Accepted | Browser code never manages long-lived backend credentials; a server-only Next.js BFF is the security boundary | [Frontend architecture](../frontend/architecture.md) |
+| [0014](0014-generate-frontend-api-clients-from-openapi.md) | Accepted | Generate frontend API clients from the published OpenAPI contract rather than hand-writing them | [Frontend architecture](../frontend/architecture.md) |
+| [0015](0015-use-deterministic-frontend-data-sources.md) | Accepted | Use an explicit, deterministic data-source abstraction (fixtures vs. live) with no silent fallback | [Frontend architecture](../frontend/architecture.md) |
+| [0016](0016-prefer-react-server-components.md) | Accepted | Prefer React Server Components by default and minimize client boundaries | [Frontend architecture](../frontend/architecture.md) |
 | [0017](0017-bff-operator-session-cookie-and-csrf-design.md) | Accepted | BFF-managed opaque, HMAC-signed session cookie backed by an in-memory server-side store, with double-submit CSRF | Issue #78 |
 | [0018](0018-operator-recovery-review-mutation.md) | Accepted | First console mutation: operator recovery review through the BFF, gated by the #78 session guard with no env-token fallback, removing `recoveries` from the read-only architecture scope | Issue #194 |
 | [0019](0019-operator-policy-rollout-mutation.md) | Accepted | Third console mutation: operator policy rollout controls (start/adjust/rollback) through the BFF, reusing policy lifecycle's step-up verify route and a no-step-up, distinctly-confirmed immediate rollback | Issue #200 |
 | [0020](0020-operator-outbox-requeue-mutation.md) | Accepted | Fourth console mutation: operator outbox dead-letter requeue through the BFF, the first with no step-up gate (operational remediation, not a privileged security action) | Issue #203 |
 | [0021](0021-operator-evidence-export-mutation.md) | Accepted | Fifth console mutation: operator evidence export/verify through the BFF, the first feature to split one export route (mutation) from one verify route (read) within the same feature | Issue #214 |
+| [0022](0022-colocate-nextjs-operations-console.md) | Accepted | Colocate the Next.js operations console in this repository rather than a separate repository | Issue #58 |
 
 ## ADR lifecycle
 

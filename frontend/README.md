@@ -4,25 +4,29 @@ Initial frontend foundation for the AccountShield operator experience.
 
 ## Product direction
 
-The console is designed for security operators, policy administrators, simulation analysts, and operational readers. The first releases prioritize investigation and explanation over administrative mutation.
+The console is designed for security operators, policy administrators, simulation analysts, and operational readers. Investigation and explanation shipped first; authenticated, audited operator mutations now build on that read-only foundation.
 
 Core workflow:
 
 1. find a decision by correlation ID;
 2. inspect risk signals, reasons, policy provenance, challenge, recovery, audit, and outbox timeline;
 3. replay the historical decision without side effects;
-4. review recovery only after backend RBAC and fresh step-up authorization are available.
+4. review and act on recovery, policy, and outbox state through mutations gated by a secure BFF session and backend-enforced RBAC/step-up.
 
 ## Current scope
 
-The console currently runs in fixture-driven, read-only mode:
+The console runs against deterministic fixtures by default and against the live backend through the BFF once configured (`ACCOUNTSHIELD_DATA_SOURCE`):
 
 - Next.js App Router and strict TypeScript;
 - dark operations-console shell;
-- initial navigation and dashboard;
-- synthetic metrics and decisions;
+- decision search, investigation timeline, and evidence export;
+- recovery queue with fresh-step-up-gated review (approve/deny);
+- policy lifecycle (approve/activate/reject/retire) and rollout controls (start/adjust/rollback);
+- outbox/dead-letter search with operator requeue;
+- deterministic replay comparison;
+- authenticated operator session through the BFF (login/logout/refresh, CSRF, session expiry/revocation);
 - no authentication bypass;
-- no real recovery approval, policy activation, rollback, or dead-letter replay.
+- backend authorization remains authoritative for every mutation — the BFF session only proves a session exists, it never substitutes for a backend 403.
 
 ## Local development
 
@@ -129,31 +133,35 @@ CI publishes Vitest coverage/JUnit output and Playwright reports, traces, screen
 
 ## Accepted architecture decisions
 
-- ADR 0011: colocate the Next.js operations console in this repository;
 - ADR 0012: adopt a read-only-first operator console;
 - ADR 0013: use a backend-for-frontend security boundary;
 - ADR 0014: generate API clients from the published OpenAPI contract;
 - ADR 0015: use deterministic synthetic data sources;
-- ADR 0016: prefer React Server Components and minimize client boundaries.
+- ADR 0016: prefer React Server Components and minimize client boundaries;
+- ADR 0017: BFF-managed operator session cookie and CSRF design;
+- ADR 0018–0021: operator recovery review, policy rollout, outbox requeue, and evidence export mutations;
+- ADR 0022: colocate the Next.js operations console in this repository.
+
+See [`docs/adr/README.md`](../docs/adr/README.md) for the full, indexed list.
 
 See [`docs/frontend/architecture.md`](../docs/frontend/architecture.md) for links and consolidated constraints.
 
 ## Delivered foundation
 
 - frontend CI with deterministic dependency installation, type generation, lint, typecheck, and production build;
-- reviewed npm lockfile and cache configuration;
-- fixture adapter and stable decision view models;
-- deterministic data-source selection;
-- accessible overview, planned routes, and App Router states;
-- security and architecture ADRs.
+- reviewed npm lockfile and cache configuration, containerized image, and Docker Compose integration;
+- generated OpenAPI client with a drift-preventing compatibility gate;
+- fixture adapter and live BFF adapter behind the same feature-adapter interface;
+- deterministic data-source selection with no silent live-to-fixture fallback in production-like environments;
+- decision search, investigation timeline, replay comparison, recovery queue/detail, policy lifecycle/impact views, and outbox/dead-letter views;
+- authenticated operator session (login/logout/refresh, CSRF, rotation, inactivity/absolute expiry, revocation) through the BFF;
+- privileged mutations — recovery review with fresh step-up, policy lifecycle and rollout control, dead-letter requeue, evidence export/verify — each gated behind its own backend readiness contract;
+- frontend architecture boundaries enforced in CI (ARCH001–011) and BFF/frontend observability with strict redaction;
+- performance, bundle, and Web Vitals budgets enforced in CI;
+- accessible App Router states, Playwright golden-path/accessibility/leakage coverage, and security and architecture ADRs.
 
-## Planned slices
+## Remaining portfolio polish
 
-1. frontend container and Compose integration;
-2. generated OpenAPI client and compatibility gate;
-3. decisions list and investigation timeline;
-4. recovery read-only queue;
-5. replay comparison;
-6. OIDC/JWT roles and secure mutations;
-7. policy rollout and outbox/DLQ operations;
-8. Playwright golden-path and adversarial browser tests.
+- reproducible screenshots and a demonstration walkthrough;
+- deployment, rollback, incident, and session-revocation operating procedures;
+- secure preview environments, if justified.
