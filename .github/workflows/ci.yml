@@ -142,6 +142,56 @@ jobs:
           path: target/surefire-reports/**
           retention-days: 7
 
+  # Self-hosted fallback for "Maven verify" (a required status check). Races the
+  # hosted job above via the shared concurrency group: whichever runner claims the
+  # group first cancels the other, so this only actually does work when the
+  # GitHub-hosted runner is unavailable (queued/outage) long enough for the local
+  # runner to grab the group first. Trimmed to the essentials (no report/SBOM
+  # artifact uploads) since its only job is to satisfy the required check quickly;
+  # the hosted job remains the rich-reporting default the rest of the time.
+  verify-self-hosted:
+    name: Maven verify (self-hosted)
+    runs-on: [self-hosted, accountshield-ci]
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Java 25
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Build and test accountshield-sdk module
+        run: |
+          cd sdk
+          mvn --batch-mode --no-transfer-progress install
+
+      - name: Build accountshield-demo module
+        run: |
+          cd demo
+          mvn --batch-mode --no-transfer-progress package
+
+      - name: Build and test accountshield-cli module
+        run: |
+          cd cli
+          mvn --batch-mode --no-transfer-progress package
+
+      - name: Verify
+        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience,benchmark,disaster-recovery
+
+      - name: Summarize test failure causes
+        if: failure()
+        shell: bash
+        run: |
+          if compgen -G "target/surefire-reports/*.txt" > /dev/null; then
+            grep -h -E "^(Caused by:|[[:space:]]*Caused by:|\[ERROR\]|org\.flywaydb|jakarta\.persistence|org\.springframework\.beans)" \
+              target/surefire-reports/*.txt | head -n 250 || true
+          fi
+
   frontend:
     name: Frontend verify
     runs-on: ubuntu-latest
@@ -379,6 +429,93 @@ jobs:
       # above) against the real, already-running smoke-test app container, submitting real
       # protection decisions and exercising the challenge/recovery/webhook-verification paths. A
       # non-zero exit fails this job.
+      - name: Run SDK demo end-to-end against the live smoke-test app
+        run: |
+          ACCOUNTSHIELD_BASE_URL=http://localhost:8080 java -jar demo/target/accountshield-demo.jar
+
+      - name: Smoke test logs on failure
+        if: failure()
+        run: |
+          docker logs accountshield-smoke-app || true
+          docker logs accountshield-smoke-postgres || true
+
+      - name: Tear down smoke test containers
+        if: always()
+        run: |
+          docker rm -f accountshield-smoke-app accountshield-smoke-postgres || true
+          docker network rm accountshield-smoke-net || true
+
+  # Self-hosted fallback for "Docker build" (a required status check), same rationale as
+  # verify-self-hosted above. Deliberately does NOT `need:` verify/frontend -- those hosted
+  # jobs may themselves be stuck during an outage, and this job's own steps already rebuild
+  # everything it needs from a clean checkout, so waiting on them would just reintroduce the
+  # outage dependency this job exists to route around.
+  docker-self-hosted:
+    name: Docker build (self-hosted)
+    runs-on: [self-hosted, accountshield-ci]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Java 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Build accountshield-sdk and accountshield-demo modules
+        run: |
+          cd sdk && mvn --batch-mode --no-transfer-progress install -DskipTests
+          cd ../demo && mvn --batch-mode --no-transfer-progress package
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Build image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: accountshield-orchestrator:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start smoke test database and app
+        run: |
+          docker network create accountshield-smoke-net
+          docker run -d --name accountshield-smoke-postgres --network accountshield-smoke-net \
+            -e POSTGRES_DB=accountshield -e POSTGRES_USER=accountshield \
+            -e POSTGRES_PASSWORD=accountshield-local-only \
+            postgres:17-alpine
+          for i in $(seq 1 30); do
+            docker exec accountshield-smoke-postgres pg_isready -U accountshield -d accountshield && break
+            sleep 2
+          done
+          docker run -d --name accountshield-smoke-app --network accountshield-smoke-net -p 8080:8080 \
+            -e DATABASE_URL=jdbc:postgresql://accountshield-smoke-postgres:5432/accountshield \
+            -e DATABASE_USERNAME=accountshield -e DATABASE_PASSWORD=accountshield-local-only \
+            -e SPRING_PROFILES_ACTIVE=local \
+            accountshield-orchestrator:ci
+
+      - name: Wait for the app to report healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fs http://localhost:8080/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
+              echo "Smoke test passed: /actuator/health reports UP"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Smoke test failed: /actuator/health never reported UP within 60s"
+          exit 1
+
       - name: Run SDK demo end-to-end against the live smoke-test app
         run: |
           ACCOUNTSHIELD_BASE_URL=http://localhost:8080 java -jar demo/target/accountshield-demo.jar
