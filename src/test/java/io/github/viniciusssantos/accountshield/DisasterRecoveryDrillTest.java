@@ -87,8 +87,14 @@ class DisasterRecoveryDrillTest {
         int preBackupDecisionCount = countRows(sourceJdbc, "audit.decision_trace");
         // Precondition: the chain must already be valid on the live source before backup is even
         // attempted -- isolates any future chain-verification failure after restore (below) as
-        // restore-specific rather than a pre-existing condition on the source itself.
-        AuditChainVerificationResult sourceChainResult = sourceAuditChain.verifyRange(1, preBackupDecisionCount);
+        // restore-specific rather than a pre-existing condition on the source itself. Bounded by
+        // the actual chain tip (issue #185), not preBackupDecisionCount's raw COUNT(*): the two
+        // are not guaranteed equal (chain_sequence is nullable for pre-chain/fixture rows, so
+        // COUNT(*) can exceed the real max chain_sequence), and an upper bound past the real tip
+        // makes verifyRange silently check fewer rows than intended rather than failing loudly on
+        // the actual current state of the chain.
+        AuditChainRootHash sourceTip = sourceAuditChain.currentRootHash().orElseThrow();
+        AuditChainVerificationResult sourceChainResult = sourceAuditChain.verifyRange(1, sourceTip.chainSequence());
         assertThat(sourceChainResult.valid())
                 .as("source chain must verify cleanly before backup is attempted: %s", sourceChainResult.breaks())
                 .isTrue();
