@@ -150,7 +150,7 @@ jobs:
   # artifact uploads) since its only job is to satisfy the required check quickly;
   # the hosted job remains the rich-reporting default the rest of the time.
   verify-self-hosted:
-    name: Maven verify
+    name: Maven verify (self-hosted)
     runs-on: [self-hosted, accountshield-ci]
     timeout-minutes: 15
 
@@ -451,7 +451,7 @@ jobs:
   # everything it needs from a clean checkout, so waiting on them would just reintroduce the
   # outage dependency this job exists to route around.
   docker-self-hosted:
-    name: Docker build
+    name: Docker build (self-hosted)
     runs-on: [self-hosted, accountshield-ci]
     timeout-minutes: 10
     permissions:
