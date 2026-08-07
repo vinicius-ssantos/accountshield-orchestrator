@@ -1,4 +1,4 @@
-# ADR 0020: Operator outbox dead-letter requeue as the fourth console mutation, and the first with no step-up gate
+# ADR 0055: Operator outbox dead-letter requeue as the fourth console mutation, and the first with no step-up gate
 
 - Status: Accepted
 - Date: 2026-08-02
@@ -7,8 +7,8 @@
 
 Issue #203 wires the read-only outbox delivery health console (#74/#188) to the backend's existing
 `POST /api/v1/outbox/{eventId}/requeue` endpoint, letting an operator manually requeue a single
-dead-lettered event. This is the fourth console mutation, after recovery review (#194, ADR 0018),
-policy lifecycle (#197), and policy rollout (#200, ADR 0019).
+dead-lettered event. This is the fourth console mutation, after recovery review (#194, ADR 0053),
+policy lifecycle (#197), and policy rollout (#200, ADR 0054).
 
 Unlike all three prior mutations, this backend endpoint required **no changes**: it already existed
 on `main`, already guards that the target event is currently `DEAD_LETTERED`
@@ -34,13 +34,13 @@ backend contract doesn't support.
 The BFF mutation module (`server/bff/outbox-requeue-core.ts`, `outbox-requeue.ts`,
 `outbox-requeue-fixtures.ts`, one route at `app/api/bff/outbox-requeue/`) still reuses
 `require-session.ts`'s `requireOperatorSession` -- the "no env-token fallback for mutations" rule
-from ADR 0018 applies regardless of whether the action itself needs step-up. CSRF and origin
+from ADR 0053 applies regardless of whether the action itself needs step-up. CSRF and origin
 validation are unconditional for this route, same as every other mutation.
 
 The UI (`RequeueControl` in `outbox-console.tsx`) adds a lightweight, single-step confirmation
 ("Requeue this event now? Confirm / Cancel") before submitting -- not a step-up flow, since none
 exists, but still a deliberate pause before a state-changing action, consistent with rollout's
-rollback control (ADR 0019) even though the underlying authorization mechanism differs.
+rollback control (ADR 0054) even though the underlying authorization mechanism differs.
 
 `src/features/outbox/` is removed from `architecture.config.mjs`'s `readOnlyScopes` -- the fourth
 feature directory (after recoveries, policies) to lose that guarantee.
@@ -55,7 +55,7 @@ operator, or delivered in the interim).
 
 Rejected: the backend contract does not accept or require a `stepUpChallengeId` for this endpoint.
 Inventing one on the frontend would misrepresent the actual authorization model, exactly the
-reasoning ADR 0019 already used to reject step-up for rollback. Consistency with *this codebase's
+reasoning ADR 0054 already used to reject step-up for rollback. Consistency with *this codebase's
 actual security model* takes priority over surface consistency with prior mutations' UI shape.
 
 ### Treat this as a read-adjacent action and leave `src/features/outbox/` in `readOnlyScopes`
@@ -78,7 +78,7 @@ change, not to be preserved by mislabeling.
 
 ### Negative
 
-- no client-side role-based hiding, matching the precedent set in ADR 0018 -- an unauthorized
+- no client-side role-based hiding, matching the precedent set in ADR 0053 -- an unauthorized
   operator briefly sees the requeue control before the backend's own role check rejects the action;
 - the lightweight confirm/cancel UI is a UX nicety, not a security control -- a compromised or
   careless operator session can requeue events with a single extra click, unlike the three prior
@@ -93,16 +93,16 @@ change, not to be preserved by mislabeling.
 ## Revisit criteria
 
 Revisit if: the backend ever adds a step-up requirement to this endpoint (the UI flow would need to
-change to match, as ADR 0019 already anticipated for rollback); or a future mutation candidate is
+change to match, as ADR 0054 already anticipated for rollback); or a future mutation candidate is
 ambiguous about whether it counts as "operational remediation" vs. a privileged action, in which
 case this ADR's criterion should be made more precise rather than re-litigated per issue.
 
 ## References
 
 - Issue #203 -- Implement operator outbox dead-letter requeue through the BFF.
-- Issue #194 / ADR 0018 -- the first console mutation and the origin of the
+- Issue #194 / ADR 0053 -- the first console mutation and the origin of the
   `requireOperatorSession`-only rule.
-- Issue #200 / ADR 0019 -- the immediately preceding mutation and the rollback no-step-up precedent
+- Issue #200 / ADR 0054 -- the immediately preceding mutation and the rollback no-step-up precedent
   this ADR extends.
 - ADR 0009 -- outbox relay with simulated publisher (at-least-once delivery tolerance context for
   why a duplicate publish from requeue is an accepted, not exceptional, outcome).

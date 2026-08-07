@@ -1,4 +1,4 @@
-# ADR 0015: Use data-source abstractions with deterministic synthetic fixtures
+# ADR 0050: Use data-source abstractions with deterministic synthetic fixtures
 
 - Status: Accepted
 - Date: 2026-07-23

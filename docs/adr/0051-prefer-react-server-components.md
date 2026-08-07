@@ -1,4 +1,4 @@
-# ADR 0016: Prefer React Server Components and minimize client boundaries
+# ADR 0051: Prefer React Server Components and minimize client boundaries
 
 - Status: Accepted
 - Date: 2026-07-23
