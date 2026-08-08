@@ -246,6 +246,20 @@ wrapper. Run with `docker compose --profile demo up --build demo`.
 - No hardcoded server response data anywhere in the SDK; every model is a direct, minimal
   transcription of the real DTO field names and types.
 
+## Amendment (issue #148)
+
+The unconditional test-scope dependency on `accountshield-sdk` (see "A second real finding" above)
+broke `./mvnw verify` on a genuinely clean clone -- an empty local Maven repository has no way to
+resolve an artifact that only exists after `cd sdk && mvn install`, and the README's own "clean
+clone is self-sufficient" claim was false as a result. Made the dependency and
+`SdkContractVerificationTest` (moved to `src/test-sdk-contract/java`, added via
+`build-helper-maven-plugin` only inside the profile) opt-in behind a new `sdk-contract-verification`
+Maven profile instead of always-on. Every workflow that already installed `accountshield-sdk` first
+(`ci.yml`'s two `verify` jobs, `codeql.yml`, `nightly.yml`, `release.yml`) now also passes
+`-Psdk-contract-verification` so the contract test keeps running on every PR; the root `Dockerfile`
+no longer needs to install `sdk/` at all, since `package -DskipTests` never compiles the
+profile-gated test source without it.
+
 ## Revisit criteria
 
 - If this SDK is ever meant for external, non-monorepo consumers, publish it to a real artifact

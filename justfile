@@ -51,8 +51,10 @@ verify:
     ./mvnw --batch-mode --no-transfer-progress verify
 
 # Run the backend suite the way ci.yml's default PR gate does (nightly-only lanes excluded).
+# Requires `cd sdk && mvn install` first (issue #148): -Psdk-contract-verification activates
+# SdkContractVerificationTest, opt-in on a clean clone but always run in CI.
 verify-fast:
-    ./mvnw --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience,benchmark,disaster-recovery
+    ./mvnw --batch-mode --no-transfer-progress verify -Psdk-contract-verification -DexcludedGroups=resilience,benchmark,disaster-recovery
 
 # Install frontend dependencies.
 frontend-install:

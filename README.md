@@ -234,22 +234,22 @@ docker compose up -d postgres
 ./mvnw spring-boot:run
 ```
 
-The root build's test scope depends on `accountshield-sdk` (issue #55, ADR 0037), so `./mvnw
-verify` on a genuinely clean clone (an empty local Maven repository) fails at dependency
-resolution unless the SDK is installed locally first -- this is not yet published to a public
-repository (issue #148 / F-04 tracks closing that gap). Install it, then the CLI, before running
-the root build:
+`./mvnw verify` is self-sufficient on a genuinely clean clone (an empty local Maven repository):
+the root build no longer has an unconditional dependency on `accountshield-sdk`, which is not
+published to a public repository. `CliEndToEndTest` also skips (rather than fails) if
+`cli/target/accountshield-cli.jar` is absent.
+
+`SdkContractVerificationTest` (issue #55, ADR 0037 -- proves the SDK's typed models against a live
+instance of this server) is opt-in instead, behind the `sdk-contract-verification` Maven profile
+(issue #148 / F-04): install the SDK first, then activate the profile explicitly.
 
 ```bash
 cd sdk && mvn install && cd ../cli && mvn package && cd ..
-./mvnw verify
+./mvnw verify -Psdk-contract-verification
 ```
 
-Skipping this bootstrap and running `./mvnw verify` directly fails with an unresolved
-`accountshield-sdk` dependency, not a passing build with skipped tests. The CLI half is the only
-genuinely optional part: `CliEndToEndTest` skips (rather than fails) if `cli/target/accountshield-cli.jar`
-specifically is absent, but the SDK itself must still be installed for the root build's own
-`test-compile` to succeed at all.
+CI always activates this profile (see `ci.yml`), so the contract test still runs on every PR; it
+just isn't triggered by accident on a clean clone anymore.
 
 No production credentials are required. All external challenge providers are simulated locally.
 

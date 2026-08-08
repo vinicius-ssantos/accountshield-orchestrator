@@ -64,7 +64,7 @@ jobs:
       # ADR 0036: a real pg_dump/psql backup-and-restore drill against a second Testcontainers
       # Postgres instance, tens of seconds) are excluded the same way, run nightly only.
       - name: Verify
-        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience,benchmark,disaster-recovery
+        run: mvn --batch-mode --no-transfer-progress verify -Psdk-contract-verification -DexcludedGroups=resilience,benchmark,disaster-recovery
 
       - name: Assemble generated contracts
         if: always()
@@ -181,7 +181,7 @@ jobs:
           mvn --batch-mode --no-transfer-progress package
 
       - name: Verify
-        run: mvn --batch-mode --no-transfer-progress verify -DexcludedGroups=resilience,benchmark,disaster-recovery
+        run: mvn --batch-mode --no-transfer-progress verify -Psdk-contract-verification -DexcludedGroups=resilience,benchmark,disaster-recovery
 
       - name: Summarize test failure causes
         if: failure()
