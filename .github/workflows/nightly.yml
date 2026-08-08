@@ -48,7 +48,7 @@ jobs:
       # .default overrides src/test/resources/junit-platform.properties' bounded default (200)
       # for deeper property-based fuzzing (issue #53, ADR 0033).
       - name: Verify (full suite, deeper property-based fuzzing)
-        run: mvn --batch-mode --no-transfer-progress verify -Djqwik.tries.default=2000
+        run: mvn --batch-mode --no-transfer-progress verify -Psdk-contract-verification -Djqwik.tries.default=2000
 
       - name: Upload benchmark report
         if: always()

@@ -153,20 +153,6 @@
             <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- Issue #55 (ADR 0037): proves the accountshield-sdk module's typed models are wire
-             compatible with this server's real responses. The sdk module is a standalone Maven
-             project (sdk/pom.xml has no parent/reactor relationship to this pom.xml, and no
-             dependency on it either); this is the one deliberate, one-directional exception: the
-             server's OWN test suite may depend on the SDK to verify it against a live instance,
-             which does not create a cycle and does not give the SDK's compiled classpath any
-             server-internal dependency. CI installs sdk into the local repo before running this
-             build's own verify (see ci.yml). -->
-        <dependency>
-            <groupId>io.github.vinicius-ssantos</groupId>
-            <artifactId>accountshield-sdk</artifactId>
-            <version>1.0.0</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -253,4 +239,51 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Issue #148: accountshield-sdk is not published anywhere (no Maven Central, no GitHub
+             Packages); it only exists in the local repo after `cd sdk && mvn install`. Making it
+             an unconditional test-scope dependency broke the README's own "self-sufficient on a
+             clean clone" claim about `mvn verify`: dependency resolution failed before any test
+             ran. This profile makes accountshield-sdk (and SdkContractVerificationTest, the only
+             test that needs it; ADR 0037, issue #55) opt-in instead of default, restoring a
+             genuinely self-sufficient default build. Activate explicitly with
+             `-Psdk-contract-verification` after `cd sdk && mvn install`; CI does exactly this (see
+             ci.yml) so the contract test still runs on every PR, just not by accident on a clean
+             clone. -->
+        <profile>
+            <id>sdk-contract-verification</id>
+            <dependencies>
+                <dependency>
+                    <groupId>io.github.vinicius-ssantos</groupId>
+                    <artifactId>accountshield-sdk</artifactId>
+                    <version>1.0.0</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.6.0</version>
+                        <executions>
+                            <execution>
+                                <id>add-sdk-contract-test-source</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>add-test-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/test-sdk-contract/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

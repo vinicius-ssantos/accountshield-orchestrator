@@ -45,7 +45,7 @@ jobs:
           mvn --batch-mode --no-transfer-progress install -DskipTests
 
       - name: Build (no tests -- CodeQL only needs compiled bytecode)
-        run: mvn --batch-mode --no-transfer-progress -DskipTests package
+        run: mvn --batch-mode --no-transfer-progress -Psdk-contract-verification -DskipTests package
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
